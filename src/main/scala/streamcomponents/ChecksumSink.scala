@@ -10,7 +10,12 @@ import org.apache.commons.codec.binary.Hex
 
 import scala.concurrent.{Future, Promise}
 
-class MD5ChecksumSink extends GraphStageWithMaterializedValue[SinkShape[ByteString], Future[String]] {
+/**
+  * an akka streams sink that receives a ByteString then materiallizes the checksum value (as a hex string) at the end
+  * of the stream
+  * @param algorithm MessageDigest algorithm to use. This must be supported by `java.security.MessageDigest`. Defaults to "md5".
+  */
+class ChecksumSink(algorithm:String="md5") extends GraphStageWithMaterializedValue[SinkShape[ByteString], Future[String]] {
   private final val in:Inlet[ByteString] = Inlet.create("MD5ChecksumSink.in")
 
   override def shape: SinkShape[ByteString] = SinkShape.of(in)
@@ -20,8 +25,7 @@ class MD5ChecksumSink extends GraphStageWithMaterializedValue[SinkShape[ByteStri
 
     val logic = new GraphStageLogic(shape) {
       private val logger = LoggerFactory.getLogger(getClass)
-      private val md5Instance = MessageDigest.getInstance("md5")
-
+      private val md5Instance = MessageDigest.getInstance(algorithm)
 
       setHandler(in, new AbstractInHandler {
         override def onPush(): Unit = {

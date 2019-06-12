@@ -6,7 +6,7 @@ import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import akka.stream.scaladsl.{FileIO, GraphDSL, RunnableGraph, Sink, Source}
 import org.specs2.mutable.Specification
 import org.specs2.mock.Mockito
-import streamcomponents.{MD5ChecksumSink, MMappedFileSource}
+import streamcomponents.{ChecksumSink, MMappedFileSource}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -16,7 +16,7 @@ class MMappedFileSourceSpec extends Specification with Mockito {
     "correctly read in a large file of data" in new AkkaTestkitSpecs2Support {
       implicit val mat:Materializer = ActorMaterializer.create(system)
       val file = new File("testfiles/large-test-file.mp4")
-      val sinkFactory = new MD5ChecksumSink
+      val sinkFactory = new ChecksumSink()
       //val sinkFactory = FileIO.toPath(new File("testfiles/testout.mp4").toPath)
 
       val graph = GraphDSL.create(sinkFactory) { implicit builder=> sink=>
