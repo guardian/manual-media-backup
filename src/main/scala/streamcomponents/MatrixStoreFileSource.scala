@@ -1,7 +1,6 @@
 package streamcomponents
 
-import java.io.InputStream
-import java.nio.{ByteBuffer, DirectByteBuffer}
+import java.nio.ByteBuffer
 
 import akka.stream.{Attributes, Outlet, SourceShape}
 import akka.stream.stage.{AbstractOutHandler, GraphStage, GraphStageLogic}
