@@ -1,7 +1,10 @@
+package streamcomponents
 import akka.stream.scaladsl.{Keep, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, Attributes, FlowShape, Inlet, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import com.om.mxs.client.japi.{MXFSFileAttributes, MxsObject}
+import helpers.MetadataHelper
+import models.{FileAttributes, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -22,40 +25,12 @@ class OMLookupMetadata(implicit mat:Materializer, ec:ExecutionContext) extends G
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
 
-    /**
-      * iterates the available metadata and presents it as a dictionary
-      * @param obj [[MxsObject]] entity to retrieve information from
-      * @param mat implicitly provided materializer for streams
-      * @param ec implicitly provided execution context
-      * @return a Future, with the relevant map
-      */
-    def getAttributeMetadata(obj:MxsObject)(implicit mat:Materializer, ec:ExecutionContext) = {
-      val view = obj.getAttributeView
-
-      val sink = Sink.fold[Seq[(String,AnyRef)],(String,AnyRef)](Seq())((acc,elem)=>acc++Seq(elem))
-
-      Source.fromIterator(()=>view.iterator.asScala)
-        .map(elem=>(elem.getKey, elem.getValue))
-        .toMat(sink)(Keep.right)
-        .run()
-        .map(_.toMap)
-    }
-
-    /**
-      * get the MXFS file metadata
-      * @param obj [[MxsObject]] entity to retrieve information from
-      * @return
-      */
-    def getMxfsMetadata(obj:MxsObject) = {
-      val view = obj.getMXFSFileAttributeView
-      view.readAttributes()
-    }
 
     setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
         val elem=grab(in)
 
-        val completeCb = getAsyncCallback[(ObjectMatrixEntry,Map[String,Any],MXFSFileAttributes)](argTuple=>{
+        val completeCb = getAsyncCallback[(ObjectMatrixEntry,MxsMetadata,MXFSFileAttributes)](argTuple=>{
           val updated = argTuple._1.copy(
             attributes = Some(argTuple._2),
             fileAttribues = Some(FileAttributes(argTuple._3))
@@ -69,9 +44,9 @@ class OMLookupMetadata(implicit mat:Materializer, ec:ExecutionContext) extends G
           val vault = elem.vault
           val obj = vault.getObject(elem.oid)
 
-          getAttributeMetadata(obj).onComplete({
+          MetadataHelper.getAttributeMetadata(obj).onComplete({
             case Success(meta)=>
-              completeCb.invoke((elem, meta, getMxfsMetadata(obj)))
+              completeCb.invoke((elem, meta, MetadataHelper.getMxfsMetadata(obj)))
             case Failure(exception)=>
               logger.error(s"Could not look up metadata: ", exception)
               failedCb.invoke(exception)

@@ -1,6 +1,8 @@
+package streamcomponents
 import akka.stream.{Attributes, Outlet, SourceShape}
 import akka.stream.stage.{AbstractOutHandler, GraphStage, GraphStageLogic, GraphStageWithMaterializedValue}
 import com.om.mxs.client.japi.{MatrixStore, SearchTerm, UserInfo, Vault}
+import models.ObjectMatrixEntry
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._

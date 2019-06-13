@@ -1,3 +1,4 @@
+package models
 import java.time.{Instant, ZoneId, ZonedDateTime}
 
 import com.om.mxs.client.japi.MXFSFileAttributes
