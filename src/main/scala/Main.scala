@@ -3,7 +3,7 @@ import java.nio.file.Path
 import java.time.Instant
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, RunnableGraph}
+import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, RunnableGraph, Sink}
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import akka.util.ByteString
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
@@ -41,6 +41,7 @@ object Main {
       opt[String]('c',"copy-to-local").action((x,c)=>c.copy(copyToLocal = Some(x))).text("set to a filepath to copy from the OM to a local file")
       opt[String]('f', "copy-from-local").action((x,c)=>c.copy(copyFromLocal = Some(x))).text("set this to copy from a local file onto the OM")
       opt[Int]('s',"chunk-size").action((x,c)=>c.copy(chunkSize = x)).text("set chunk size for transfer in Kb/s")
+      opt[String]('t',"checksum-type").action((x,c)=>c.copy(checksumType = x)).text("use the given checksum type (md5, sha-1, sha-256 etc.) or 'none' for no checksum")
     }
   }
 
@@ -77,8 +78,11 @@ object Main {
     * @param fromFile java.nio.File indicating the file to copy from
     * @return a Future, with a string of the final
     */
-  def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int) = {
-    val checksumSinkFactory = new ChecksumSink("sha-256").async
+  def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String) = {
+    val checksumSinkFactory = checksumType match {
+      case "none"=>Sink.ignore
+      case _=>new ChecksumSink(checksumType).async
+    }
     val metadata = MatrixStoreHelper.metadataFromFilesystem(fromFile)
 
     if(metadata.isFailure){
@@ -121,8 +125,13 @@ object Main {
           val mbps = rate /1048576 *1000  //in MByte/s
 
           logger.info(s"Stream completed, transferred ${fromFile.length} bytes in ${msDuration} millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
-          val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map("SHA-256"->finalChecksum))
-          MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
+          finalChecksum match {
+            case actualChecksum:String=>
+              val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map("SHA-256"->actualChecksum))
+              MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
+            case _=>
+          }
+
           finalChecksum
         })
       } catch {
@@ -133,7 +142,7 @@ object Main {
     }
   }
 
-  def copyFromLocal(userInfo: UserInfo, vault: Vault, destFileName: Option[String], copyTo: String, chunkSize:Int) = {
+  def copyFromLocal(userInfo: UserInfo, vault: Vault, destFileName: Option[String], copyTo: String, chunkSize:Int, checksumType:String) = {
     logger.debug("in copyFromLocal")
     val check = Try { destFileName.flatMap(actualFileame=>MatrixStoreHelper.findByFilename(vault, actualFileame).map(_.headOption).get) }
 
@@ -146,7 +155,7 @@ object Main {
         Future.failed(new RuntimeException(s"Won't over-write pre-existing file: $existingFile"))
       case Success(None)=>
         logger.debug("Initiating copy")
-        doCopyTo(vault, destFileName, new File(copyTo), chunkSize)
+        doCopyTo(vault, destFileName, new File(copyTo), chunkSize, checksumType)
       }
     }
 
@@ -182,7 +191,7 @@ object Main {
             val vault = MatrixStore.openVault(userInfo)
 
             if(options.copyFromLocal.isDefined){
-              Await.ready(copyFromLocal(userInfo, vault, options.lookup, options.copyFromLocal.get, options.chunkSize*1024).andThen({
+              Await.ready(copyFromLocal(userInfo, vault, options.lookup, options.copyFromLocal.get, options.chunkSize*1024, options.checksumType).andThen({
                 case Success(_)=>terminate(0)
                 case Failure(err)=>
                   logger.error("",err)
