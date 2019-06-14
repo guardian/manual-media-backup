@@ -13,7 +13,7 @@ import sun.nio.ch.FileChannelImpl
 
 import scala.util.{Failure, Success, Try}
 
-class MMappedFileSource(file:File, pageSize:Int=32*1024*1024) extends GraphStage[SourceShape[ByteString]] {
+class MMappedFileSource(file:File, pageSize:Int=2*1024*1024) extends GraphStage[SourceShape[ByteString]] {
   private final val out:Outlet[ByteString] = Outlet.create("MMappedFileSource.out")
 
   //map in 1Gb chunks

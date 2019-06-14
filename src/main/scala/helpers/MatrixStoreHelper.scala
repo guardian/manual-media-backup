@@ -200,11 +200,7 @@ object MatrixStoreHelper {
       ),
       intValues = Map(
         "MXFS_CREATIONDAY"->maybeCtime.map(ctime=>ctime.getDayOfMonth).getOrElse(0),
-        "MXFS_ARCHMONTH"->nowTime.getMonth.getValue,
         "MXFS_COMPATIBLE"->1,
-        "MXFS_ARCHYEAR"->nowTime.getYear,
-        "MXFS_ARCHDAY"->nowTime.getDayOfMonth,
-        "MXFS_ARCHIVE_TIME"->nowTime.toInstant.getNano,
         "MXFS_CREATIONMONTH"->maybeCtime.map(_.getMonthValue).getOrElse(0),
         "MXFS_CREATIONYEAR"->maybeCtime.map(_.getYear).getOrElse(0)
       )

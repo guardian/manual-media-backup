@@ -16,9 +16,8 @@ import scala.concurrent.{Future, Promise}
   * Does not write any metadata.
   * On stream completion, materializes a Long value containing the number of bytes written
   * @param mxsFile MxsObject object representing the file to write. This will be created.
-  * @param bufferSize buffer size to use when writing. Default is 2Mb.
   */
-class MatrixStoreFileSink(mxsFile:MxsObject, bufferSize:Int=2*1024*1024) extends GraphStageWithMaterializedValue[SinkShape[ByteString], Future[Long]]{
+class MatrixStoreFileSink(mxsFile:MxsObject) extends GraphStageWithMaterializedValue[SinkShape[ByteString], Future[Long]]{
   private final val in:Inlet[ByteString] = Inlet.create("MatrixStoreFileSink.in")
 
   override def shape: SinkShape[ByteString] = SinkShape.of(in)
@@ -33,8 +32,8 @@ class MatrixStoreFileSink(mxsFile:MxsObject, bufferSize:Int=2*1024*1024) extends
 
       setHandler(in, new AbstractInHandler {
         override def onPush(): Unit = {
-          val buffer = ByteBuffer.allocate(bufferSize)
           val byteArr = grab(in).toArray
+          val buffer = ByteBuffer.allocate(byteArr.length)
           buffer.put(byteArr)
           ctr+=byteArr.length
           channel.write(buffer)
@@ -45,7 +44,7 @@ class MatrixStoreFileSink(mxsFile:MxsObject, bufferSize:Int=2*1024*1024) extends
       override def preStart(): Unit = {
         try {
           logger.info(s"Requesting write to ${mxsFile.getId}...")
-          channel = mxsFile.newSeekableObjectChannel(Set(AccessOption.WRITE,AccessOption.CREATE).asJava)
+          channel = mxsFile.newSeekableObjectChannel(Set(AccessOption.WRITE).asJava)
 
           pull(in)
         } catch {

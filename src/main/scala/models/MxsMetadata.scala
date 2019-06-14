@@ -13,7 +13,9 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
     * @return sequence of Attributes.
     */
   def toAttributes:Seq[Attribute] = {
-    stringValues.map(entry=>Attribute.createTextAttribute(entry._1,entry._2,true)).toSeq ++
+    stringValues.map(entry=>
+      Option(entry._2).map(realValue=>Attribute.createTextAttribute(entry._1,realValue,true))
+    ).toSeq.collect({case Some(attrib)=>attrib}) ++
     boolValues.map(entry=>new Attribute(entry._1,entry._2,true)) ++
     longValues.map(entry=>new Attribute(entry._1, entry._2, true)) ++
     intValues.map(entry=>new Attribute(entry._1, entry._2, true))
