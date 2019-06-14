@@ -17,6 +17,7 @@ val slf4jVersion = "1.7.25"
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream" % akkaVersion,
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
+  "com.typesafe.akka" %% "akka-http" % "10.1.7",
   "org.slf4j" % "slf4j-api" % slf4jVersion,
   "commons-codec" % "commons-codec" % "1.12",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
