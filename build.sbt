@@ -1,3 +1,9 @@
+import com.typesafe.sbt.packager.docker
+import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport.{dockerExposedPorts, dockerUsername}
+import com.typesafe.sbt.packager.docker.{Cmd, DockerPermissionStrategy}
+
+enablePlugins(DockerPlugin, AshScriptPlugin)
+
 name := "manual-media-backup"
 
 version := "0.1"
@@ -18,4 +24,23 @@ libraryDependencies ++= Seq(
   "org.specs2" %% "specs2-core" % "4.5.1" % Test,
   "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
   "org.mockito" % "mockito-core" % "2.28.2" % Test
+)
+
+version := sys.props.getOrElse("build.number","DEV")
+
+dockerPermissionStrategy := DockerPermissionStrategy.Run
+daemonUserUid in Docker := None
+daemonUser in Docker := "daemon"
+dockerUsername  := sys.props.get("docker.username")
+dockerRepository := Some("guardianmultimedia")
+packageName in Docker := "guardianmultimedia/manual-media-backup"
+packageName := "manual-media-backup"
+dockerBaseImage := "openjdk:8-jdk-alpine"
+dockerAlias := docker.DockerAlias(Some("dc1-gitlab-01.dc1.gnm.int"),Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV")))
+dockerCommands ++= Seq(
+  Cmd("USER","root"), //fix the permissions in the built docker image
+  Cmd("RUN", "chown daemon /opt/docker"),
+  Cmd("RUN", "chmod u+w /opt/docker"),
+  Cmd("RUN", "chmod -R a+x /opt/docker"),
+  Cmd("USER", "daemon")
 )

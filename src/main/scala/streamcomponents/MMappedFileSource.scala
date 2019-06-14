@@ -66,7 +66,7 @@ class MMappedFileSource(file:File, pageSize:Int=2*1024*1024) extends GraphStage[
     })
 
     override def preStart(): Unit = {
-      logger.info(s"Opening ${file.getAbsolutePath}...")
+      logger.info(s"Opening ${file.getAbsolutePath}, chunk size is $pageSize...")
       try {
         stream = new FileInputStream(file)
 

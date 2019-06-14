@@ -12,7 +12,7 @@
 
     <logger name="UserInfoBuilder$" level="WARN"/>
 
-    <root level="DEBUG">
+    <root level="INFO">
         <appender-ref ref="ASYNCSTDOUT" />
     </root>
 

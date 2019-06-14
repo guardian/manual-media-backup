@@ -40,7 +40,7 @@ object Main {
       opt[String]('l',"lookup").action((x,c)=>c.copy(lookup = Some(x))).text("look up this filepath on the provided ObjectMatrix")
       opt[String]('c',"copy-to-local").action((x,c)=>c.copy(copyToLocal = Some(x))).text("set to a filepath to copy from the OM to a local file")
       opt[String]('f', "copy-from-local").action((x,c)=>c.copy(copyFromLocal = Some(x))).text("set this to copy from a local file onto the OM")
-      opt[Int]('s',"chunk-size").action((x,c)=>c.copy(chunkSize = x)).text("set chunk size for transfer in Mb")
+      opt[Int]('s',"chunk-size").action((x,c)=>c.copy(chunkSize = x)).text("set chunk size for transfer in Kb/s")
     }
   }
 
@@ -104,7 +104,7 @@ object Main {
           checksumSink =>
             import akka.stream.scaladsl.GraphDSL.Implicits._
 
-            val src = builder.add(new MMappedFileSource(fromFile))
+            val src = builder.add(new MMappedFileSource(fromFile, chunkSize))
             val bcast = builder.add(new Broadcast[ByteString](2, true))
             val omSink = builder.add(new MatrixStoreFileSink(mxsFile).async)
 
@@ -120,7 +120,7 @@ object Main {
           val rate = fromFile.length().toDouble / msDuration.toDouble //in bytes/ms
           val mbps = rate /1048576 *1000  //in MByte/s
 
-          logger.debug(s"Stream completed, transferred ${fromFile.length} bytes in ${msDuration} millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
+          logger.info(s"Stream completed, transferred ${fromFile.length} bytes in ${msDuration} millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
           val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map("SHA-256"->finalChecksum))
           MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
           finalChecksum
@@ -182,7 +182,7 @@ object Main {
             val vault = MatrixStore.openVault(userInfo)
 
             if(options.copyFromLocal.isDefined){
-              Await.ready(copyFromLocal(userInfo, vault, options.lookup, options.copyFromLocal.get, options.chunkSize*1024*1024).andThen({
+              Await.ready(copyFromLocal(userInfo, vault, options.lookup, options.copyFromLocal.get, options.chunkSize*1024).andThen({
                 case Success(_)=>terminate(0)
                 case Failure(err)=>
                   logger.error("",err)
