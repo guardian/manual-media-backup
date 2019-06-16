@@ -9,11 +9,16 @@ import akka.http.scaladsl.model.headers.Accept
 import akka.stream.Materializer
 import akka.stream.scaladsl.{FileIO, Framing, Keep, Sink, Source}
 import akka.util.ByteString
+import models.IncomingListEntry
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 
 object ListReader {
+  private val logger = LoggerFactory.getLogger(getClass)
+
   /**
     * reads a newline-delimited file list from an HTTP URL. The final list is buffered in memory and returned as a Seq[String].
     * this is called by ListReader.read() to handle any path starting with 'http:'
@@ -47,6 +52,27 @@ object ListReader {
     })
   }
 
+  def fromHttpNDJson(uri:Uri,acceptContentType:Option[String])(implicit system:ActorSystem, mat:Materializer, ec:ExecutionContext) = {
+    val headers:scala.collection.immutable.Seq[HttpHeader] = scala.collection.immutable.Seq(
+      acceptContentType.map(ct=>new Accept(scala.collection.immutable.Seq(MediaRange(MediaType.custom(ct,false)))))
+    ).collect({case Some(hdr)=>hdr})
+
+    Http().singleRequest(HttpRequest(HttpMethods.GET,uri,headers)).flatMap(response=>{
+      response.entity.dataBytes
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 1024))
+        .map(_.decodeString("UTF-8"))
+        .toMat(Sink.fold[Seq[String],String](Seq())((acc,entry)=>acc++Seq(entry)))(Keep.right)
+        .run()
+        .map(result=>{
+          if(response.status!=StatusCodes.OK){
+            Right(result)
+          } else {
+            Left(result.mkString("\n"))
+          }
+        })
+    })
+  }
+
   /**
     * reads a newline-delimited file list from a local file.he final list is buffered in memory and returned as a Seq[String].
     * this is called by ListReader.read() if there is no obvious protocol handler.
@@ -73,6 +99,36 @@ object ListReader {
     }
   }
 
+  def fromFileNDJson(file:File)(implicit mat:Materializer,ec:ExecutionContext) = {
+    try {
+      FileIO.fromPath(file.toPath)
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 1024))
+        .map(_.decodeString("UTF-8"))
+        .map(record=>io.circe.parser.parse(record) match {
+          case Right(jsonRecord)=>jsonRecord
+          case Left(err)=>
+            logger.error(s"could not parse record into JSON: $err")
+            throw new RuntimeException(s"Could not parse json")
+        })
+        .map(record=>IncomingListEntry.fromJson(record) match {
+          case Success(rec)=>rec
+          case Failure(err)=>
+            logger.error(s"could not marshal json into object: ",err)
+            throw new RuntimeException("Could not marshal json")
+        })
+        .toMat(Sink.fold[Seq[IncomingListEntry], IncomingListEntry](Seq())((acc, entry) => acc ++ Seq(entry)))(Keep.right)
+        .run()
+        .map(result=>Right(result))
+        .recover({
+          case err:Throwable=>
+            Left(err.toString)
+        })
+    } catch {
+      case err:Throwable=>
+        Future(Left(err.toString))
+    }
+  }
+
   /**
     * reads a file list from some path. Anythin starting with http: or https: is downloaded via akka http, otherwise
     * it's treated as a local file
@@ -83,11 +139,19 @@ object ListReader {
     * @param ec
     * @return a Future, with either an error message in a Left or a sequence of filenames in a Right
     */
-  def read(path:String, acceptContentType:Option[String]=None)(implicit system:ActorSystem, mat:Materializer, ec:ExecutionContext) = {
+  def read(path:String, acceptContentType:Option[String]=None, withJson:Boolean=false)(implicit system:ActorSystem, mat:Materializer, ec:ExecutionContext) = {
     if(path.startsWith("http:") || path.startsWith("https:")){
-      fromHttp(Uri(path), acceptContentType)
+      if(withJson) {
+        fromHttpNDJson(Uri(path + "?json=true"), acceptContentType)
+      } else {
+        fromHttp(Uri(path), acceptContentType)
+      }
     } else {
-      fromFile(new File(path))
+      if(withJson) {
+        fromFileNDJson(new File(path))
+      } else {
+        fromFile(new File(path))
+      }
     }
   }
 }
