@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.headers.Accept
 import akka.stream.Materializer
 import akka.stream.scaladsl.{FileIO, Framing, Keep, Sink, Source}
 import akka.util.ByteString
-import models.IncomingListEntry
+import models.{Incoming, IncomingFilename, IncomingListEntry}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -18,6 +18,7 @@ import scala.util.{Failure, Success}
 
 object ListReader {
   private val logger = LoggerFactory.getLogger(getClass)
+  val maxLinesize = 8192
 
   /**
     * reads a newline-delimited file list from an HTTP URL. The final list is buffered in memory and returned as a Seq[String].
@@ -38,9 +39,9 @@ object ListReader {
 
     Http().singleRequest(HttpRequest(HttpMethods.GET,uri,headers)).flatMap(response=>{
       response.entity.dataBytes
-        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 1024))
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = maxLinesize))
         .map(_.decodeString("UTF-8"))
-        .toMat(Sink.fold[Seq[String],String](Seq())((acc,entry)=>acc++Seq(entry)))(Keep.right)
+        .toMat(Sink.fold[Seq[Incoming],String](Seq())((acc,entry)=>acc++Seq(IncomingFilename(entry))))(Keep.right)
         .run()
         .map(result=>{
           if(response.status!=StatusCodes.OK){
@@ -48,7 +49,7 @@ object ListReader {
           } else {
             Left(result.mkString("\n"))
           }
-      })
+        })
     })
   }
 
@@ -59,9 +60,9 @@ object ListReader {
 
     Http().singleRequest(HttpRequest(HttpMethods.GET,uri,headers)).flatMap(response=>{
       response.entity.dataBytes
-        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 1024))
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = maxLinesize))
         .map(_.decodeString("UTF-8"))
-        .toMat(Sink.fold[Seq[String],String](Seq())((acc,entry)=>acc++Seq(entry)))(Keep.right)
+        .toMat(Sink.fold[Seq[Incoming],String](Seq())((acc,entry)=>acc++Seq(IncomingFilename(entry))))(Keep.right)
         .run()
         .map(result=>{
           if(response.status!=StatusCodes.OK){
@@ -84,9 +85,9 @@ object ListReader {
   def fromFile(file:File)(implicit mat:Materializer,ec:ExecutionContext) = {
     try {
       FileIO.fromPath(file.toPath)
-        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 1024))
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = maxLinesize))
         .map(_.decodeString("UTF-8"))
-        .toMat(Sink.fold[Seq[String], String](Seq())((acc, entry) => acc ++ Seq(entry)))(Keep.right)
+        .toMat(Sink.fold[Seq[Incoming], String](Seq())((acc, entry) => acc ++ Seq(IncomingFilename(entry))))(Keep.right)
         .run()
         .map(result=>Right(result))
         .recover({
@@ -102,8 +103,8 @@ object ListReader {
   def fromFileNDJson(file:File)(implicit mat:Materializer,ec:ExecutionContext) = {
     try {
       FileIO.fromPath(file.toPath)
-        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 1024))
-        .map(_.decodeString("UTF-8"))
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = maxLinesize))
+        .map(_.decodeString("UTF-8")).async
         .map(record=>io.circe.parser.parse(record) match {
           case Right(jsonRecord)=>jsonRecord
           case Left(err)=>

@@ -5,7 +5,10 @@ import java.time.ZonedDateTime
 import io.circe.Json
 
 import scala.util.Try
-class IncomingListEntry(filePath:String, fileName:String, mtime:ZonedDateTime, size:Long)
+case class IncomingListEntry(filePath:String, fileName:String, mtime:ZonedDateTime, size:Long) extends Incoming
+{
+  override def filepath = s"$filePath/$fileName"
+}
 
 object IncomingListEntry {
   def fromJson(j:Json) = Try {

@@ -8,14 +8,14 @@ import java.time.{Instant, ZoneId, ZonedDateTime}
 
 import akka.stream.{ClosedShape, Materializer, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
-import com.om.mxs.client.japi.{MatrixStore, SearchTerm, UserInfo, Vault}
+import com.om.mxs.client.japi.{MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
 import models.{MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{OMLookupMetadata, OMSearchSource}
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 object MatrixStoreHelper {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -213,4 +213,21 @@ object MatrixStoreHelper {
     */
   def metadataFromFilesystem(filepath:String):Try[MxsMetadata] = metadataFromFilesystem(new File(filepath))
 
+  def getOMFileMd5(f:MxsObject)(implicit ec:ExecutionContext):Future[Try[String]] = {
+    val view = f.getAttributeView
+
+    def lookup(attempt:Int=1):Try[String] = {
+      val str = Try { view.readString("__mxs__calc_md5") }
+      str match {
+        case Success("")=>
+          logger.info(s"Empty string returned for file MD5 on attempt $attempt, assuming still calculating. Will retry...")
+          Thread.sleep(1000)  //this feels nasty but without resorting to actors i can't think of an elegant way
+                                      //to delay and re-call in a non-blocking way
+          lookup(attempt + 1)
+        case other @ _=>other
+      }
+    }
+
+    Future { lookup() }
+  }
 }

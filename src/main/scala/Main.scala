@@ -5,14 +5,10 @@ import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import helpers.{Copier, ListReader, MatrixStoreHelper, MetadataHelper}
 import models.{IncomingListEntry, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{ChecksumSink, ListCopyFile, MMappedFileSource, MatrixStoreFileSink, MatrixStoreFileSource}
-
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
-import scala.collection.JavaConverters._
-
 object Main {
   private val logger = LoggerFactory.getLogger(getClass)
   private implicit val actorSystem = ActorSystem("objectmatrix-test")
@@ -43,15 +39,19 @@ object Main {
 
 
   def handleList(listPath:String, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, paralellism:Int) = {
-    ListReader.read(listPath, withJson=true).flatMap({
+    ListReader.read(listPath, withJson = true).flatMap({
       case Left(err)=>
         logger.error(s"Could not read source list from $listPath: $err")
         Future(Left(err))
-      case Right(filesListRaw)=>
-        val filesList = filesListRaw.asInstanceOf[Seq[IncomingListEntry]] //nasty, just here for testing
-        filesList.foreach(entry=>logger.debug(entry.toString))
+      case Right(filesList)=>
+        filesList.foreach(entry=>logger.debug(s"$entry"))
         logger.info(s"Completed reading $listPath, got ${filesList.length} entries to back up")
-        val sinkFactory = Sink.ignore
+        if(filesList.isInstanceOf[Seq[IncomingListEntry]]){
+          val totalSize = filesList.foldLeft[Long](0L)((acc,elem)=>elem.asInstanceOf[IncomingListEntry].size+acc)
+          val totalSizeInGb = totalSize.toDouble / 1073741824
+          logger.info(s"Total size is $totalSizeInGb Gb")
+        }
+        //val sinkFactory = Sink.fold()
         Future(Right("ok"))
 //        val graph = GraphDSL.create(sinkFactory) { implicit builder=> sink=>
 //          import akka.stream.scaladsl.GraphDSL.Implicits._
@@ -84,7 +84,16 @@ object Main {
           case Success(userInfo)=>
             val vault = MatrixStore.openVault(userInfo)
 
-            if(options.copyFromLocal.isDefined){
+            if(options.listpath.isDefined){
+              handleList(options.listpath.get, userInfo, vault,options.chunkSize, options.checksumType, 4).andThen({
+                case Success(_)=>
+                  logger.info("All operations completed")
+                  terminate(0)
+                case Failure(err)=>
+                  logger.error(s"Uncaught exception: ", err)
+                  terminate(1)
+              })
+            } else if(options.copyFromLocal.isDefined){
               Await.ready(Copier.copyFromLocal(userInfo, vault, options.lookup, options.copyFromLocal.get, options.chunkSize*1024, options.checksumType).andThen({
                 case Success(_)=>terminate(0)
                 case Failure(err)=>
@@ -104,7 +113,7 @@ object Main {
             }
         }
 
-        terminate(0)
+        //terminate(0)
       case None=>
         // arguments are bad, error message will have been displayed
         terminate(1)
