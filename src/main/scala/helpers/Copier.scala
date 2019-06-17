@@ -49,7 +49,7 @@ object Copier {
     * @param vault `vault` object indicating where the file is to be stored
     * @param destFileName destination file name. this is checked beforehand, if it exists then no new file will be copied
     * @param fromFile java.nio.File indicating the file to copy from
-    * @return a Future, with a string of the final
+    * @return a Future, with a tuple of (object ID, checksum)
     */
   def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext,mat:Materializer) = {
     val checksumSinkFactory = checksumType match {
@@ -105,7 +105,7 @@ object Copier {
             case _=>
           }
 
-          finalChecksum
+          (mxsFile.getId, finalChecksum)
         })
       } catch {
         case err:Throwable=>

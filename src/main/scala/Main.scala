@@ -2,9 +2,12 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
+import com.sun.javaws.progress.Progress
 import helpers.{Copier, ListReader, MatrixStoreHelper, MetadataHelper}
-import models.{IncomingListEntry, MxsMetadata, ObjectMatrixEntry}
+import models.{CopyReport, Incoming, IncomingListEntry, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
+import streamcomponents.{ListCopyFile, ProgressMeterAndReport}
+
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -37,6 +40,28 @@ object Main {
     }
   }
 
+  def listHandlingGraph(filesList:Seq[IncomingListEntry],paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String) = {
+    val totalFileSize = filesList.foldLeft(0L)((acc, entry)=>acc+entry.size)
+
+    val sinkFactory = new ProgressMeterAndReport(Some(filesList.length), Some(totalFileSize)).async
+
+    GraphDSL.create(sinkFactory) { implicit builder=> sink=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+
+      val src = builder.add(Source.fromIterator(()=>filesList.toIterator))
+      val splitter = builder.add(Broadcast[IncomingListEntry](paralellism, true))
+      val merge = builder.add(Merge[CopyReport](paralellism, false))
+
+      src ~> splitter
+      for(_ <- 0 until paralellism){
+        val copier = builder.add(new ListCopyFile(userInfo, vault,chunkSize, checksumType,mat).async)
+        splitter ~> copier
+        copier ~> merge
+      }
+      merge ~> sink
+      ClosedShape
+    }
+  }
 
   def handleList(listPath:String, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, paralellism:Int) = {
     ListReader.read(listPath, withJson = true).flatMap({
@@ -51,26 +76,8 @@ object Main {
           val totalSizeInGb = totalSize.toDouble / 1073741824
           logger.info(s"Total size is $totalSizeInGb Gb")
         }
-        //val sinkFactory = Sink.fold()
-        Future(Right("ok"))
-//        val graph = GraphDSL.create(sinkFactory) { implicit builder=> sink=>
-//          import akka.stream.scaladsl.GraphDSL.Implicits._
-//
-//          val src = builder.add(Source.fromIterator(()=>filesList.toIterator))
-//          val splitter = builder.add(Broadcast[IncomingListEntry](paralellism, true))
-//          val merge = builder.add(Merge[IncomingListEntry](paralellism, false))
-//
-//          src ~> splitter
-//          for(_ <- 0 until paralellism){
-//            val copier = builder.add(new ListCopyFile(userInfo, vault,chunkSize, checksumType,mat).async)
-//            splitter ~> copier
-//            copier ~> merge
-//          }
-//          merge ~> sink
-//          ClosedShape
-//        }
 
-//        RunnableGraph.fromGraph(graph).run().map(result=>Right(result))
+        RunnableGraph.fromGraph(listHandlingGraph(filesList.map(_.asInstanceOf[IncomingListEntry]), paralellism, userInfo, vault, chunkSize, checksumType)).run().map(result=>Right(result))
     })
   }
 
@@ -86,9 +93,12 @@ object Main {
 
             if(options.listpath.isDefined){
               handleList(options.listpath.get, userInfo, vault,options.chunkSize, options.checksumType, 4).andThen({
-                case Success(_)=>
+                case Success(Right(finalReport))=>
                   logger.info("All operations completed")
                   terminate(0)
+                case Success(Left(err))=>
+                  logger.error(s"Could not start backup operation: $err")
+                  terminate(1)
                 case Failure(err)=>
                   logger.error(s"Uncaught exception: ", err)
                   terminate(1)
