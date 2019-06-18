@@ -36,6 +36,7 @@ object Main {
       opt[Int]('s',"chunk-size").action((x,c)=>c.copy(chunkSize = x)).text("set chunk size for transfer in Kb/s")
       opt[String]('t',"checksum-type").action((x,c)=>c.copy(checksumType = x)).text("use the given checksum type (md5, sha-1, sha-256 etc.) or 'none' for no checksum. Defaults to \"md5\", as this is the checksum format used on the MatrixStore.")
       opt[String]('l',"list").action((x,c)=>c.copy(listpath = Some(x))).text("read a list of files to backup from here. This could be a local filepath or an http/https URL.")
+      opt[String]('p',"parallelism").action((x,c)=>c.copy(parallelism = x.toInt)).text("copy this many files at once")
     }
   }
 
@@ -95,7 +96,7 @@ object Main {
             val vault = MatrixStore.openVault(userInfo)
 
             if(options.listpath.isDefined){
-              handleList(options.listpath.get, userInfo, vault,options.chunkSize, options.checksumType, 1).andThen({
+              handleList(options.listpath.get, userInfo, vault,options.chunkSize, options.checksumType, options.parallelism).andThen({
                 case Success(Right(finalReport))=>
                   logger.info("All operations completed")
                   terminate(0)
