@@ -98,10 +98,13 @@ You can provide a trusted HTTPS CA in the following way:
 There are a couple of ways of doing this:
     - edit the `/usr/bin/manual-media-backup` wrapper script and add the entry to the `JAVA_OPTS` line.
     - set the `JAVA_OPTS` environment variable to the above string before running the app
-In Docker, you'll need to make the keystore available to the app:
-  - `docker run --rm -v path/to/mykeystore.jks:/etc/ssl/mykeystore.jks -e JAVA_OPTS=javax.net.ssl.trustStore=/etc/ssl/mykeystore.jks -v /path/to/mediaroot:/path/to/mediaroot guardianmultimedia/manual-media-backup:[version] [options]`
-will bind-mount the file from your local path into `/etc/ssl/mykeystore.jks` and set the `JAVA_OPTS` environment variable
-within the container's scope.
+    - In Docker, you'll need to make the keystore available to the app:
+
+    ```
+    docker run --rm -v path/to/mykeystore.jks:/etc/ssl/mykeystore.jks -e JAVA_OPTS=javax.net.ssl.trustStore=/etc    /ssl/mykeystore.jks -v /path/to/mediaroot:/path/to/mediaroot guardianmultimedia/manual-media-backup:[version] [options]
+    ```
+
+   will bind-mount the file from your local path into `/etc/ssl/mykeystore.jks` and set the `JAVA_OPTS` environment variable within the container's scope.
 
 Still got trouble? Try Atlassian's SSLPoke (see https://confluence.atlassian.com/kb/unable-to-connect-to-ssl-services-due-to-pkix-path-building-failed-779355358.html)
 to help you debug the issue.
