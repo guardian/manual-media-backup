@@ -119,13 +119,14 @@ object Main {
                   terminate(1)
               })
             } else if(options.copyFromLocal.isDefined){
-              Await.ready(Copier.copyFromLocal(userInfo, vault, options.lookup, options.copyFromLocal.get, options.chunkSize*1024, options.checksumType).andThen({
-                case Success(_)=>terminate(0)
+              Copier.copyFromLocal(userInfo, vault, options.lookup, options.copyFromLocal.get, options.chunkSize*1024, options.checksumType).andThen({
+                case Success(_)=>
+                  logger.info(s"All operations completed")
+                  terminate(0)
                 case Failure(err)=>
                   logger.error("",err)
                   terminate(1)
-              }), 3 hours)
-              logger.info(s"All operations completed")
+              })
             } else if(options.lookup.isDefined){
               Copier.lookupFileName(userInfo, vault, options.lookup.get, options.copyToLocal) match {
                 case Success(completedFuture)=>
@@ -137,8 +138,6 @@ object Main {
               }
             }
         }
-
-        //terminate(0)
       case None=>
         // arguments are bad, error message will have been displayed
         terminate(1)

@@ -53,7 +53,7 @@ object Copier {
     */
   def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext,mat:Materializer) = {
     val checksumSinkFactory = checksumType match {
-      case "none"=>Sink.ignore.mapMaterializedValue(_=>Future("no-checksum"))
+      case "none"=>Sink.ignore.mapMaterializedValue(_=>Future(None))
       case _=>new ChecksumSink(checksumType).async
     }
     val metadata = MatrixStoreHelper.metadataFromFilesystem(fromFile)
@@ -99,8 +99,8 @@ object Copier {
 
           logger.info(s"Stream completed, transferred ${fromFile.length} bytes in ${msDuration} millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
           finalChecksum match {
-            case actualChecksum:String=>
-              val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map("SHA-256"->actualChecksum))
+            case Some(actualChecksum)=>
+              val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map(checksumType->actualChecksum))
               MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
             case _=>
           }
