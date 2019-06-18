@@ -2,7 +2,6 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
-import com.sun.javaws.progress.Progress
 import helpers.{Copier, ListReader, MatrixStoreHelper, MetadataHelper}
 import models.{CopyReport, Incoming, IncomingListEntry, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
