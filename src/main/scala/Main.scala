@@ -5,7 +5,7 @@ import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import helpers.{Copier, ListReader, MatrixStoreHelper, MetadataHelper}
 import models.{CopyReport, Incoming, IncomingListEntry, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{ListCopyFile, ProgressMeterAndReport}
+import streamcomponents.{FilesFilter, ListCopyFile, ProgressMeterAndReport}
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -34,7 +34,7 @@ object Main {
       opt[String]('c',"copy-to-local").action((x,c)=>c.copy(copyToLocal = Some(x))).text("set to a filepath to copy from the OM to a local file")
       opt[String]('f', "copy-from-local").action((x,c)=>c.copy(copyFromLocal = Some(x))).text("set this to copy from a local file onto the OM")
       opt[Int]('s',"chunk-size").action((x,c)=>c.copy(chunkSize = x)).text("set chunk size for transfer in Kb/s")
-      opt[String]('t',"checksum-type").action((x,c)=>c.copy(checksumType = x)).text("use the given checksum type (md5, sha-1, sha-256 etc.) or 'none' for no checksum")
+      opt[String]('t',"checksum-type").action((x,c)=>c.copy(checksumType = x)).text("use the given checksum type (md5, sha-1, sha-256 etc.) or 'none' for no checksum. Defaults to \"md5\", as this is the checksum format used on the MatrixStore.")
       opt[String]('l',"list").action((x,c)=>c.copy(listpath = Some(x))).text("read a list of files to backup from here. This could be a local filepath or an http/https URL.")
     }
   }
@@ -49,13 +49,16 @@ object Main {
 
       val src = builder.add(Source.fromIterator(()=>filesList.toIterator))
       val splitter = builder.add(Broadcast[IncomingListEntry](paralellism, true))
-      val merge = builder.add(Merge[CopyReport](paralellism, false))
+      val merge = builder.add(Merge[CopyReport](2*paralellism, false))
 
       src ~> splitter
       for(_ <- 0 until paralellism){
-        val copier = builder.add(new ListCopyFile(userInfo, vault,chunkSize, checksumType,mat).async)
-        splitter ~> copier
+        val checkfile = builder.add(new FilesFilter(true))
+        val copier = builder.add(new ListCopyFile(userInfo, vault,chunkSize, checksumType,mat))
+        splitter ~> checkfile
+        checkfile.out(0) ~> copier
         copier ~> merge
+        checkfile.out(1).map(entry=>CopyReport(entry.filepath,"",None,0, false)) ~> merge
       }
       merge ~> sink
       ClosedShape
@@ -63,6 +66,7 @@ object Main {
   }
 
   def handleList(listPath:String, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, paralellism:Int) = {
+    logger.info(s"Loading list from $listPath")
     ListReader.read(listPath, withJson = true).flatMap({
       case Left(err)=>
         logger.error(s"Could not read source list from $listPath: $err")
@@ -91,7 +95,7 @@ object Main {
             val vault = MatrixStore.openVault(userInfo)
 
             if(options.listpath.isDefined){
-              handleList(options.listpath.get, userInfo, vault,options.chunkSize, options.checksumType, 4).andThen({
+              handleList(options.listpath.get, userInfo, vault,options.chunkSize, options.checksumType, 1).andThen({
                 case Success(Right(finalReport))=>
                   logger.info("All operations completed")
                   terminate(0)

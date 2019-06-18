@@ -1,3 +1,3 @@
 package models
 
-case class CopyReport (filename:String, oid:String, checksum:String, size:Long)
+case class CopyReport (filename:String, oid:String, checksum:Option[String], size:Long, preExisting:Boolean)

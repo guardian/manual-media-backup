@@ -22,6 +22,7 @@ class ProgressMeterAndReport(maybeTotalFiles:Option[Long]=None, maybeTotalBytes:
       private var startTime: Long = _
       private var bytesCopied: Long = _
       private var filesCopied: Long = _
+      private var preExisting: Long = _
 
       setHandler(in, new AbstractInHandler {
         override def onPush(): Unit = {
@@ -29,10 +30,12 @@ class ProgressMeterAndReport(maybeTotalFiles:Option[Long]=None, maybeTotalBytes:
 
           bytesCopied += elem.size
           filesCopied += 1
+          if(elem.preExisting) preExisting+=1
+
           val gbCopied = bytesCopied.toDouble / 1073741824
           val elapsedTime = Instant.now().toEpochMilli - startTime
           val mbPerSec = gbCopied.toDouble * 1024000.0 / elapsedTime.toDouble
-          logger.info(f"Running total: Copied $filesCopied files totalling $gbCopied%.3f Gb in $elapsedTime msec, at a rate of $mbPerSec%.2f mb/s")
+          logger.info(f"Running total: Copied $filesCopied files ($preExisting were already there) totalling $gbCopied%.3f Gb in $elapsedTime msec, at a rate of $mbPerSec%.2f mb/s")
           if(maybeTotalBytes.isDefined){
             val pct = ((gbCopied*1073741824) / maybeTotalBytes.get ) * 100
             logger.info(f"$pct%.1f%% complete by bytes")

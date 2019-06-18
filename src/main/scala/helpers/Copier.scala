@@ -8,7 +8,7 @@ import akka.stream.{ClosedShape, Materializer}
 import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, RunnableGraph, Sink}
 import akka.util.ByteString
 import com.om.mxs.client.japi.{UserInfo, Vault}
-import models.ObjectMatrixEntry
+import models.{CopyProblem, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ChecksumSink, MMappedFileSource, MatrixStoreFileSink, MatrixStoreFileSource}
 
@@ -125,10 +125,10 @@ object Copier {
         Future.failed(err)
       case Success(Some(existingFile))=>
         logger.error(s"Won't over-write pre-existing file: $existingFile")
-        Future.failed(new RuntimeException(s"Won't over-write pre-existing file: $existingFile"))
+        Future(Left(CopyProblem(existingFile, "File already existed")))
       case Success(None)=>
         logger.debug("Initiating copy")
-        doCopyTo(vault, destFileName, new File(localFile), chunkSize, checksumType)
+        doCopyTo(vault, destFileName, new File(localFile), chunkSize, checksumType).map(Right(_))
     }
   }
 
