@@ -1,6 +1,6 @@
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, Merge, RunnableGraph, Sink, Source}
-import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
+import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import helpers.{Copier, ListReader, MatrixStoreHelper, MetadataHelper}
 import models.{CopyReport, Incoming, IncomingListEntry, MxsMetadata, ObjectMatrixEntry}
@@ -40,26 +40,37 @@ object Main {
     }
   }
 
+  def copierGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile) = GraphDSL.create() { implicit builder=>
+    import akka.stream.scaladsl.GraphDSL.Implicits._
+    val checkfile = builder.add(fileFilterFactory)
+    val copier = builder.add(copierFactory)
+    val merge = builder.add(Merge[CopyReport](2, false))
+    checkfile.out(0) ~> copier
+    copier ~> merge
+    checkfile.out(1).map(entry=>CopyReport(entry.filepath,"",None,0, false)) ~> merge
+
+    FlowShape(checkfile.in, merge.out)
+  }
+
   def listHandlingGraph(filesList:Seq[IncomingListEntry],paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String) = {
     val totalFileSize = filesList.foldLeft(0L)((acc, entry)=>acc+entry.size)
 
     val sinkFactory = new ProgressMeterAndReport(Some(filesList.length), Some(totalFileSize)).async
+
+    val fileFilterFactory = new FilesFilter(true)
+    val copierFactory = new ListCopyFile(userInfo, vault,chunkSize, checksumType,mat)
 
     GraphDSL.create(sinkFactory) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
       val src = builder.add(Source.fromIterator(()=>filesList.toIterator))
       val splitter = builder.add(Broadcast[IncomingListEntry](paralellism, true))
-      val merge = builder.add(Merge[CopyReport](2*paralellism, false))
+      val merge = builder.add(Merge[CopyReport](paralellism, false))
 
       src ~> splitter
       for(_ <- 0 until paralellism){
-        val checkfile = builder.add(new FilesFilter(true))
-        val copier = builder.add(new ListCopyFile(userInfo, vault,chunkSize, checksumType,mat))
-        splitter ~> checkfile
-        checkfile.out(0) ~> copier
-        copier ~> merge
-        checkfile.out(1).map(entry=>CopyReport(entry.filepath,"",None,0, false)) ~> merge
+        val copier = builder.add(copierGraph(fileFilterFactory, copierFactory).async)
+        splitter ~> copier ~> merge
       }
       merge ~> sink
       ClosedShape
