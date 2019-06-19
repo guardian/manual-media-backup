@@ -14,9 +14,9 @@ object FileAttributes {
     from.isOther,
     from.isRegularFile,
     from.isSymbolicLink,
-    ZonedDateTime.ofInstant(Instant.ofEpochMilli(from.creationTime()), ZoneId.of("UTC")),
-    ZonedDateTime.ofInstant(Instant.ofEpochMilli(from.lastModifiedTime()), ZoneId.of("UTC")),
-    ZonedDateTime.ofInstant(Instant.ofEpochMilli(from.lastAccessTime()), ZoneId.of("UTC")),
+    ZonedDateTime.ofInstant(Instant.ofEpochMilli(from.creationTime()), ZoneId.systemDefault()),
+    ZonedDateTime.ofInstant(Instant.ofEpochMilli(from.lastModifiedTime()), ZoneId.systemDefault()),
+    ZonedDateTime.ofInstant(Instant.ofEpochMilli(from.lastAccessTime()), ZoneId.systemDefault()),
     from.size()
   )
 }

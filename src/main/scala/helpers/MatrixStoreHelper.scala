@@ -236,6 +236,23 @@ object MatrixStoreHelper {
     */
   def metadataFromFilesystem(filepath:String):Try[MxsMetadata] = metadataFromFilesystem(new File(filepath))
 
+  protected def convertBytesToHex(bytes: Seq[Byte]): String = {
+    val sb = new StringBuilder
+    for (b <- bytes) {
+      sb.append(String.format("%02x", Byte.box(b)))
+    }
+    sb.toString
+  }
+
+  /**
+    * request MD5 checksum of the given object, as calculated by the appliance.
+    * as per the MatrixStore documentation, a blank string implies that the digest is still being calculated; in this
+    * case we sleep 1 second and try again.
+    * for this reason we do the operation in a sub-thread
+    * @param f MxsObject representing the object to checksum
+    * @param ec implicitly provided execution context
+    * @return a Future, which resolves to a Try containing a String of the checksum.
+    */
   def getOMFileMd5(f:MxsObject)(implicit ec:ExecutionContext):Future[Try[String]] = {
     val view = f.getAttributeView
 
@@ -247,7 +264,10 @@ object MatrixStoreHelper {
           Thread.sleep(1000)  //this feels nasty but without resorting to actors i can't think of an elegant way
                                       //to delay and re-call in a non-blocking way
           lookup(attempt + 1)
-        case other @ _=>other
+        case err @ Failure(_)=>err
+        case Success(result)=>
+          val byteString = result.toArray.map(_.toByte)
+          Success(convertBytesToHex(byteString))
       }
     }
 

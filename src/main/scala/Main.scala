@@ -47,7 +47,7 @@ object Main {
     val merge = builder.add(Merge[CopyReport](2, false))
     checkfile.out(0) ~> copier
     copier ~> merge
-    checkfile.out(1).map(entry=>CopyReport(entry.filepath,"",None,0, false)) ~> merge
+    checkfile.out(1).map(entry=>CopyReport(entry.filepath,"",None,0, preExisting = false, validationPassed = None)) ~> merge
 
     FlowShape(checkfile.in, merge.out)
   }
@@ -128,14 +128,14 @@ object Main {
                   terminate(1)
               })
             } else if(options.lookup.isDefined){
-              Copier.lookupFileName(userInfo, vault, options.lookup.get, options.copyToLocal) match {
-                case Success(completedFuture)=>
-                  Await.ready(completedFuture, 60 seconds)
+              Copier.lookupFileName(userInfo, vault, options.lookup.get, options.copyToLocal).onComplete({
+                case Success(_)=>
                   logger.info(s"All operations completed")
+                  terminate(0)
                 case Failure(err)=>
                   println(err.toString)
                   terminate(1)
-              }
+              })
             }
         }
       case None=>
