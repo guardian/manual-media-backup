@@ -35,7 +35,10 @@ class ChecksumSink(algorithm:String="md5") extends GraphStageWithMaterializedVal
         }
       })
 
-      override def preStart(): Unit = pull(in)
+      override def preStart(): Unit = {
+        logger.info(s"Calculating checksum with algorithm $algorithm")
+        pull(in)
+      }
 
       override def postStop(): Unit = {
         val str = Hex.encodeHexString(md5Instance.digest())

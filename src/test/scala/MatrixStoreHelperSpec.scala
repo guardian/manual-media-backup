@@ -45,14 +45,14 @@ class MatrixStoreHelperSpec extends Specification with Mockito {
   "MatrixStoreHelper.getOMFileMD5" should {
     "request the specific MD5 key and return it" in {
       val mockedMetadataView = mock[ObjectTypedAttributeView]
-      mockedMetadataView.readString("__mxs__calc_md5") returns "some-md5-here"
+      mockedMetadataView.readString("__mxs__calc_md5") returns "adff7d2ede6489c4"
 
       val mockedMxsObject = mock[MxsObject]
       mockedMxsObject.getAttributeView returns mockedMetadataView
 
       val result = Await.result(MatrixStoreHelper.getOMFileMd5(mockedMxsObject), 30 seconds)
       there was one(mockedMetadataView).readString("__mxs__calc_md5")
-      result must beSuccessfulTry("some-md5-here")
+      result must beSuccessfulTry("61646666376432656465363438396334") //the return value of readString is a binary string, which is converted to hex representation/
     }
 
     "pass back an exception as a failed try" in {
@@ -70,14 +70,14 @@ class MatrixStoreHelperSpec extends Specification with Mockito {
 
     "retry until a result is given" in {
       val mockedMetadataView = mock[ObjectTypedAttributeView]
-      mockedMetadataView.readString("__mxs__calc_md5") returns "" thenReturn "" thenReturn "some-md5-here"
+      mockedMetadataView.readString("__mxs__calc_md5") returns "" thenReturn "" thenReturn "adff7d2ede6489c4"
 
       val mockedMxsObject = mock[MxsObject]
       mockedMxsObject.getAttributeView returns mockedMetadataView
 
       val result = Await.result(MatrixStoreHelper.getOMFileMd5(mockedMxsObject), 30 seconds)
       there were three(mockedMetadataView).readString("__mxs__calc_md5")
-      result must beSuccessfulTry("some-md5-here")
+      result must beSuccessfulTry("61646666376432656465363438396334")
     }
   }
 }

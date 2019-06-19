@@ -36,6 +36,7 @@ class MatrixStoreFileSink(mxsFile:MxsObject) extends GraphStageWithMaterializedV
           val buffer = ByteBuffer.allocate(byteArr.length)
           buffer.put(byteArr)
           ctr+=byteArr.length
+          buffer.flip()
           channel.write(buffer)
           pull(in)
         }
