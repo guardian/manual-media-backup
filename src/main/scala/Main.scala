@@ -1,5 +1,5 @@
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, Merge, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{Balance, Broadcast, FileIO, GraphDSL, Merge, Partition, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import helpers.{Copier, ListReader, MatrixStoreHelper, MetadataHelper}
@@ -64,7 +64,7 @@ object Main {
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
       val src = builder.add(Source.fromIterator(()=>filesList.toIterator))
-      val splitter = builder.add(Broadcast[IncomingListEntry](paralellism, true))
+      val splitter = builder.add(Balance[IncomingListEntry](paralellism))
       val merge = builder.add(Merge[CopyReport](paralellism, false))
 
       src ~> splitter
