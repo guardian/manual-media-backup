@@ -16,6 +16,7 @@ import streamcomponents.{OMLookupMetadata, OMSearchSource}
 import scala.util.{Failure, Success, Try}
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.matching.Regex
 
 object MatrixStoreHelper {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -109,6 +110,26 @@ object MatrixStoreHelper {
     }
   }
 
+  /**
+    * converts mime type into a category integer, as per MatrixStoreAdministrationProgrammingGuidelines.pdf p.9
+    * @param mt MIME type as string
+    * @return an integer
+    */
+  val mimeTypeRegex = "^([^\\/]+)/(.*)$".r
+
+  def categoryForMimetype(mt: Option[String]):Int = mt match {
+    case None=>
+      logger.warn(s"No MIME type provided!")
+      0
+    case Some(mimeTypeRegex("video",minor)) =>2
+    case Some(mimeTypeRegex("audio",minor)) =>3
+    case Some(mimeTypeRegex("document",minor)) =>4
+    case Some(mimeTypeRegex("application",minor)) =>4
+    case Some(mimeTypeRegex("image",minor))=>5
+    case Some(mimeTypeRegex(major,minor))=>
+      logger.info(s"Did not regognise major type $major (minor was $minor)")
+      0
+  }
   /*
     * Map(MXFS_FILENAME_UPPER -> GDN_ZCO_110103_VIDEO_001.XML.BZ2,
     * _fs_compressed -> ,
@@ -171,7 +192,7 @@ object MatrixStoreHelper {
     */
   def metadataFromFilesystem(file:File):Try[MxsMetadata] = Try {
     val path = file.getAbsoluteFile.toPath
-    val mimeType = Files.probeContentType(file.toPath)
+    val mimeType = Option(Files.probeContentType(file.toPath))
 
     val fsAttrs = Files.readAttributes(path,"*",LinkOption.NOFOLLOW_LINKS).asScala
 
@@ -179,15 +200,16 @@ object MatrixStoreHelper {
     val nowTime = ZonedDateTime.now()
 
     val uid = Files.getAttribute(path, "unix:uid", LinkOption.NOFOLLOW_LINKS).asInstanceOf[Int]
-    println(uid.toString)
     MxsMetadata(
       stringValues = Map(
         "MXFS_FILENAME_UPPER" -> path.getFileName.toString.toUpperCase,
         "MXFS_FILENAME"->path.getFileName.toString,
         "MXFS_PATH"->path.toString,
         "MXFS_USERNAME"->uid.toString, //stored as a string for compatibility. There seems to be no easy way to look up the numeric UID in java/scala
-        "MXFS_MIMETYPE"->mimeType,
+        "MXFS_MIMETYPE"->mimeType.getOrElse("application/octet-stream"),
         "MXFS_DESCRIPTION"->s"File ${path.getFileName.toString}",
+        "MXFS_PARENTOID"->"",
+        "MXFS_FILEEXT"->getFileExt(path.getFileName.toString).getOrElse("")
       ),
       boolValues = Map(
         "MXFS_INTRASH"->false,
@@ -202,7 +224,8 @@ object MatrixStoreHelper {
         "MXFS_CREATIONDAY"->maybeCtime.map(ctime=>ctime.getDayOfMonth).getOrElse(0),
         "MXFS_COMPATIBLE"->1,
         "MXFS_CREATIONMONTH"->maybeCtime.map(_.getMonthValue).getOrElse(0),
-        "MXFS_CREATIONYEAR"->maybeCtime.map(_.getYear).getOrElse(0)
+        "MXFS_CREATIONYEAR"->maybeCtime.map(_.getYear).getOrElse(0),
+        "MXFS_CATEGORY"->categoryForMimetype(mimeType)
       )
     )
   }
