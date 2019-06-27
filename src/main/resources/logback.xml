@@ -11,8 +11,8 @@
     </appender>
 
     <logger name="UserInfoBuilder$" level="WARN"/>
-    <logger name="ListReader$" level="DEBUG"/>
-    <logger name="Main$" level="DEBUG"/>
+    <logger name="ListReader$" level="INFO"/>
+    <logger name="Main$" level="INFO"/>
 
     <root level="INFO">
         <appender-ref ref="ASYNCSTDOUT" />

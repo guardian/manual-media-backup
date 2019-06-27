@@ -8,10 +8,12 @@ import java.time.{Instant, ZoneId, ZonedDateTime}
 
 import akka.stream.{ClosedShape, Materializer, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
+import com.om.mxs.client.internal.TaggedIOException
 import com.om.mxs.client.japi.{MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
 import models.{MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{OMLookupMetadata, OMSearchSource}
+import org.apache.commons.codec.binary.Hex
 
 import scala.util.{Failure, Success, Try}
 import scala.collection.JavaConverters._
@@ -130,63 +132,8 @@ object MatrixStoreHelper {
       logger.info(s"Did not regognise major type $major (minor was $minor)")
       0
   }
-  /*
-    * Map(MXFS_FILENAME_UPPER -> GDN_ZCO_110103_VIDEO_001.XML.BZ2,
-    * _fs_compressed -> ,
-    * DPSP_TIMEBASEDUID -> 1fd406ca-315c-11e6-b7cd-90917ea9d7600000115,
-    * MXFS_CREATIONDAY -> 10,
-    * _fs_type -> ,
-    * MXFS_MODIFICATION_TIME -> 1465571182000,
-    * _fs_110103 -> ,
-    * _fs_fs -> ,
-    * server -> damserver,
-    * DPSP_TIMESTAMP -> 1465818256012,
-    * MXFS_CATEGORY -> 0,
-    * MXFS_ARCHMONTH -> 6,
-    * _fs_001 -> ,
-    * MXFS_COMPATIBLE -> 1,
-    * _fs_zco -> ,
-    * _fs_file -> ,
-    * MXFS_PARENTOID -> 0582342e-315c-11e6-a3bc-bc113b8044e7-0,
-    * _fs_application -> ,
-    * _fs_anonymous -> ,
-    * MXFS_USERNAME -> andy_gallagher,
-    * _fs_bz2 -> ,
-    * _fs_gdn -> ,
-    * editbox -> source_server=damserver,
-    * content_type=fcp_xml_compressed,
-    * _fs_editbox -> ,
-    * MXFS_ARCHYEAR -> 2016,
-    * __mdef__UUID -> ,
-    * _fs_video -> ,
-    * _fs_server -> ,
-    * MXFS_PATH -> /projectxmls/gdn_zco_110103_video_001.xml.bz2,
-    * _fs_bzip2 -> ,
-    * MXFS_CREATION_TIME -> 1465571182000,
-    * _fs_andy_gallagher -> ,
-    * _fs_uuid -> ,
-    * MXFS_ACCESS_TIME -> 1470740367620,
-    * _fs_mdef -> ,
-    * DPSP_SIZE -> 15809,
-    * MXFS_GENERATOR -> DPSP,
-    * MXFS_ARCHDAY -> 13,
-    * MXFS_FILENAME -> gdn_zco_110103_video_001.xml.bz2,
-    * _fs_x -> ,
-    * _fs_source -> ,
-    * MXFS_ARCHIVE_TIME -> 1465818209431,
-    * _fs_xml -> ,
-    * MXFS_CREATIONMONTH -> 6,
-    * MXFS_MIMETYPE -> application/x-bzip2,
-    * type -> fcp,
-    * MXFS_CREATIONYEAR -> 2016,
-    * MXFS_DESCRIPTION -> File gdn_zco_110103_video_001.xml.bz2,
-    * MXFS_INTRASH -> false,
-    * _fs_content -> ,
-    * MXFS_FILEEXT -> bz2)
-    * ),Some(FileAttributes(08271581-315c-11e6-a3bc-bc113b8044e7-5,gdn_zco_110103_video_001.xml.bz2,0582342e-315c-11e6-a3bc-bc113b8044e7-0,false,false,true,false,2016-06-13T11:43:29.431Z[UTC],2016-06-13T11:43:29.431Z[UTC],1970-01-01T00:00Z[UTC],15809))
-    *
-    */
-  /** initialises an MxsMetadata object from filesystem metadata. Use when uploading files to matrixstore/
+
+   /** initialises an MxsMetadata object from filesystem metadata. Use when uploading files to matrixstore/
     * @param file java.io.File object to check
     * @return either an MxsMetadata object or an error
     */
@@ -236,10 +183,20 @@ object MatrixStoreHelper {
     */
   def metadataFromFilesystem(filepath:String):Try[MxsMetadata] = metadataFromFilesystem(new File(filepath))
 
+  /**
+    * request MD5 checksum of the given object, as calculated by the appliance.
+    * as per the MatrixStore documentation, a blank string implies that the digest is still being calculated; in this
+    * case we sleep 1 second and try again.
+    * for this reason we do the operation in a sub-thread
+    * @param f MxsObject representing the object to checksum
+    * @param ec implicitly provided execution context
+    * @return a Future, which resolves to a Try containing a String of the checksum.
+    */
   def getOMFileMd5(f:MxsObject)(implicit ec:ExecutionContext):Future[Try[String]] = {
     val view = f.getAttributeView
 
     def lookup(attempt:Int=1):Try[String] = {
+      if(attempt>10) return Failure(new RuntimeException(s"Could not get valid checksum after $attempt tries"))
       val str = Try { view.readString("__mxs__calc_md5") }
       str match {
         case Success("")=>
@@ -247,7 +204,33 @@ object MatrixStoreHelper {
           Thread.sleep(1000)  //this feels nasty but without resorting to actors i can't think of an elegant way
                                       //to delay and re-call in a non-blocking way
           lookup(attempt + 1)
-        case other @ _=>other
+        case Failure(err:TaggedIOException)=>
+          if(err.getError==302){
+            logger.warn(s"Got 302 (server busy) from appliance, retrying after delay")
+            Thread.sleep(500)
+            lookup(attempt+1)
+          } else {
+            Failure(err)
+          }
+        case Failure(err:java.io.IOException)=>
+          if(err.getMessage.contains("error 302")){
+            logger.warn(s"Got an error containing 302 string, retrying after delay")
+            Thread.sleep(500)
+            lookup(attempt+1)
+          } else {
+            Failure(err)
+          }
+        case err @ Failure(_)=>err
+        case Success(result)=>
+          val byteString = result.toArray.map(_.toByte)
+          val converted = Hex.encodeHexString(byteString)
+          if(converted.length==32)
+            Success(converted)
+          else {
+            logger.warn(s"Returned checksum $converted is wrong length (${converted.length}; should be 32).")
+            Thread.sleep(500)
+            lookup(attempt+1)
+          }
       }
     }
 

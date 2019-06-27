@@ -134,21 +134,7 @@ object ListReader {
   def fromFileNDJson(file:File)(implicit mat:Materializer,ec:ExecutionContext) = {
     try {
       FileIO.fromPath(file.toPath)
-        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = maxLinesize))
-        .map(_.decodeString("UTF-8")).async
-        .map(record=>io.circe.parser.parse(record) match {
-          case Right(jsonRecord)=>jsonRecord
-          case Left(err)=>
-            logger.error(s"could not parse record into JSON: $err")
-            throw new RuntimeException(s"Could not parse json")
-        })
-        .map(record=>IncomingListEntry.fromJson(record) match {
-          case Success(rec)=>rec
-          case Failure(err)=>
-            logger.error(s"could not marshal json into object: ",err)
-            throw new RuntimeException("Could not marshal json")
-        })
-        .toMat(Sink.fold[Seq[IncomingListEntry], IncomingListEntry](Seq())((acc, entry) => acc ++ Seq(entry)))(Keep.right)
+        .toMat(ndJsonDecodeSink)(Keep.right)
         .run()
         .map(result=>Right(result))
         .recover({

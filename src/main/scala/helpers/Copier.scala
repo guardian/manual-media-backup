@@ -7,7 +7,7 @@ import java.time.Instant
 import akka.stream.{ClosedShape, Materializer}
 import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, RunnableGraph, Sink}
 import akka.util.ByteString
-import com.om.mxs.client.japi.{UserInfo, Vault}
+import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import models.{CopyProblem, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ChecksumSink, MMappedFileSource, MatrixStoreFileSink, MatrixStoreFileSource}
@@ -45,15 +45,22 @@ object Copier {
 
   /**
     * stream a file from the local filesystem into objectmatrix, creating metadata from what is provided by the filesystem.
-    * also, performs an SHA-256 checksum on the data as it is copied and sets this in the object's metadata too.
+    * also, performs a checksum on the data as it is copied and sets this in the object's metadata too.
     * @param vault `vault` object indicating where the file is to be stored
     * @param destFileName destination file name. this is checked beforehand, if it exists then no new file will be copied
     * @param fromFile java.nio.File indicating the file to copy from
+    * @param chunkSize chunk size when streaming the file.
+    * @param checksumType checksum type. This must be one of the digest IDs supported by java MessageDigest.
+    * @param keepOnFailure boolean, if true then even if a checksum does not match the destination file is kept.
+    *                      Defaults to false, delete destination file if checksum does not match.
+    * @param retryOnFailure boolean, if true then try again if the checksum does not match. Defaults to true
+    * @param ec implicitly provided execution context
+    * @param mat implicitly provided materializer
     * @return a Future, with a tuple of (object ID, checksum)
     */
-  def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext,mat:Materializer) = {
+  def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String, keepOnFailure:Boolean=false,retryOnFailure:Boolean=true)(implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] = {
     val checksumSinkFactory = checksumType match {
-      case "none"=>Sink.ignore.mapMaterializedValue(_=>Future("no-checksum"))
+      case "none"=>Sink.ignore.mapMaterializedValue(_=>Future(None))
       case _=>new ChecksumSink(checksumType).async
     }
     val metadata = MatrixStoreHelper.metadataFromFilesystem(fromFile)
@@ -90,22 +97,44 @@ object Copier {
             ClosedShape
         }
         logger.debug(s"Created stream")
-        RunnableGraph.fromGraph(graph).run().map(finalChecksum=>{
+        RunnableGraph.fromGraph(graph).run().flatMap(finalChecksum=>{
           val timestampFinish = Instant.now.toEpochMilli
           val msDuration = timestampFinish - timestampStart
 
           val rate = fromFile.length().toDouble / msDuration.toDouble //in bytes/ms
           val mbps = rate /1048576 *1000  //in MByte/s
 
-          logger.info(s"Stream completed, transferred ${fromFile.length} bytes in ${msDuration} millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
+          logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
           finalChecksum match {
-            case actualChecksum:String=>
-              val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map("SHA-256"->actualChecksum))
+            case Some(actualChecksum)=>
+              val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map(checksumType->actualChecksum))
               MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
-            case _=>
-          }
 
-          (mxsFile.getId, finalChecksum)
+              MatrixStoreHelper.getOMFileMd5(mxsFile).flatMap({
+                case Failure(err)=>
+                  logger.error(s"Unable to get checksum from appliance, file should be considered unsafe", err)
+                  Future.failed(err)
+                case Success(remoteChecksum)=>
+                  logger.info(s"Appliance reported checksum of $remoteChecksum")
+                  if(remoteChecksum!=actualChecksum){
+                    logger.error(s"Checksum did not match!")
+                    if(!keepOnFailure) {
+                      logger.info(s"Deleting invalid file ${mxsFile.getId}")
+                      mxsFile.deleteForcefully()
+                    }
+                    if(retryOnFailure){
+                      Thread.sleep(500)
+                      doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
+                    } else {
+                      Future.failed(new RuntimeException(s"Checksum did not match"))
+                    }
+                  } else {
+                    Future((mxsFile.getId, finalChecksum))
+                  }
+              })
+            case _=>
+              Future((mxsFile.getId, finalChecksum))
+          }
         })
       } catch {
         case err:Throwable=>
@@ -134,23 +163,28 @@ object Copier {
 
 
   def lookupFileName(userInfo:UserInfo, vault:Vault, fileName: String, copyTo:Option[String])(implicit ec:ExecutionContext, mat:Materializer) = {
-    MatrixStoreHelper.findByFilename(vault, fileName).map(results=>{
-      println(s"Found ${results.length} files: ")
+    val result = MatrixStoreHelper.findByFilename(vault, fileName).map(_.map(_.getMetadata)).map(futureResults=>{
 
-      if(copyTo.isDefined && results.nonEmpty){
-        val copyToPath = new File(copyTo.get).toPath
-        logger.info(s"copyToPath is $copyToPath")
-        //completionFutureList.map(_=>{
-        doCopy(userInfo, results.head, copyToPath).andThen({
-          case Success(checksum)=>logger.info(s"Completed file copy, checksum was $checksum")
-          case Failure(err)=>logger.error(s"Could not copy: ", err)
-        })
-        //})
-      } else {
-        Future.successful(())
-      }
+      Future.sequence(futureResults).map(results=> {
+        println(s"Found ${results.length} files: ")
 
+        Future.sequence(results.map(entry => {
+          println(entry)
+          val f = vault.getObject(entry.oid)
+          MatrixStoreHelper.getOMFileMd5(f).map({
+            case Success(md5) =>
+              println(s"File checksum is $md5")
+            case Failure(err) =>
+              println(s"Could not get checksum: $err")
+          })
+        }))
+      })
     })
+
+    result match {
+      case Failure(err)=>Future.failed(err)
+      case Success(futures)=>Future.successful( () )
+    }
   }
 
 }

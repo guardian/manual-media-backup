@@ -30,7 +30,7 @@ class MMappedFileSourceSpec extends Specification with Mockito {
 
       val result = Await.result(RunnableGraph.fromGraph(graph).run(), 30 seconds)
       //result.wasSuccessful must beTrue
-      result mustEqual "adff7d2ede6489c424568db68f90ef27"
+      result must beSome("adff7d2ede6489c424568db68f90ef27")
     }
   }
 }

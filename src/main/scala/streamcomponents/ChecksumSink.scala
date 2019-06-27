@@ -15,13 +15,13 @@ import scala.concurrent.{Future, Promise}
   * of the stream
   * @param algorithm MessageDigest algorithm to use. This must be supported by `java.security.MessageDigest`. Defaults to "md5".
   */
-class ChecksumSink(algorithm:String="md5") extends GraphStageWithMaterializedValue[SinkShape[ByteString], Future[String]] {
+class ChecksumSink(algorithm:String="md5") extends GraphStageWithMaterializedValue[SinkShape[ByteString], Future[Option[String]]] {
   private final val in:Inlet[ByteString] = Inlet.create("MD5ChecksumSink.in")
 
   override def shape: SinkShape[ByteString] = SinkShape.of(in)
 
-  override def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, Future[String]) = {
-    val completionPromise = Promise[String]()
+  override def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, Future[Option[String]]) = {
+    val completionPromise = Promise[Option[String]]()
 
     val logic = new GraphStageLogic(shape) {
       private val logger = LoggerFactory.getLogger(getClass)
@@ -35,11 +35,14 @@ class ChecksumSink(algorithm:String="md5") extends GraphStageWithMaterializedVal
         }
       })
 
-      override def preStart(): Unit = pull(in)
+      override def preStart(): Unit = {
+        logger.info(s"Calculating checksum with algorithm $algorithm")
+        pull(in)
+      }
 
       override def postStop(): Unit = {
         val str = Hex.encodeHexString(md5Instance.digest())
-        completionPromise.success(str)
+        completionPromise.success(Some(str))
       }
     }
     (logic, completionPromise.future)

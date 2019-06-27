@@ -40,12 +40,12 @@ class ListCopyFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:St
         val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
 
         Copier.copyFromLocal(userInfo, vault, Some(entry.filePath), entry.filepath, chunkSize, checksumType).onComplete({
-          case Success(Right( (oid,checksum) ))=>
+          case Success(Right( (oid,maybeChecksum) ))=>
             logger.info(s"Copied ${entry.filepath} to $oid")
-            completedCb.invoke(CopyReport(entry.filePath, oid, Some(checksum), entry.size, preExisting = false))
+            completedCb.invoke(CopyReport(entry.filePath, oid, maybeChecksum, entry.size, preExisting = false, validationPassed = None))
           case Success(Left(copyProblem))=>
             logger.warn(s"Could not copy file: $copyProblem")
-            completedCb.invoke(CopyReport(entry.filePath, copyProblem.filepath.oid, None, entry.size, preExisting = true))
+            completedCb.invoke(CopyReport(entry.filePath, copyProblem.filepath.oid, None, entry.size, preExisting = true, validationPassed = None))
           case Failure(err)=>
             logger.info(s"Failed copying ${entry.filepath}", err)
             failedCb.invoke(err)

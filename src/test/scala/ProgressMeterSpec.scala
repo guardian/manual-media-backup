@@ -12,16 +12,16 @@ class ProgressMeterSpec extends Specification {
     "receive CopyReport data and log it" in new AkkaTestkitSpecs2Support {
       implicit val mat:Materializer = ActorMaterializer.create(system)
       val fakeData = Seq(
-        CopyReport("file1","1234","checksum",1*1048576),
-        CopyReport("file1","1234","checksum",2*1048576),
-        CopyReport("file1","1234","checksum",3*1048576),
-        CopyReport("file1","1234","checksum",4*1048576),
-        CopyReport("file1","1234","checksum",5*1048576),
-        CopyReport("file1","1234","checksum",6*1048576),
-        CopyReport("file1","1234","checksum",7*1048576),
-        CopyReport("file1","1234","checksum",8*1048576),
-        CopyReport("file1","1234","checksum",9*1048576),
-        CopyReport("file1","1234","checksum",10*1048576),
+        CopyReport("file1","1234",Some("checksum"),1*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),2*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),3*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),4*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),5*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),6*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),7*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),8*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),9*1048576, false, None),
+        CopyReport("file1","1234",Some("checksum"),10*1048576, false, None),
 
       )
         //it seems that .delay() does not work as per the docs, it does initialDelay() instead...
