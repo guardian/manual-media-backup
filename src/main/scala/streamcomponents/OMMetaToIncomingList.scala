@@ -36,6 +36,11 @@ class OMMetaToIncomingList (implicit mat:Materializer, ec:ExecutionContext) exte
         val elem = grab(in)
         elem.getMetadata.onComplete({
           case Success(updatedEntry)=>
+//            println(updatedEntry.attributes.map(_.longValues))
+//            println(updatedEntry.attributes.map(_.stringValues))
+//            println(updatedEntry.attributes.map(_.intValues))
+//            println(updatedEntry.attributes.map(_.boolValues))
+
             val path,name = updatedEntry.stringAttribute("MXFS_FILENAME").getOrElse("unknown/unknown")
             val output = new IncomingListEntry(
               path,

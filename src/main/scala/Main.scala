@@ -6,7 +6,7 @@ import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, Us
 import helpers.{Copier, ListReader}
 import models.{CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport}
+import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -87,7 +87,12 @@ object Main {
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
 
-      val search = new Attribute(Constants.CONTENT, s"MXFS_PATH:$searchTerm")
+      val search = if(searchTerm.length>0){
+        new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"$searchTerm"""" )
+      } else {
+        new Attribute(Constants.CONTENT, s"*")
+      }
+
       val src = builder.add(new OMSearchSource(userInfo, None, searchAttribute=Some(search)))
 
       if(copyOut){
@@ -98,6 +103,7 @@ object Main {
         src ~> updater ~> balancer
         for(_ <- 0 until paralellism){
           val copier = builder.add(new ListRestoreFile(userInfo, vault, chunkSize, checksumType, mat))
+          //val validator = builder.add(new ValidateMD5(vault))
           balancer ~> copier ~> merge
         }
         merge ~>sink
@@ -105,11 +111,11 @@ object Main {
       } else {
         val mapper = builder.add(new OMMetaToIncomingList())
         src ~> mapper
-        mapper.out.map(entry=>new CopyReport(entry.fileName,"",None,entry.size, false, None))
-//        mapper.out.map(entry=>{
-//          logger.debug(s"got $entry")
-//          entry
-//        }) ~> sink
+        mapper.out.map(entry=>{
+          logger.debug(s"got $entry")
+          new CopyReport(entry.fileName,"",None,entry.size, false, None)
+        }) ~> sink
+
       }
       ClosedShape
     }

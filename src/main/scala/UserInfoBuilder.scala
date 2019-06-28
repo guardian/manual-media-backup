@@ -49,7 +49,7 @@ object UserInfoBuilder {
               case "addresses" => builder = builder.withAddresses(value)
               case "vaultName" => builder = builder.withVaultName(value)
               case "protocol" => builder = builder.withProtocol(value)
-              case "cluster_password" => builder = builder.withClusterPassword(value)
+              case "cluster password" => builder = builder.withClusterPassword(value)
             }
           case _=>
             logger.warn(s"Couldn't interpret line $line")
