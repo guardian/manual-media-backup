@@ -24,6 +24,7 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-java8" % circeVersion,
   "org.slf4j" % "slf4j-api" % slf4jVersion,
   "commons-codec" % "commons-codec" % "1.12",
+  "commons-io" % "commons-io" % "2.6",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.github.scopt" %% "scopt" % "3.7.1",
   "org.specs2" %% "specs2-core" % "4.5.1" % Test,

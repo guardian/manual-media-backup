@@ -14,6 +14,7 @@ import streamcomponents.{ChecksumSink, MMappedFileSource, MatrixStoreFileSink, M
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
+import org.apache.commons.io.FilenameUtils
 
 object Copier {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -161,19 +162,35 @@ object Copier {
     }
   }
 
+  def ensurePathExists(pathName:String) = {
+    val pathPart = new File(FilenameUtils.getPathNoEndSeparator(pathName))
+    logger.info(s"creating directories $pathPart")
+    pathPart.mkdirs()
+  }
+
+  def removeLeadingSlash(from:String) = {
+    if(from.startsWith("/")){
+      from.substring(1)
+    } else {
+      from
+    }
+  }
+
   def copyFromRemote(userInfo: UserInfo, vault:Vault, destFileName: Option[String], remoteFile:ObjectMatrixEntry, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext, mat:Materializer) = {
     logger.debug("in copyFromRemote")
 
     val maybeFilePath = destFileName match {
-      case None=> remoteFile.stringAttribute("MXFS_FILEPATH")
+      case None=> remoteFile.stringAttribute("MXFS_PATH")
       case ok @Some(_)=>ok
     }
 
-    maybeFilePath match {
+    maybeFilePath.map(removeLeadingSlash) match {
       case None=>
         logger.error(s"Could not find any file path to copy file to")
         Future(Left(CopyProblem(remoteFile,"Could not find any file path to copy file to")))
       case Some(actualFilePath)=>
+        logger.info(s"Copying to $actualFilePath")
+        ensurePathExists(actualFilePath)
         doCopy(userInfo, remoteFile, new File(actualFilePath).toPath).map(maybeCs=>Right((actualFilePath, maybeCs)))
     }
   }
