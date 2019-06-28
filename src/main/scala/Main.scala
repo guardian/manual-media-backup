@@ -1,16 +1,17 @@
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Balance, Broadcast, FileIO, GraphDSL, Merge, Partition, RunnableGraph, Sink, Source}
-import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer}
-import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
-import helpers.{Copier, ListReader, MatrixStoreHelper, MetadataHelper}
-import models.{CopyReport, Incoming, IncomingListEntry, MxsMetadata, ObjectMatrixEntry}
+import akka.stream.scaladsl.{Balance, GraphDSL, Merge, RunnableGraph, Sink, Source}
+import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape}
+import com.om.mxs.client.SimpleSearchTerm
+import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, UserInfo, Vault}
+import helpers.{Copier, ListReader}
+import models.{CopyReport, IncomingListEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{FilesFilter, ListCopyFile, ProgressMeterAndReport}
+import streamcomponents.{FilesFilter, ListCopyFile, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport}
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.concurrent.duration._
+import scala.concurrent.Future
+
 object Main {
   private val logger = LoggerFactory.getLogger(getClass)
   private implicit val actorSystem = ActorSystem("objectmatrix-test")
@@ -37,10 +38,11 @@ object Main {
       opt[String]('t',"checksum-type").action((x,c)=>c.copy(checksumType = x)).text("use the given checksum type (md5, sha-1, sha-256 etc.) or 'none' for no checksum. Defaults to \"md5\", as this is the checksum format used on the MatrixStore.")
       opt[String]('l',"list").action((x,c)=>c.copy(listpath = Some(x))).text("read a list of files to backup from here. This could be a local filepath or an http/https URL.")
       opt[String]('p',"parallelism").action((x,c)=>c.copy(parallelism = x.toInt)).text("copy this many files at once")
+      opt[String]("list-path").action((x,c)=>c.copy(listRemoteDirs = Some(x))).text("search the given filename path on the objectmatrix")
     }
   }
 
-  def copierGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile) = GraphDSL.create() { implicit builder=>
+  def copyToRemoteGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile) = GraphDSL.create() { implicit builder=>
     import akka.stream.scaladsl.GraphDSL.Implicits._
     val checkfile = builder.add(fileFilterFactory)
     val copier = builder.add(copierFactory)
@@ -51,6 +53,7 @@ object Main {
 
     FlowShape(checkfile.in, merge.out)
   }
+
 
   def listHandlingGraph(filesList:Seq[IncomingListEntry],paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String) = {
     val totalFileSize = filesList.foldLeft(0L)((acc, entry)=>acc+entry.size)
@@ -69,10 +72,31 @@ object Main {
 
       src ~> splitter
       for(_ <- 0 until paralellism){
-        val copier = builder.add(copierGraph(fileFilterFactory, copierFactory).async)
+        val copier = builder.add(copyToRemoteGraph(fileFilterFactory, copierFactory).async)
         splitter ~> copier ~> merge
       }
       merge ~> sink
+      ClosedShape
+    }
+  }
+
+  def remoteFileListGraph(userInfo:UserInfo, vault:Vault, searchTerm:String) = {
+    val sinkFactory = Sink.fold[Seq[IncomingListEntry],IncomingListEntry](Seq())((acc, entry)=>acc++Seq(entry))
+
+    GraphDSL.create(sinkFactory) { implicit builder=> sink=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+
+
+      val search = new Attribute(Constants.CONTENT, s"MXFS_FILENAME:$searchTerm")
+      val src = builder.add(new OMSearchSource(userInfo, None, searchAttribute=Some(search)))
+      val mapper = builder.add(new OMMetaToIncomingList())
+
+      src ~> mapper
+
+      mapper.out.map(entry=>{
+        logger.debug(s"got $entry")
+        entry
+      }) ~> sink
       ClosedShape
     }
   }
@@ -96,6 +120,15 @@ object Main {
     })
   }
 
+  def handleRemoteFileList(userInfo:UserInfo, vault:Vault, searchTerm:String) = {
+    RunnableGraph.fromGraph(remoteFileListGraph(userInfo, vault, searchTerm)).run().map(filesList=>{
+      val totalFileSize = filesList.foldLeft(0L)((acc,entry)=>acc+entry.size)
+
+      filesList.foreach(entry=>logger.info(s"\tGot ${entry.fileName} from ${entry.mtime}"))
+      logger.info(s"Found a total of ${filesList.length} files occupying a total of $totalFileSize bytes")
+    })
+  }
+
   def main(args:Array[String]):Unit = {
     buildOptionParser.parse(args, Options()) match {
       case Some(options)=>
@@ -106,14 +139,23 @@ object Main {
           case Success(userInfo)=>
             val vault = MatrixStore.openVault(userInfo)
 
-            if(options.listpath.isDefined){
-              handleList(options.listpath.get, userInfo, vault,options.chunkSize, options.checksumType, options.parallelism).andThen({
-                case Success(Right(finalReport))=>
+            if(options.listpath.isDefined) {
+              handleList(options.listpath.get, userInfo, vault, options.chunkSize, options.checksumType, options.parallelism).andThen({
+                case Success(Right(finalReport)) =>
                   logger.info("All operations completed")
                   terminate(0)
-                case Success(Left(err))=>
+                case Success(Left(err)) =>
                   logger.error(s"Could not start backup operation: $err")
                   terminate(1)
+                case Failure(err) =>
+                  logger.error(s"Uncaught exception: ", err)
+                  terminate(1)
+              })
+            } else if(options.listRemoteDirs.isDefined){
+              handleRemoteFileList(userInfo, vault, options.listRemoteDirs.get).andThen({
+                case Success(_)=>
+                  logger.info("All operations completed")
+                  terminate(0)
                 case Failure(err)=>
                   logger.error(s"Uncaught exception: ", err)
                   terminate(1)

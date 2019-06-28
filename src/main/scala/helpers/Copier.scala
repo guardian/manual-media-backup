@@ -161,6 +161,22 @@ object Copier {
     }
   }
 
+  def copyFromRemote(userInfo: UserInfo, vault:Vault, destFileName: Option[String], remoteFile:ObjectMatrixEntry, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext, mat:Materializer) = {
+    logger.debug("in copyFromRemote")
+
+    val maybeFilePath = destFileName match {
+      case None=> remoteFile.stringAttribute("MXFS_FILEPATH")
+      case ok @Some(_)=>ok
+    }
+
+    maybeFilePath match {
+      case None=>
+        logger.error(s"Could not find any file path to copy file to")
+        Future(Left(CopyProblem(remoteFile,"Could not find any file path to copy file to")))
+      case Some(actualFilePath)=>
+        doCopy(userInfo, remoteFile, new File(actualFilePath).toPath).map(maybeCs=>Right((actualFilePath, maybeCs)))
+    }
+  }
 
   def lookupFileName(userInfo:UserInfo, vault:Vault, fileName: String, copyTo:Option[String])(implicit ec:ExecutionContext, mat:Materializer) = {
     val result = MatrixStoreHelper.findByFilename(vault, fileName).map(_.map(_.getMetadata)).map(futureResults=>{

@@ -1,5 +1,7 @@
 package models
 
+import java.time.{Instant, ZoneId, ZonedDateTime}
+
 import akka.stream.Materializer
 import com.om.mxs.client.japi.{MXFSFileAttributes, Vault}
 import helpers.MetadataHelper
@@ -15,4 +17,10 @@ case class ObjectMatrixEntry(oid:String, vault:Vault, attributes:Option[MxsMetad
       this.copy(oid, vault, Some(mxsMeta), Some(FileAttributes(MetadataHelper.getMxfsMetadata(getMxsObject))))
     )
 
+  def stringAttribute(key:String) = attributes.flatMap(_.stringValues.get(key))
+  def intAttribute(key:String) = attributes.flatMap(_.intValues.get(key))
+  def longAttribute(key:String) = attributes.flatMap(_.longValues.get(key))
+  def timeAttribute(key:String, zoneId:ZoneId=ZoneId.systemDefault()) = attributes
+    .flatMap(_.longValues.get(key))
+    .map(v=>ZonedDateTime.ofInstant(Instant.ofEpochMilli(v),zoneId))
 }
