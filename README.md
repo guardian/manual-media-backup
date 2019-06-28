@@ -128,7 +128,25 @@ Copy a single file from a vault to local:
 ./manual-media-backup --vault-file /Users/home/Desktop/my_vault_file.vault -c /vault/path/file
 ```
 
+## Listing the contents of a vault
+
+```console
+$ ./manual-media-backup --vault-file /Users/home/Desktop/my_vault_file.vault --list-path "path\\/on\\/vault"
+```
+
+This scans the filenames as registered in MXFS_FILENAME or MXS_PATH in the onboard index. Note that `/` has a special
+meaning in the query and must be escaped, as above.
+
+## Bulk-copy from the vault to local storage
+
+```console
+$ ./manual-media-backup --vault-file /Users/home/Desktop/my_vault_file.vault --list-path "path\\/on\\/vault" --copy-to-local .
+```
+
+Note - you should be able to use `--copy-to-local` to specify the directory to copy to, but this is not yet implemented.
+Subfolders as described in MXS_PATH are created automatically where possible; existing files are not clobbered.
+
 ## Still to do
 
-- list-vault functionality
-- bulk-copy from vault to local
+- copy to local with custom base path
+- MD5 validation on restored files

@@ -42,7 +42,7 @@ dockerRepository := Some("guardianmultimedia")
 packageName in Docker := "guardianmultimedia/manual-media-backup"
 packageName := "manual-media-backup"
 dockerBaseImage := "openjdk:8-jdk-alpine"
-dockerAlias := docker.DockerAlias(Some("dc1-gitlab-01.dc1.gnm.int"),Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV")))
+dockerAlias := docker.DockerAlias(None, Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV")))
 dockerCommands ++= Seq(
   Cmd("USER","root"), //fix the permissions in the built docker image
   Cmd("RUN", "chown daemon /opt/docker"),
