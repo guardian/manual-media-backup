@@ -12,7 +12,8 @@
 
     <logger name="UserInfoBuilder$" level="WARN"/>
     <logger name="ListReader$" level="INFO"/>
-    <logger name="Main$" level="INFO"/>
+    <logger name="Main$" level="DEBUG"/>
+    <logger name="Copier$" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="ASYNCSTDOUT" />

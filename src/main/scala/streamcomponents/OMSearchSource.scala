@@ -1,7 +1,7 @@
 package streamcomponents
 import akka.stream.{Attributes, Outlet, SourceShape}
 import akka.stream.stage.{AbstractOutHandler, GraphStage, GraphStageLogic, GraphStageWithMaterializedValue}
-import com.om.mxs.client.japi.{MatrixStore, SearchTerm, UserInfo, Vault}
+import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, UserInfo, Vault}
 import models.ObjectMatrixEntry
 import org.slf4j.LoggerFactory
 
@@ -14,7 +14,7 @@ import scala.concurrent.{Future, Promise}
   * @param searchTerm term to search for
   * @param atOnce number of results to pull at once
   */
-class OMSearchSource (userInfo:UserInfo, searchTerm:SearchTerm, atOnce:Int=10) extends GraphStageWithMaterializedValue[SourceShape[ObjectMatrixEntry],Future[Int]]{
+class OMSearchSource (userInfo:UserInfo, searchTerm:Option[SearchTerm], searchAttribute:Option[Attribute], atOnce:Int=10) extends GraphStageWithMaterializedValue[SourceShape[ObjectMatrixEntry],Future[Int]]{
   private final val out:Outlet[ObjectMatrixEntry] = Outlet.create("OMSearchSource.out")
 
   override def shape: SourceShape[ObjectMatrixEntry] = SourceShape.of(out)
@@ -54,7 +54,15 @@ class OMSearchSource (userInfo:UserInfo, searchTerm:SearchTerm, atOnce:Int=10) e
         try {
           logger.info(s"Establishing connection to ${userInfo.getVault} on ${userInfo.getAddresses} as ${userInfo.getUser}")
           vault = Some(MatrixStore.openVault(userInfo))
-          iterator = Some(vault.get.searchObjectsIterator(searchTerm, atOnce).asScala)
+          iterator = searchTerm match {
+            case Some(actualSearchTerm)=>Some(vault.get.searchObjectsIterator(actualSearchTerm, atOnce).asScala)
+            case None=>
+              searchAttribute match {
+                case Some(actualSearchAttribute)=>Some(vault.get.searchObjectsIterator(actualSearchAttribute,atOnce).asScala)
+                case None=>Some(vault.get.searchObjectsIterator(new Attribute(Constants.CONTENT, "*"), atOnce).asScala)
+              }
+          }
+
           logger.info(s"Connection established")
         } catch {
           case ex: Throwable =>

@@ -5,4 +5,5 @@ case class Options (lookup:Option[String]=None,
                     chunkSize:Int=2,
                    checksumType:String="md5",
                     parallelism:Int=4,
-                    listpath:Option[String]=None)
+                    listpath:Option[String]=None,
+                    listRemoteDirs:Option[String]=None)

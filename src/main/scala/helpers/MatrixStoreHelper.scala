@@ -59,7 +59,7 @@ object MatrixStoreHelper {
     GraphDSL.create() { implicit builder=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
-      val src = builder.add(new OMSearchSource(userInfo,searchTerms).async)
+      val src = builder.add(new OMSearchSource(userInfo,Some(searchTerms),None).async)
       val mdLookup = builder.add(new OMLookupMetadata().async)
 
       src ~> mdLookup

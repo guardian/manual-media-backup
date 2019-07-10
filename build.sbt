@@ -24,6 +24,7 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-java8" % circeVersion,
   "org.slf4j" % "slf4j-api" % slf4jVersion,
   "commons-codec" % "commons-codec" % "1.12",
+  "commons-io" % "commons-io" % "2.6",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.github.scopt" %% "scopt" % "3.7.1",
   "org.specs2" %% "specs2-core" % "4.5.1" % Test,
@@ -41,7 +42,7 @@ dockerRepository := Some("guardianmultimedia")
 packageName in Docker := "guardianmultimedia/manual-media-backup"
 packageName := "manual-media-backup"
 dockerBaseImage := "openjdk:8-jdk-alpine"
-dockerAlias := docker.DockerAlias(Some("dc1-gitlab-01.dc1.gnm.int"),Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV")))
+dockerAlias := docker.DockerAlias(None, Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV")))
 dockerCommands ++= Seq(
   Cmd("USER","root"), //fix the permissions in the built docker image
   Cmd("RUN", "chown daemon /opt/docker"),

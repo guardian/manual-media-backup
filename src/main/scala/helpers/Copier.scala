@@ -14,6 +14,7 @@ import streamcomponents.{ChecksumSink, MMappedFileSource, MatrixStoreFileSink, M
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
+import org.apache.commons.io.FilenameUtils
 
 object Copier {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -161,6 +162,71 @@ object Copier {
     }
   }
 
+  def ensurePathExists(pathName:String) = {
+    val pathPart = new File(FilenameUtils.getPathNoEndSeparator(pathName))
+    logger.info(s"creating directories $pathPart")
+    pathPart.mkdirs()
+  }
+
+  /**
+    * returns true if the file does not exist or is zero-length, and should be overwritten
+    * @param filePath path to check
+    * @return bolean
+    */
+  def isAbsentOrZerolength(filePath:String) = {
+    val f = new File(filePath)
+    !f.exists() && f.length()==0
+  }
+
+  /**
+    * removes a leading slash from a filepath, if present
+    * @param from
+    * @return
+    */
+  def removeLeadingSlash(from:String) = {
+    if(from.startsWith("/")){
+      from.substring(1)
+    } else {
+      from
+    }
+  }
+
+  def copyFromRemote(userInfo: UserInfo, vault:Vault, destFileName: Option[String], remoteFile:ObjectMatrixEntry, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext, mat:Materializer) = {
+    logger.debug("in copyFromRemote")
+
+    val alternativePathLocations = List("MXFS_PATH","MXFS_FILENAME")
+
+    def tryNextLocation(list:List[String]):Option[String] = {
+      if(list.isEmpty) return None
+
+      val current = list.head
+      remoteFile.stringAttribute(current) match {
+        case Some(str)=>Some(str)
+        case None=>tryNextLocation(list.tail)
+      }
+    }
+
+    val maybeFilePath = destFileName match {
+      case None=> tryNextLocation(alternativePathLocations)
+      case ok @Some(_)=>ok
+    }
+
+
+    maybeFilePath.map(removeLeadingSlash) match {
+      case None=>
+        logger.error(s"Could not find any file path to copy file to")
+        Future(Left(CopyProblem(remoteFile,"Could not find any file path to copy file to")))
+      case Some(actualFilePath)=>
+        logger.info(s"Copying to $actualFilePath")
+        if(!isAbsentOrZerolength(actualFilePath)){
+          logger.warn("File already exists, not overwriting")
+          Future(Left(CopyProblem(remoteFile,"File already exists locally, not overwriting")))
+        } else {
+          ensurePathExists(actualFilePath)
+          doCopy(userInfo, remoteFile, new File(actualFilePath).toPath).map(maybeCs => Right((actualFilePath, maybeCs)))
+        }
+    }
+  }
 
   def lookupFileName(userInfo:UserInfo, vault:Vault, fileName: String, copyTo:Option[String])(implicit ec:ExecutionContext, mat:Materializer) = {
     val result = MatrixStoreHelper.findByFilename(vault, fileName).map(_.map(_.getMetadata)).map(futureResults=>{
