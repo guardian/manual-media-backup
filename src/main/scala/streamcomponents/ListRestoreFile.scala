@@ -20,7 +20,7 @@ import scala.util.{Failure, Success}
   * @param checksumType
   * @param mat
   */
-class ListRestoreFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:String, implicit val mat:Materializer)
+class ListRestoreFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:String, restorePath:String)(implicit val mat:Materializer)
   extends GraphStage[FlowShape[ObjectMatrixEntry,CopyReport]] {
   private final val in:Inlet[ObjectMatrixEntry] = Inlet.create("ListRestoreFile.in")
   private final val out:Outlet[CopyReport] = Outlet.create("ListRestoreFile.out")
@@ -39,7 +39,7 @@ class ListRestoreFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType
         val completedCb = createAsyncCallback[CopyReport](report=>push(out, report))
         val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
 
-        Copier.copyFromRemote(userInfo, vault, None, entry, chunkSize, checksumType).onComplete({
+        Copier.copyFromRemote(userInfo, vault, None, restorePath, entry, chunkSize, checksumType).onComplete({
           case Success(Right( (filePath,maybeChecksum) ))=>
             logger.info(s"Copied ${entry.oid} to $filePath")
             completedCb.invoke(CopyReport(filePath, entry.oid, maybeChecksum, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = false, validationPassed = None))
