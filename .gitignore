@@ -3,6 +3,8 @@
 # Compiled class file
 *.class
 
+testrun.sh
+
 # Log file
 *.log
 
