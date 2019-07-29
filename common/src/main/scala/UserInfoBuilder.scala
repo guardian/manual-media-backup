@@ -6,7 +6,7 @@ import scala.util.{Failure, Try}
 
 case class UserInfoBuilder(cluster:Option[String],user:Option[String],
                            password:Option[String],vault:Option[String],addresses:Option[String],vaultName:Option[String],
-                          protocol:Option[String],clusterPassword:Option[String]) {
+                           protocol:Option[String],clusterPassword:Option[String]) {
   def withCluster(clusterName:String) = this.copy(cluster=Some(clusterName))
   def withUser(value:String) = this.copy(user=Some(value))
   def withPassword(value:String) = this.copy(password=Some(value))

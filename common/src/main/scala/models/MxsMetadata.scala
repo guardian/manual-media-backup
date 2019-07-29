@@ -2,7 +2,7 @@ package models
 
 import java.time.{Instant, LocalDateTime, ZoneOffset, ZonedDateTime}
 
-import com.om.mxs.client.japi.{Attribute, MxsObject}
+import com.om.mxs.client.japi.Attribute
 import org.slf4j.LoggerFactory
 
 case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,Boolean], longValues:Map[String,Long], intValues:Map[String,Int]) {
