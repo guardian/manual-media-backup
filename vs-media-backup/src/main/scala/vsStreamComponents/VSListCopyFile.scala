@@ -1,5 +1,7 @@
 package vsStreamcomponents
 
+import java.io.File
+
 import akka.stream.{Attributes, FlowShape, Inlet, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, AsyncCallback, GraphStage, GraphStageLogic}
 import com.om.mxs.client.japi.{UserInfo, Vault}
@@ -15,15 +17,16 @@ import scala.util.{Failure, Success}
   * the file copy.
   * @param vault
   * @param chunkSize
-  * @param checksumType
   * @param mat
   */
-class VSListCopyFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:String, implicit val mat:Materializer)
-  extends GraphStage[FlowShape[VSBackupEntry,CopyReport]] {
+class VSListCopyFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, implicit val mat:Materializer)
+  extends GraphStage[FlowShape[VSBackupEntry,CopyReport[VSBackupEntry]]] {
   private final val in:Inlet[VSBackupEntry] = Inlet.create("VSListCopyFile.in")
-  private final val out:Outlet[CopyReport] = Outlet.create("VSListCopyFile.out")
+  private final val out:Outlet[CopyReport[VSBackupEntry]] = Outlet.create("VSListCopyFile.out")
 
-  override def shape: FlowShape[VSBackupEntry, CopyReport] = FlowShape.of(in,out)
+  override def shape: FlowShape[VSBackupEntry, CopyReport[VSBackupEntry]] = FlowShape.of(in,out)
+
+  val checksumType = "md5"  //this is the only checksum type supported by both VS and ObjectMatrix
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
@@ -32,22 +35,31 @@ class VSListCopyFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:
       override def onPush(): Unit = {
         logger.debug(s"listCopyFile: onPush")
         val entry = grab(in)
-//
-//        logger.info(s"Starting copy of ${entry.storageSubpath}")
-//        val completedCb = createAsyncCallback[CopyReport](report=>push(out, report))
-//        val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
-//
-//        Copier.copyFromLocal(userInfo, vault, Some(entry.filePath), entry.filepath, chunkSize, checksumType).onComplete({
-//          case Success(Right( (oid,maybeChecksum) ))=>
-//            logger.info(s"Copied ${entry.filepath} to $oid")
-//            completedCb.invoke(CopyReport(entry.filePath, oid, maybeChecksum, entry.size, preExisting = false, validationPassed = None))
-//          case Success(Left(copyProblem))=>
-//            logger.warn(s"Could not copy file: $copyProblem")
-//            completedCb.invoke(CopyReport(entry.filePath, copyProblem.filepath.oid, None, entry.size, preExisting = true, validationPassed = None))
-//          case Failure(err)=>
-//            logger.info(s"Failed copying ${entry.filepath}", err)
-//            failedCb.invoke(err)
-//        })
+
+        if(entry.fullPath.isEmpty){
+          logger.error("Item has no full path, can't continue.")
+          pull(in)
+        } else {
+          val fullPath = entry.fullPath.get
+          val f = new File(fullPath)
+          val fileSize = f.length()
+
+          logger.info(s"Starting copy of $fullPath")
+          val completedCb = createAsyncCallback[CopyReport[VSBackupEntry]](report => push(out, report))
+          val failedCb = createAsyncCallback[Throwable](err => failStage(err))
+
+          Copier.copyFromLocal(userInfo, vault, entry.storageSubpath, fullPath, chunkSize, checksumType).onComplete({
+            case Success(Right((oid, maybeChecksum))) =>
+              logger.info(s"Copied $fullPath to $oid")
+              completedCb.invoke(CopyReport(fullPath, oid, maybeChecksum, fileSize, preExisting = false, validationPassed = None, extraData = Some(entry)))
+            case Success(Left(copyProblem)) =>
+              logger.warn(s"Could not copy file: $copyProblem")
+              completedCb.invoke(CopyReport(fullPath, copyProblem.filepath.oid, None, fileSize, preExisting = true, validationPassed = None, extraData = Some(entry)))
+            case Failure(err) =>
+              logger.info(s"Failed copying $fullPath", err)
+              failedCb.invoke(err)
+          })
+        }
       }
     })
 

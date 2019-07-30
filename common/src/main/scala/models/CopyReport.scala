@@ -1,3 +1,3 @@
 package models
 
-case class CopyReport (filename:String, oid:String, checksum:Option[String], size:Long, preExisting:Boolean, validationPassed:Option[Boolean])
+case class CopyReport[T] (filename:String, oid:String, checksum:Option[String], size:Long, preExisting:Boolean, validationPassed:Option[Boolean], extraData:Option[T]=None)

@@ -9,10 +9,10 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.{Future, Promise}
 
-class ProgressMeterAndReport(maybeTotalFiles:Option[Long]=None, maybeTotalBytes:Option[Long]=None) extends GraphStageWithMaterializedValue[SinkShape[CopyReport],Future[FinalReport]] {
-  private final val in: Inlet[CopyReport] = Inlet.create("ProgressMeterAndReport.in")
+class ProgressMeterAndReport[T](maybeTotalFiles:Option[Long]=None, maybeTotalBytes:Option[Long]=None) extends GraphStageWithMaterializedValue[SinkShape[CopyReport[T]],Future[FinalReport]] {
+  private final val in: Inlet[CopyReport[T]] = Inlet.create("ProgressMeterAndReport.in")
 
-  override def shape: SinkShape[CopyReport] = SinkShape.of(in)
+  override def shape: SinkShape[CopyReport[T]] = SinkShape.of(in)
 
   override def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, Future[FinalReport]) = {
     val completionPromise = Promise[FinalReport]()

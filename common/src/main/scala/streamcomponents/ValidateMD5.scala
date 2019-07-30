@@ -16,11 +16,11 @@ import scala.util.{Failure, Success}
   * @param vault Vault that contains the files
   * @param errorOnValidationFailure if true, fail the output if validation fails. If false, output a CopyReport with validationSuccess as false.
   */
-class ValidateMD5(vault:Vault, errorOnValidationFailure:Boolean=false) extends GraphStage[FlowShape[CopyReport,CopyReport]]{
-  private final val in:Inlet[CopyReport] = Inlet.create("ValidateMD5.in")
-  private final val out:Outlet[CopyReport] = Outlet.create("ValidateMD5.in")
+class ValidateMD5[T](vault:Vault, errorOnValidationFailure:Boolean=false) extends GraphStage[FlowShape[CopyReport[T],CopyReport[T]]]{
+  private final val in:Inlet[CopyReport[T]] = Inlet.create("ValidateMD5.in")
+  private final val out:Outlet[CopyReport[T]] = Outlet.create("ValidateMD5.in")
 
-  override def shape: FlowShape[CopyReport, CopyReport] = FlowShape.of(in, out)
+  override def shape: FlowShape[CopyReport[T], CopyReport[T]] = FlowShape.of(in, out)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
@@ -29,7 +29,7 @@ class ValidateMD5(vault:Vault, errorOnValidationFailure:Boolean=false) extends G
       override def onPush(): Unit = {
         val elem = grab(in)
 
-        val completedCb = createAsyncCallback[CopyReport](report=>push(out,report))
+        val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out,report))
         val failedCb = createAsyncCallback[Throwable](err=>fail(out, err))
 
         val mxsFile = vault.getObject(elem.oid)

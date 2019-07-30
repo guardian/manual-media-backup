@@ -20,12 +20,12 @@ import scala.util.{Failure, Success}
   * @param checksumType
   * @param mat
   */
-class ListRestoreFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:String, restorePath:String)(implicit val mat:Materializer)
-  extends GraphStage[FlowShape[ObjectMatrixEntry,CopyReport]] {
+class ListRestoreFile[T](userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:String, implicit val mat:Materializer)
+  extends GraphStage[FlowShape[ObjectMatrixEntry,CopyReport[T]]] {
   private final val in:Inlet[ObjectMatrixEntry] = Inlet.create("ListRestoreFile.in")
-  private final val out:Outlet[CopyReport] = Outlet.create("ListRestoreFile.out")
+  private final val out:Outlet[CopyReport[T]] = Outlet.create("ListRestoreFile.out")
 
-  override def shape: FlowShape[ObjectMatrixEntry, CopyReport] = FlowShape.of(in,out)
+  override def shape: FlowShape[ObjectMatrixEntry, CopyReport[T]] = FlowShape.of(in,out)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
@@ -36,16 +36,16 @@ class ListRestoreFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType
         val entry = grab(in)
 
         logger.info(s"Starting copy of ${entry.oid}")
-        val completedCb = createAsyncCallback[CopyReport](report=>push(out, report))
+        val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out, report))
         val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
 
         Copier.copyFromRemote(userInfo, vault, None, restorePath, entry, chunkSize, checksumType).onComplete({
           case Success(Right( (filePath,maybeChecksum) ))=>
             logger.info(s"Copied ${entry.oid} to $filePath")
-            completedCb.invoke(CopyReport(filePath, entry.oid, maybeChecksum, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = false, validationPassed = None))
+            completedCb.invoke(CopyReport[T](filePath, entry.oid, maybeChecksum, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = false, validationPassed = None))
           case Success(Left(copyProblem))=>
             logger.warn(s"Could not copy file: $copyProblem")
-            completedCb.invoke(CopyReport(copyProblem.filepath.oid, "", None, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = true, validationPassed = None))
+            completedCb.invoke(CopyReport[T](copyProblem.filepath.oid, "", None, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = true, validationPassed = None))
           case Failure(err)=>
             logger.info(s"Failed copying $entry", err)
             failedCb.invoke(err)
