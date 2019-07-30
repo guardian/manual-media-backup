@@ -94,7 +94,7 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
     packageName in Docker := "guardianmultimedia/vs-media-backup",
     packageName := "vs-media-backup",
     dockerBaseImage := "openjdk:8-jdk-alpine",
-    dockerAlias := docker.DockerAlias(None, Some("guardianmultimedia"),"vs-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerAlias := docker.DockerAlias(Some("dc1-gitlab-01.dc1.gnm.int"), Some("guardianmultimedia"),"vs-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
       Cmd("RUN", "chown daemon /opt/docker"),

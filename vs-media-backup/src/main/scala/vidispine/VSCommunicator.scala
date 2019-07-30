@@ -55,7 +55,7 @@ class VSCommunicator(vsUri:Uri, plutoUser:String, plutoPass:String)(implicit val
       "Content-Type"->"application/xml"
     ) ++ headers
 
-    logger.debug(s"Got headers, initiating PUT to $uri")
+    logger.debug(s"Got headers, initiating $operation to $uri")
 
     val op = operation match {
       case OperationType.PUT=>sttp.put(uri)

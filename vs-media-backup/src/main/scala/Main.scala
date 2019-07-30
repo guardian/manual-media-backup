@@ -4,7 +4,7 @@ import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink, Source}
 import models.{VSBackupEntry, VSConfig}
 import org.slf4j.LoggerFactory
 import vidispine.VSCommunicator
-import vsStreamComponents.{CreateFileDuplicate, DecodeMediaCensusOutput}
+import vsStreamComponents.{CreateFileDuplicate, DecodeMediaCensusOutput, LookupFullPath}
 import com.softwaremill.sttp._
 
 import scala.concurrent.Await
@@ -48,8 +48,9 @@ object Main {
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
       val src = builder.add(new DecodeMediaCensusOutput(dataSource))
-      val duper = builder.add(new CreateFileDuplicate(vsCommunicator, storageId))
-      src ~> duper ~> sink
+      val pathLookup = builder.add(new LookupFullPath(vsCommunicator))
+      val duper = builder.add(new CreateFileDuplicate(vsCommunicator, storageId, dryRun = true))
+      src ~> pathLookup ~> duper ~> sink
       ClosedShape
     }
   }

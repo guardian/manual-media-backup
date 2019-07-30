@@ -11,6 +11,6 @@ package models
   * @param replicas
   * @param replicaCount
   */
-case class VSBackupEntry(sourceStorage:Option[String],
-                         storageSubpath:Option[String], vsFileId:Option[String], vsItemId:Option[String],
-                         vsShapeIds:Option[Seq[String]], replicas:Seq[VSFileLocation], replicaCount:Int, newlyCreatedReplicaId:Option[String])
+case class VSBackupEntry(sourceStorage:Option[String], storageSubpath:Option[String], vsFileId:Option[String], vsItemId:Option[String],
+                         vsShapeIds:Option[Seq[String]], replicas:Seq[VSFileLocation], replicaCount:Int,
+                         newlyCreatedReplicaId:Option[String], fullPath:Option[String])
