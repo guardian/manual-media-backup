@@ -19,7 +19,7 @@ import scala.util.{Failure, Success}
   * @param chunkSize
   * @param mat
   */
-class VSListCopyFile(userInfo:UserInfo, vault:Vault,chunkSize:Int, implicit val mat:Materializer)
+class VSListCopyFile(userInfo:UserInfo, vault:Vault,chunkSize:Int)(implicit val mat:Materializer)
   extends GraphStage[FlowShape[VSBackupEntry,CopyReport[VSBackupEntry]]] {
   private final val in:Inlet[VSBackupEntry] = Inlet.create("VSListCopyFile.in")
   private final val out:Outlet[CopyReport[VSBackupEntry]] = Outlet.create("VSListCopyFile.out")

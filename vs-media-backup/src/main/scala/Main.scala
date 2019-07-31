@@ -1,11 +1,14 @@
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink, Source}
-import models.{VSBackupEntry, VSConfig}
+import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
+import models.{CopyReport, VSBackupEntry, VSConfig}
 import org.slf4j.LoggerFactory
 import vidispine.VSCommunicator
-import vsStreamComponents.{CreateFileDuplicate, DecodeMediaCensusOutput, LookupFullPath}
+import vsStreamComponents.{CreateFileDuplicate, DecodeMediaCensusOutput, LookupFullPath, LookupVidispineMD5, VSDeleteFile}
 import com.softwaremill.sttp._
+import streamcomponents.{ValidateMD5, ValidationSwitch}
+import vsStreamcomponents.VSListCopyFile
 
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -32,6 +35,8 @@ object Main {
     sys.env("VIDISPINE_PASSWORD")
   )
 
+  lazy val chunkSize = sys.env.getOrElse("CHUNK_SIZE","1024").toInt //chunk size in kByte/s
+
   lazy implicit val vsCommunicator = new VSCommunicator(vsConfig.vsUri, vsConfig.plutoUser, vsConfig.plutoPass)
 
   lazy val storageId:String = sys.env.get("DEST_STORAGE_ID") match {
@@ -42,15 +47,31 @@ object Main {
       ""  //we should never reach this point
   }
 
-  def firstTestStream(dataSource:String) = {
-    val sinkFactory = Sink.fold[Seq[VSBackupEntry],VSBackupEntry](Seq())((acc,elem)=>acc++Seq(elem))
+  lazy val vaultFile:String = sys.env.get("VAULT_FILE") match {
+    case Some(str)=>str
+    case None=>
+      logger.error("You must specify VAULT_FILE to point to a .vault file with login credentials for the target vault")
+      Await.ready(terminate(1), 1 hour)
+      "" // we should never reach this point
+  }
+
+  def firstTestStream(dataSource:String, vault:Vault, userInfo:UserInfo) = {
+    val sinkFactory = Sink.fold[Seq[CopyReport[VSBackupEntry]],CopyReport[VSBackupEntry]](Seq())((acc,elem)=>acc++Seq(elem))
     GraphDSL.create(sinkFactory) {implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
       val src = builder.add(new DecodeMediaCensusOutput(dataSource))
       val pathLookup = builder.add(new LookupFullPath(vsCommunicator))
+      val vsLookup = builder.add(new LookupVidispineMD5(vsCommunicator))
+      val copier = builder.add(new VSListCopyFile(userInfo, vault, chunkSize*1024))
+      val validator = builder.add(new ValidateMD5[VSBackupEntry](vault))
+      val vsDeleteCorruptFile = builder.add(new VSDeleteFile(vsCommunicator,storageId))
+      val validationSwitch = builder.add(new ValidationSwitch[VSBackupEntry](treatNoneAsSuccess = true))
+
       val duper = builder.add(new CreateFileDuplicate(vsCommunicator, storageId, dryRun = true))
-      src ~> pathLookup ~> duper ~> sink
+      src ~> pathLookup ~> vsLookup ~> duper ~> copier ~> validator ~> validationSwitch
+      validationSwitch.out(0) ~> sink //we validated correctly
+      validationSwitch.out(1) ~> vsDeleteCorruptFile ~>sink
       ClosedShape
     }
   }
@@ -65,9 +86,19 @@ object Main {
   }
 
   def main(args:Array[String]):Unit = {
-
     val testContent = readResourceFile("testdata.json")
-    val graph = firstTestStream(testContent)
+
+    val userInfo = UserInfoBuilder.fromFile(vaultFile) match {
+      case Failure(err)=>
+        logger.error(s"Could not load user info from '$vaultFile': ", err)
+        Await.ready(terminate(2), 1 hour)
+        throw new RuntimeException("could not terminate actor system in time limit")  //we should not get here, this is just to keep the return value correct.
+      case Success(info)=>info
+    }
+
+    val vault = MatrixStore.openVault(userInfo)
+
+    val graph = firstTestStream(testContent,vault, userInfo)
 
     RunnableGraph.fromGraph(graph).run().onComplete({
       case Failure(err)=>

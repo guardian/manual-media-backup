@@ -15,16 +15,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="sbt: ch.qos.logback:logback-classic:1.2.3:jar" level="project" />
-    <orderEntry type="module-library">
-      <library name="sbt: unmanaged-jars">
-        <CLASSES>
-          <root url="jar://$MODULE_DIR$/lib/mxsjapi.jar!/" />
-          <root url="jar://$MODULE_DIR$/lib/oncrpc.jar!/" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-      </library>
-    </orderEntry>
     <orderEntry type="module" module-name="common" exported="" />
     <orderEntry type="library" name="sbt: commons-io:commons-io:2.6:jar" level="project" />
     <orderEntry type="library" name="sbt: org.typelevel:macro-compat_2.12:1.1.1:jar" level="project" />
@@ -70,5 +60,15 @@
     <orderEntry type="library" scope="TEST" name="sbt: org.specs2:specs2-fp_2.12:4.5.1:jar" level="project" />
     <orderEntry type="library" scope="TEST" name="sbt: org.specs2:specs2-matcher_2.12:4.5.1:jar" level="project" />
     <orderEntry type="library" scope="TEST" name="sbt: org.specs2:specs2-mock_2.12:4.5.1:jar" level="project" />
+    <orderEntry type="module-library">
+      <library name="sbt: unmanaged-jars">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/mxsjapi.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib/oncrpc.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
   </component>
 </module>

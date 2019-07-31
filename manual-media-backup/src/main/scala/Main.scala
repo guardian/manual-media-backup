@@ -42,11 +42,11 @@ object Main {
     }
   }
 
-  def copyToRemoteGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile) = GraphDSL.create() { implicit builder=>
+  def copyToRemoteGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile[Nothing]) = GraphDSL.create() { implicit builder=>
     import akka.stream.scaladsl.GraphDSL.Implicits._
     val checkfile = builder.add(fileFilterFactory)
     val copier = builder.add(copierFactory)
-    val merge = builder.add(Merge[CopyReport](2, false))
+    val merge = builder.add(Merge[CopyReport[Nothing]](2, false))
     checkfile.out(0) ~> copier
     copier ~> merge
     checkfile.out(1).map(entry=>CopyReport(entry.filepath,"",None,0, preExisting = false, validationPassed = None)) ~> merge
@@ -68,7 +68,7 @@ object Main {
 
       val src = builder.add(Source.fromIterator(()=>filesList.toIterator))
       val splitter = builder.add(Balance[IncomingListEntry](paralellism))
-      val merge = builder.add(Merge[CopyReport](paralellism, false))
+      val merge = builder.add(Merge[CopyReport[Nothing]](paralellism, false))
 
       src ~> splitter
       for(_ <- 0 until paralellism){
@@ -80,9 +80,8 @@ object Main {
     }
   }
 
-  def remoteFileListGraph(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, restorePath:Option[String]) = {
-    val sinkFactory = Sink.fold[Seq[CopyReport],CopyReport](Seq())((acc, entry)=>acc++Seq(entry))
-
+  def remoteFileListGraph(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, copyOut:Boolean) = {
+    val sinkFactory = Sink.fold[Seq[CopyReport[Nothing]],CopyReport[Nothing]](Seq())((acc, entry)=>acc++Seq(entry))
     GraphDSL.create(sinkFactory) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
@@ -98,7 +97,7 @@ object Main {
       if(restorePath.isDefined){
         val updater = builder.add(new OMLookupMetadata())
         val balancer = builder.add(Balance[ObjectMatrixEntry](paralellism))
-        val merge = builder.add(Merge[CopyReport](paralellism, false))
+        val merge = builder.add(Merge[CopyReport[Nothing]](paralellism, false))
 
         src ~> updater ~> balancer
         for(_ <- 0 until paralellism){

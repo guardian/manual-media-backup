@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ScalaCompilerConfiguration">
-    <profile name="sbt 1" modules="common,manual-media-backup,manual-media-backup_5017,manualbackup,vsmediabackup" />
+    <profile name="sbt 1" modules="common,manual-media-backup,manual-media-backup-common,manual-media-backup-manualbackup,manual-media-backup_5017,manualbackup,vs-media-backup-vsmediabackup,vsmediabackup,workdev-manual-media-backup" />
   </component>
 </project>

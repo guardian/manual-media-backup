@@ -13,4 +13,4 @@ package models
   */
 case class VSBackupEntry(sourceStorage:Option[String], storageSubpath:Option[String], vsFileId:Option[String], vsItemId:Option[String],
                          vsShapeIds:Option[Seq[String]], replicas:Seq[VSFileLocation], replicaCount:Int,
-                         newlyCreatedReplicaId:Option[String], fullPath:Option[String], vidispineMD5:Option[String])
+                         newlyCreatedReplicaId:Option[String], fullPath:Option[String], vidispineMD5:Option[String], vidispineSize:Option[Long])

@@ -104,6 +104,7 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
     ),
     libraryDependencies ++=Seq(
       "com.typesafe.akka" %% "akka-stream" % akkaVersion,
+      "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
       "com.typesafe.akka" %% "akka-http" % "10.1.7",
       "io.circe" %% "circe-core" % circeVersion,
