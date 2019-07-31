@@ -1,14 +1,13 @@
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
-import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{GraphDSL, Merge, RunnableGraph, Sink, Source}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import models.{CopyReport, VSBackupEntry, VSConfig}
 import org.slf4j.LoggerFactory
 import vidispine.VSCommunicator
-import vsStreamComponents.{CreateFileDuplicate, DecodeMediaCensusOutput, LookupFullPath, LookupVidispineMD5, VSDeleteFile}
+import vsStreamComponents.{CreateFileDuplicate, DecodeMediaCensusOutput, LookupFullPath, LookupVidispineMD5, VSCloseFile, VSDeleteFile, VSListCopyFile}
 import com.softwaremill.sttp._
 import streamcomponents.{ValidateMD5, ValidationSwitch}
-import vsStreamcomponents.VSListCopyFile
 
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -61,17 +60,21 @@ object Main {
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
       val src = builder.add(new DecodeMediaCensusOutput(dataSource))
-      val pathLookup = builder.add(new LookupFullPath(vsCommunicator))
-      val vsLookup = builder.add(new LookupVidispineMD5(vsCommunicator))
-      val copier = builder.add(new VSListCopyFile(userInfo, vault, chunkSize*1024))
-      val validator = builder.add(new ValidateMD5[VSBackupEntry](vault))
-      val vsDeleteCorruptFile = builder.add(new VSDeleteFile(vsCommunicator,storageId))
-      val validationSwitch = builder.add(new ValidationSwitch[VSBackupEntry](treatNoneAsSuccess = true))
+      val pathLookup = builder.add(new LookupFullPath(vsCommunicator))              //find the filesystem storage location we copy from
+      val vsLookup = builder.add(new LookupVidispineMD5(vsCommunicator))            //look up VS checksum and size
+      val copier = builder.add(new VSListCopyFile(userInfo, vault, chunkSize*1024)) //perform the copy
+      //val validator = builder.add(new ValidateMD5[VSBackupEntry](vault))
+      //val vsDeleteCorruptFile = builder.add(new VSDeleteFile(vsCommunicator,storageId))
+      //val validationSwitch = builder.add(new ValidationSwitch[VSBackupEntry](treatNoneAsSuccess = true))
 
-      val duper = builder.add(new CreateFileDuplicate(vsCommunicator, storageId, dryRun = true))
-      src ~> pathLookup ~> vsLookup ~> duper ~> copier ~> validator ~> validationSwitch
-      validationSwitch.out(0) ~> sink //we validated correctly
-      validationSwitch.out(1) ~> vsDeleteCorruptFile ~>sink
+      val duper = builder.add(new CreateFileDuplicate(vsCommunicator, storageId, dryRun = false)) //create a file record in VS marked as a duplicate
+      val closer = builder.add(new VSCloseFile(vsCommunicator, storageId))                        //ensure that the created file is marked as "closed"
+      //val merge = builder.add(Merge[CopyReport[VSBackupEntry]](2))
+
+      src ~> pathLookup ~> vsLookup ~> duper ~> copier ~> closer ~> sink //~> validator ~> validationSwitch
+//      validationSwitch.out(0) ~> merge //we validated correctly
+//      validationSwitch.out(1) ~> vsDeleteCorruptFile ~> merge  //we did not validate correctly, so delete the corrupt desintation record (which should in turn delete the file)
+//      merge ~> sink
       ClosedShape
     }
   }

@@ -193,10 +193,10 @@ object MatrixStoreHelper {
     * @return a Future, which resolves to a Try containing a String of the checksum.
     */
   def getOMFileMd5(f:MxsObject)(implicit ec:ExecutionContext):Future[Try[String]] = {
-    val view = f.getAttributeView
 
     def lookup(attempt:Int=1):Try[String] = {
       if(attempt>10) return Failure(new RuntimeException(s"Could not get valid checksum after $attempt tries"))
+      val view = f.getAttributeView
       val str = Try { view.readString("__mxs__calc_md5") }
       str match {
         case Success("")=>
@@ -223,12 +223,14 @@ object MatrixStoreHelper {
         case err @ Failure(_)=>err
         case Success(result)=>
           val byteString = result.toArray.map(_.toByte)
+          logger.debug(s"byte string was $byteString")
           val converted = Hex.encodeHexString(byteString)
+          logger.debug(s"converted string was $converted")
           if(converted.length==32)
             Success(converted)
           else {
             logger.warn(s"Returned checksum $converted is wrong length (${converted.length}; should be 32).")
-            Thread.sleep(500)
+            Thread.sleep(1500)
             lookup(attempt+1)
           }
       }
