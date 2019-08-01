@@ -11,6 +11,7 @@
             <option value="$PROJECT_DIR$/common" />
             <option value="$PROJECT_DIR$/manual-media-backup" />
             <option value="$PROJECT_DIR$/project" />
+            <option value="$PROJECT_DIR$/show-mxs-checksum" />
             <option value="$PROJECT_DIR$/vs-media-backup" />
           </set>
         </option>
