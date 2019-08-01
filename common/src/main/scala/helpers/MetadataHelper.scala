@@ -1,9 +1,12 @@
 package helpers
 
+import java.nio.ByteBuffer
+
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import com.om.mxs.client.japi.MxsObject
 import models.MxsMetadata
+import org.apache.commons.codec.binary.Hex
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
@@ -27,6 +30,7 @@ object MetadataHelper {
         case boolValue: Boolean => acc.copy(boolValues = acc.boolValues ++ Map(elem._1->boolValue))
         case intValue:Int => acc.copy(intValues = acc.intValues ++ Map(elem._1 -> intValue))
         case longValue:Long => acc.copy(longValues = acc.longValues ++ Map(elem._1 -> longValue))
+        case byteBuffer:ByteBuffer => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> Hex.encodeHexString(byteBuffer.array())))
         case stringValue:String => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> stringValue))
         case _=>
           logger.warn(s"Could not get metadata value for ${elem._1} on ${obj.getId}, type ${elem._2.getClass.toString} not recognised")

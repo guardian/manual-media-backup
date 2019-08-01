@@ -1,6 +1,7 @@
 package helpers
 
 import java.io.File
+import java.nio.ByteBuffer
 import java.nio.file.{Files, LinkOption}
 import java.nio.file.attribute.{BasicFileAttributes, FileTime}
 import java.time.temporal.TemporalField
@@ -192,18 +193,20 @@ object MatrixStoreHelper {
     * @param ec implicitly provided execution context
     * @return a Future, which resolves to a Try containing a String of the checksum.
     */
-  def getOMFileMd5(f:MxsObject)(implicit ec:ExecutionContext):Future[Try[String]] = {
+  def getOMFileMd5(f:MxsObject, maxAttempts:Int=10)(implicit ec:ExecutionContext):Future[Try[String]] = {
 
     def lookup(attempt:Int=1):Try[String] = {
-      if(attempt>10) return Failure(new RuntimeException(s"Could not get valid checksum after $attempt tries"))
+      if(attempt>maxAttempts) return Failure(new RuntimeException(s"Could not get valid checksum after $attempt tries"))
       val view = f.getAttributeView
-      val str = Try { view.readString("__mxs__calc_md5") }
-      str match {
-        case Success("")=>
-          logger.info(s"Empty string returned for file MD5 on attempt $attempt, assuming still calculating. Will retry...")
-          Thread.sleep(1000)  //this feels nasty but without resorting to actors i can't think of an elegant way
-                                      //to delay and re-call in a non-blocking way
-          lookup(attempt + 1)
+      val result = Try {
+        logger.debug(s"getting result for ${f.getId}...")
+        val buf = ByteBuffer.allocate(16)
+        view.read("__mxs__calc_md5", buf)
+        logger.debug(s"Got buffer of length ${buf.array().length}")
+        buf
+      }
+
+      result match {
         case Failure(err:TaggedIOException)=>
           if(err.getError==302){
             logger.warn(s"Got 302 (server busy) from appliance, retrying after delay")
@@ -220,18 +223,25 @@ object MatrixStoreHelper {
           } else {
             Failure(err)
           }
-        case err @ Failure(_)=>err
-        case Success(result)=>
-          val byteString = result.toArray.map(_.toByte)
-          logger.debug(s"byte string was $byteString")
-          val converted = Hex.encodeHexString(byteString)
-          logger.debug(s"converted string was $converted")
-          if(converted.length==32)
-            Success(converted)
-          else {
-            logger.warn(s"Returned checksum $converted is wrong length (${converted.length}; should be 32).")
-            Thread.sleep(1500)
-            lookup(attempt+1)
+        case Failure(otherError)=>Failure(otherError)
+        case Success(buffer)=>
+          val arr = buffer.array()
+          if(arr.isEmpty) {
+            logger.info(s"Empty string returned for file MD5 on attempt $attempt, assuming still calculating. Will retry...")
+            Thread.sleep(1000) //this feels nasty but without resorting to actors i can't think of an elegant way
+            //to delay and re-call in a non-blocking way
+            lookup(attempt + 1)
+          } else {
+            logger.debug(s"byte string length was ${arr.length}")
+            val converted = Hex.encodeHexString(arr)
+            logger.debug(s"converted string was $converted")
+            if (converted.length == 32)
+              Success(converted)
+            else {
+              logger.warn(s"Returned checksum $converted is wrong length (${converted.length}; should be 32).")
+              Thread.sleep(1500)
+              lookup(attempt + 1)
+            }
           }
       }
     }

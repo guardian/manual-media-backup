@@ -26,7 +26,7 @@ class VSListCopyFile(userInfo:UserInfo, vault:Vault,chunkSize:Int)(implicit val 
 
   override def shape: FlowShape[VSBackupEntry, CopyReport[VSBackupEntry]] = FlowShape.of(in,out)
 
-  val checksumType = "none"  //turn off checksum due to issues
+  val checksumType = "md5"  //turn off checksum due to issues
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)

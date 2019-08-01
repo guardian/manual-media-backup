@@ -63,18 +63,18 @@ object Main {
       val pathLookup = builder.add(new LookupFullPath(vsCommunicator))              //find the filesystem storage location we copy from
       val vsLookup = builder.add(new LookupVidispineMD5(vsCommunicator))            //look up VS checksum and size
       val copier = builder.add(new VSListCopyFile(userInfo, vault, chunkSize*1024)) //perform the copy
-      //val validator = builder.add(new ValidateMD5[VSBackupEntry](vault))
-      //val vsDeleteCorruptFile = builder.add(new VSDeleteFile(vsCommunicator,storageId))
-      //val validationSwitch = builder.add(new ValidationSwitch[VSBackupEntry](treatNoneAsSuccess = true))
+      val validator = builder.add(new ValidateMD5[VSBackupEntry](vault))
+      val vsDeleteCorruptFile = builder.add(new VSDeleteFile(vsCommunicator,storageId))
+      val validationSwitch = builder.add(new ValidationSwitch[VSBackupEntry](treatNoneAsSuccess = true))
 
       val duper = builder.add(new CreateFileDuplicate(vsCommunicator, storageId, dryRun = false)) //create a file record in VS marked as a duplicate
       val closer = builder.add(new VSCloseFile(vsCommunicator, storageId))                        //ensure that the created file is marked as "closed"
-      //val merge = builder.add(Merge[CopyReport[VSBackupEntry]](2))
+      val merge = builder.add(Merge[CopyReport[VSBackupEntry]](2))
 
-      src ~> pathLookup ~> vsLookup ~> duper ~> copier ~> closer ~> sink //~> validator ~> validationSwitch
-//      validationSwitch.out(0) ~> merge //we validated correctly
-//      validationSwitch.out(1) ~> vsDeleteCorruptFile ~> merge  //we did not validate correctly, so delete the corrupt desintation record (which should in turn delete the file)
-//      merge ~> sink
+      src ~> pathLookup ~> vsLookup ~> duper ~> copier ~> closer ~> validator ~> validationSwitch
+      validationSwitch.out(0) ~> merge //we validated correctly
+      validationSwitch.out(1) ~> vsDeleteCorruptFile ~> merge  //we did not validate correctly, so delete the corrupt desintation record (which should in turn delete the file)
+      merge ~> sink
       ClosedShape
     }
   }
