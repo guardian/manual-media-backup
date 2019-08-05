@@ -26,13 +26,13 @@ object Copier {
     * @return a Future, containing a String of the checksum of the read data. If the stream fails then the future will fail, use .recover to handle this.
     */
   def doCopy(userInfo:UserInfo, entry:ObjectMatrixEntry, toPath:Path)(implicit ec:ExecutionContext,mat:Materializer) = {
-    val checksumSinkFactory = new ChecksumSink()
+    val checksumSinkFactory = new ChecksumSink().async
 
     logger.info("starting doCopy")
     val graph = GraphDSL.create(checksumSinkFactory) { implicit builder=> checksumSink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
-      val src = builder.add(new MatrixStoreFileSource(userInfo, entry.oid))
+      val src = builder.add(new MatrixStoreFileSource(userInfo, entry.oid).async)
       val bcast = builder.add(new Broadcast[ByteString](2,true))
       val fileSink = builder.add(FileIO.toPath(toPath))
 
@@ -74,8 +74,8 @@ object Copier {
         val mdToWrite = destFileName match {
           case Some(fn) => metadata.get
             .withString("MXFS_PATH",fromFile.getAbsolutePath)
-            .withString("MXFS_FILENAME", fromFile.getName)
-            .withString("MXFS_FILENAME_UPPER", fromFile.getName.toUpperCase)
+            .withString("MXFS_FILENAME", fn)
+            .withString("MXFS_FILENAME_UPPER", fn.toUpperCase)
           case None => metadata.get.withValue[Int]("dmmyInt",0)
         }
         val timestampStart = Instant.now.toEpochMilli
@@ -83,6 +83,8 @@ object Copier {
         logger.debug(s"mdToWrite is $mdToWrite")
         logger.debug(s"attributes are ${mdToWrite.toAttributes.map(_.toString).mkString(",")}")
         val mxsFile = vault.createObject(mdToWrite.toAttributes.toArray)
+
+        MetadataHelper.setAttributeMetadata(mxsFile, mdToWrite)
 
         logger.debug(s"mxsFile is $mxsFile")
         val graph = GraphDSL.create(checksumSinkFactory) { implicit builder =>
@@ -108,8 +110,10 @@ object Copier {
           logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
           finalChecksum match {
             case Some(actualChecksum)=>
-              val updatedMetadata = metadata.get.copy(stringValues = metadata.get.stringValues ++ Map(checksumType->actualChecksum))
+              val updatedMetadata = mdToWrite.copy(stringValues = metadata.get.stringValues ++ Map(checksumType->actualChecksum))
               MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
+
+              logger.debug(s"mdToWrite is $updatedMetadata")
 
               MatrixStoreHelper.getOMFileMd5(mxsFile).flatMap({
                 case Failure(err)=>

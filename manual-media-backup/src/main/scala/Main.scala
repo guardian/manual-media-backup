@@ -113,7 +113,7 @@ object Main {
         src ~> mapper
         mapper.out.map(entry=>{
           logger.debug(s"got $entry")
-          new CopyReport(entry.fileName,"",None,entry.size, false, None)
+          CopyReport(entry.fileName,"",None,entry.size, false, None)
         }) ~> sink
 
       }

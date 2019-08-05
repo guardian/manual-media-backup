@@ -12,7 +12,7 @@
 
     <logger name="UserInfoBuilder$" level="WARN"/>
     <logger name="Main$" level="INFO"/>
-    <logger name="Copier$" level="INFO"/>
+    <logger name="helpers.Copier$" level="DEBUG"/>
     <logger name="vsStreamComponents" level="DEBUG"/>
 
     <root level="INFO">

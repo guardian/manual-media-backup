@@ -35,7 +35,7 @@ libraryDependencies ++= Seq(
 
 lazy val `root` = (project in file(".")).enablePlugins(DockerPlugin,AshScriptPlugin)
     .dependsOn(common)
-    .aggregate(manualbackup,vsmediabackup, showmxschecksum)
+    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid)
 
 lazy val `common` = (project in file("common"))
     .settings(
@@ -81,6 +81,28 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
         Cmd("USER", "daemon")
       )
     )
+
+lazy val `inspectoid` = (project in file("inspect-oid")).enablePlugins(DockerPlugin,AshScriptPlugin)
+  .dependsOn(common)
+  .settings(
+    version := sys.props.getOrElse("build.number","DEV"),
+    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    daemonUserUid in Docker := None,
+    daemonUser in Docker := "daemon",
+    dockerUsername  := sys.props.get("docker.username"),
+    dockerRepository := Some("guardianmultimedia"),
+    packageName in Docker := "guardianmultimedia/inspect-oid",
+    packageName := "inspect-oid",
+    dockerBaseImage := "openjdk:8-jdk-alpine",
+    dockerAlias := docker.DockerAlias(None, Some("guardianmultimedia"),"inspect-oid",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerCommands ++= Seq(
+      Cmd("USER","root"), //fix the permissions in the built docker image
+      Cmd("RUN", "chown daemon /opt/docker"),
+      Cmd("RUN", "chmod u+w /opt/docker"),
+      Cmd("RUN", "chmod -R a+x /opt/docker"),
+      Cmd("USER", "daemon")
+    )
+  )
 
 lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(DockerPlugin, AshScriptPlugin)
   .dependsOn(common)
