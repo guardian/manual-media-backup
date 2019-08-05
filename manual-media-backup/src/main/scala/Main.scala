@@ -80,7 +80,7 @@ object Main {
     }
   }
 
-  def remoteFileListGraph(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, copyOut:Boolean) = {
+  def remoteFileListGraph(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, copyToPath:Option[String]) = {
     val sinkFactory = Sink.fold[Seq[CopyReport[Nothing]],CopyReport[Nothing]](Seq())((acc, entry)=>acc++Seq(entry))
     GraphDSL.create(sinkFactory) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
@@ -93,22 +93,23 @@ object Main {
       }
 
       val src = builder.add(new OMSearchSource(userInfo, None, searchAttribute=Some(search)))
+      val copierFactory = new ListRestoreFile(userInfo, vault, chunkSize, checksumType, copyToPath, mat)
 
-      if(restorePath.isDefined){
+      if(copyToPath.isDefined){
         val updater = builder.add(new OMLookupMetadata())
         val balancer = builder.add(Balance[ObjectMatrixEntry](paralellism))
         val merge = builder.add(Merge[CopyReport[Nothing]](paralellism, false))
 
         src ~> updater ~> balancer
         for(_ <- 0 until paralellism){
-          val copier = builder.add(new ListRestoreFile(userInfo, vault, chunkSize, checksumType, restorePath.get))
+          val copier = builder.add(copierFactory)
           //val validator = builder.add(new ValidateMD5(vault))
           balancer ~> copier ~> merge
         }
         merge ~>sink
 
       } else {
-        val mapper = builder.add(new OMMetaToIncomingList())
+        val mapper = builder.add(new OMMetaToIncomingList(log=true))
         src ~> mapper
         mapper.out.map(entry=>{
           logger.debug(s"got $entry")
@@ -139,8 +140,8 @@ object Main {
     })
   }
 
-  def handleRemoteFileList(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, restorePath:Option[String]) = {
-    RunnableGraph.fromGraph(remoteFileListGraph(paralellism, userInfo, vault, chunkSize, checksumType, searchTerm, restorePath)).run().map(filesList=>{
+  def handleRemoteFileList(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, copyToPath:Option[String]) = {
+    RunnableGraph.fromGraph(remoteFileListGraph(paralellism, userInfo, vault, chunkSize, checksumType, searchTerm, copyToPath)).run().map(filesList=>{
       val totalFileSize = filesList.foldLeft(0L)((acc,entry)=>acc+entry.size)
 
       filesList.foreach(entry=>logger.info(s"\tGot ${entry.filename} of ${entry.size}"))

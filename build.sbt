@@ -35,7 +35,7 @@ libraryDependencies ++= Seq(
 
 lazy val `root` = (project in file(".")).enablePlugins(DockerPlugin,AshScriptPlugin)
     .dependsOn(common)
-    .aggregate(manualbackup,vsmediabackup)
+    .aggregate(manualbackup,vsmediabackup, showmxschecksum)
 
 lazy val `common` = (project in file("common"))
     .settings(

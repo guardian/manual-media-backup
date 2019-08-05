@@ -54,6 +54,35 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
         this
     }
   }
+
+  def dumpString(fieldNames:Seq[String]) = {
+    val kv = fieldNames.map(fieldName=>{
+      val maybeString = stringValues.get(fieldName)
+      val maybeBool = boolValues.get(fieldName)
+      val maybeLong = longValues.get(fieldName)
+      val maybeInt = intValues.get(fieldName)
+
+      val v = if(maybeString.isDefined){
+        maybeString.get
+      } else if(maybeBool.isDefined){
+        if(maybeBool.get){
+          "true"
+        } else {
+          "false"
+        }
+      } else if(maybeLong.isDefined){
+        maybeLong.get.toString
+      } else if(maybeInt.isDefined){
+        maybeInt.get.toString
+      } else {
+        "(none)"
+      }
+
+      s"$fieldName=$v"
+    })
+
+    kv.mkString(", ")
+  }
 }
 
 object MxsMetadata {

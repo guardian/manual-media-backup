@@ -163,7 +163,7 @@ object Copier {
   }
 
   def ensurePathExists(pathName:String) = {
-    val pathPart = new File(FilenameUtils.getPathNoEndSeparator(pathName))
+    val pathPart = new File(FilenameUtils.getFullPathNoEndSeparator(pathName))
     logger.info(s"creating directories $pathPart")
     pathPart.mkdirs()
   }
@@ -212,7 +212,7 @@ object Copier {
     }
 
 
-    maybeFilePath.map(removeLeadingSlash) match {
+    maybeFilePath match {
       case None=>
         logger.error(s"Could not find any file path to copy file to")
         Future(Left(CopyProblem(remoteFile,"Could not find any file path to copy file to")))

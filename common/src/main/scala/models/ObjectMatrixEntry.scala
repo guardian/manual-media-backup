@@ -17,6 +17,8 @@ case class ObjectMatrixEntry(oid:String, vault:Vault, attributes:Option[MxsMetad
       this.copy(oid, vault, Some(mxsMeta), Some(FileAttributes(MetadataHelper.getMxfsMetadata(getMxsObject))))
     )
 
+  def hasMetadata:Boolean = attributes.isDefined && fileAttribues.isDefined
+
   def stringAttribute(key:String) = attributes.flatMap(_.stringValues.get(key))
   def intAttribute(key:String) = attributes.flatMap(_.intValues.get(key))
   def longAttribute(key:String) = attributes.flatMap(_.longValues.get(key))
