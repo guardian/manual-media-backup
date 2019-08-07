@@ -22,6 +22,7 @@ class MatrixStoreFileSource(userInfo:UserInfo, sourceId:String, bufferSize:Int=2
     //private var channel:SeekableByteChannel = _
     private var stream:InputStream = _
     private var mxsFile:MxsObject = _
+    private var vault:Vault = _
 
     setHandler(out, new AbstractOutHandler {
       override def onPull(): Unit = {
@@ -48,7 +49,7 @@ class MatrixStoreFileSource(userInfo:UserInfo, sourceId:String, bufferSize:Int=2
     })
 
     override def preStart(): Unit = {
-      val vault = MatrixStore.openVault(userInfo)
+      vault = MatrixStore.openVault(userInfo)
       mxsFile = vault.getObject(sourceId)
       stream = mxsFile.newInputStream()
 
@@ -58,6 +59,7 @@ class MatrixStoreFileSource(userInfo:UserInfo, sourceId:String, bufferSize:Int=2
 
     override def postStop(): Unit = {
       if(stream!=null) stream.close()
+      vault.dispose()
     }
   }
 }

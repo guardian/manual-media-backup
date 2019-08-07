@@ -96,7 +96,7 @@ object Main {
       val copierFactory = new ListRestoreFile(userInfo, vault, chunkSize, checksumType, copyToPath, mat)
 
       if(copyToPath.isDefined){
-        val updater = builder.add(new OMLookupMetadata())
+        val updater = builder.add(new OMLookupMetadata(userInfo))
         val balancer = builder.add(Balance[ObjectMatrixEntry](paralellism))
         val merge = builder.add(Merge[CopyReport[Nothing]](paralellism, false))
 
@@ -109,7 +109,7 @@ object Main {
         merge ~>sink
 
       } else {
-        val mapper = builder.add(new OMMetaToIncomingList(log=true))
+        val mapper = builder.add(new OMMetaToIncomingList(userInfo, log=true))
         src ~> mapper
         mapper.out.map(entry=>{
           logger.debug(s"got $entry")

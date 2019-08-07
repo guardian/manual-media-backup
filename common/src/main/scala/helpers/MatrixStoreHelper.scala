@@ -42,7 +42,7 @@ object MatrixStoreHelper {
 
     var finalSeq:Seq[ObjectMatrixEntry] = Seq()
     while(iterator.hasNext){
-      finalSeq ++= Seq(ObjectMatrixEntry(iterator.next(), vault, None, None))
+      finalSeq ++= Seq(ObjectMatrixEntry(iterator.next(), None, None))
     }
     finalSeq
   }
@@ -61,7 +61,7 @@ object MatrixStoreHelper {
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
       val src = builder.add(new OMSearchSource(userInfo,Some(searchTerms),None).async)
-      val mdLookup = builder.add(new OMLookupMetadata().async)
+      val mdLookup = builder.add(new OMLookupMetadata(userInfo).async)
 
       src ~> mdLookup
 
@@ -202,7 +202,6 @@ object MatrixStoreHelper {
         logger.debug(s"getting result for ${f.getId}...")
         val buf = ByteBuffer.allocate(16)
         view.read("__mxs__calc_md5", buf)
-        logger.debug(s"Got buffer of length ${buf.array().length}")
         buf
       }
 
@@ -217,7 +216,8 @@ object MatrixStoreHelper {
           }
         case Failure(err:java.io.IOException)=>
           if(err.getMessage.contains("error 302")){
-            logger.warn(s"Got an error containing 302 string, retrying after delay")
+            logger.warn(err.getMessage)
+            logger.warn(s"Got an error containing 302 string, assuming server busy, retrying after delay")
             Thread.sleep(500)
             lookup(attempt+1)
           } else {
@@ -232,9 +232,7 @@ object MatrixStoreHelper {
             //to delay and re-call in a non-blocking way
             lookup(attempt + 1)
           } else {
-            logger.debug(s"byte string length was ${arr.length}")
             val converted = Hex.encodeHexString(arr)
-            logger.debug(s"converted string was $converted")
             if (converted.length == 32)
               Success(converted)
             else {

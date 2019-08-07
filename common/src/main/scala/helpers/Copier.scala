@@ -110,7 +110,7 @@ object Copier {
           logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
           finalChecksum match {
             case Some(actualChecksum)=>
-              val updatedMetadata = mdToWrite.copy(stringValues = metadata.get.stringValues ++ Map(checksumType->actualChecksum))
+              val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType->actualChecksum))
               MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
 
               logger.debug(s"mdToWrite is $updatedMetadata")
@@ -234,6 +234,7 @@ object Copier {
   }
 
   def lookupFileName(userInfo:UserInfo, vault:Vault, fileName: String, copyTo:Option[String])(implicit ec:ExecutionContext, mat:Materializer) = {
+    implicit val vaultImpl = vault
     val result = MatrixStoreHelper.findByFilename(vault, fileName).map(_.map(_.getMetadata)).map(futureResults=>{
 
       Future.sequence(futureResults).map(results=> {

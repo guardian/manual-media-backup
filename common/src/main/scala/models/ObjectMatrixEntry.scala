@@ -8,13 +8,13 @@ import helpers.MetadataHelper
 
 import scala.concurrent.ExecutionContext
 
-case class ObjectMatrixEntry(oid:String, vault:Vault, attributes:Option[MxsMetadata], fileAttribues:Option[FileAttributes]) {
-  def getMxsObject = vault.getObject(oid)
+case class ObjectMatrixEntry(oid:String, attributes:Option[MxsMetadata], fileAttribues:Option[FileAttributes]) {
+  def getMxsObject(implicit vault:Vault) = vault.getObject(oid)
 
-  def getMetadata(implicit mat:Materializer, ec:ExecutionContext) = MetadataHelper
+  def getMetadata(implicit vault:Vault, mat:Materializer, ec:ExecutionContext) = MetadataHelper
     .getAttributeMetadata(getMxsObject)
     .map(mxsMeta=>
-      this.copy(oid, vault, Some(mxsMeta), Some(FileAttributes(MetadataHelper.getMxfsMetadata(getMxsObject))))
+      this.copy(oid, Some(mxsMeta), Some(FileAttributes(MetadataHelper.getMxfsMetadata(getMxsObject))))
     )
 
   def hasMetadata:Boolean = attributes.isDefined && fileAttribues.isDefined

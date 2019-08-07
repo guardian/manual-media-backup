@@ -2,21 +2,21 @@ package streamcomponents
 import akka.stream.scaladsl.{Keep, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, Attributes, FlowShape, Inlet, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
-import com.om.mxs.client.japi.{MXFSFileAttributes, MxsObject}
+import com.om.mxs.client.japi.{MXFSFileAttributes, MatrixStore, MxsObject, UserInfo, Vault}
 import helpers.MetadataHelper
 import models.{FileAttributes, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 /**
   * look up metadata for the given objectmatrix entry
   * @param mat
   * @param ec
   */
-class OMLookupMetadata(implicit mat:Materializer, ec:ExecutionContext) extends GraphStage[FlowShape[ObjectMatrixEntry,ObjectMatrixEntry]] {
+class OMLookupMetadata(userInfo:UserInfo)(implicit mat:Materializer, ec:ExecutionContext) extends GraphStage[FlowShape[ObjectMatrixEntry,ObjectMatrixEntry]] {
   private final val in:Inlet[ObjectMatrixEntry] = Inlet.create("OMLookupMetadata.in")
   private final val out:Outlet[ObjectMatrixEntry] = Outlet.create("OMLookupMetadata.out")
 
@@ -24,7 +24,7 @@ class OMLookupMetadata(implicit mat:Materializer, ec:ExecutionContext) extends G
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
-
+    private var vault:Vault = _
 
     setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
@@ -41,7 +41,6 @@ class OMLookupMetadata(implicit mat:Materializer, ec:ExecutionContext) extends G
         val failedCb = getAsyncCallback[Throwable](err=>failStage(err))
 
         try {
-          val vault = elem.vault
           val obj = vault.getObject(elem.oid)
 
           MetadataHelper.getAttributeMetadata(obj).onComplete({
@@ -63,5 +62,18 @@ class OMLookupMetadata(implicit mat:Materializer, ec:ExecutionContext) extends G
     setHandler(out, new AbstractOutHandler {
       override def onPull(): Unit = pull(in)
     })
+
+    override def preStart(): Unit = {
+      Try { MatrixStore.openVault(userInfo) } match {
+        case Failure(err)=>
+          logger.error(s"Could not open vault: ", err)
+          failStage(err)
+        case Success(v)=>vault=v
+      }
+    }
+
+    override def postStop(): Unit = {
+      vault.dispose()
+    }
   }
 }

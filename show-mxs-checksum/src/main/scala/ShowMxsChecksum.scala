@@ -5,6 +5,7 @@ import helpers.MatrixStoreHelper
 import models.ObjectMatrixEntry
 import org.slf4j.LoggerFactory
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 
@@ -34,7 +35,7 @@ class ShowMxsChecksum(vault:Vault)(implicit mat:Materializer) extends GraphStage
             logger.error(s"Could not get MD5 for ${elem}: ", err)
             completionCb.invoke(elem)
           case Success(Success(md5String))=>
-            elem.getMetadata.onComplete({
+            elem.getMetadata(vault, mat, ExecutionContext.global).onComplete({
               case Success(updatedElem)=>
                 logger.info(s"Got MD5 $md5String for ${updatedElem.pathOrFilename}")
                 completionCb.invoke(elem)

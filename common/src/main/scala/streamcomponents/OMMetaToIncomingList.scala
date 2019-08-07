@@ -4,13 +4,14 @@ import java.time.ZonedDateTime
 
 import akka.stream.{Attributes, FlowShape, Inlet, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
+import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import models.{IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
-class OMMetaToIncomingList (log:Boolean=false,logFields:Seq[String]=Seq("MXFS_FILENAME","MXFS_MODIFICATION_TIME","DPSP_SIZE"))(implicit mat:Materializer, ec:ExecutionContext) extends GraphStage[FlowShape[ObjectMatrixEntry, IncomingListEntry]] {
+class OMMetaToIncomingList (userInfo:UserInfo, log:Boolean=false,logFields:Seq[String]=Seq("MXFS_FILENAME","MXFS_MODIFICATION_TIME","DPSP_SIZE"))(implicit mat:Materializer, ec:ExecutionContext) extends GraphStage[FlowShape[ObjectMatrixEntry, IncomingListEntry]] {
   private val in:Inlet[ObjectMatrixEntry] = Inlet.create("OMMetaToIncomingList.in")
   private val out:Outlet[IncomingListEntry] = Outlet.create("OMMetaToIncomingList.out")
 
@@ -56,6 +57,7 @@ class OMMetaToIncomingList (log:Boolean=false,logFields:Seq[String]=Seq("MXFS_FI
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
+    private implicit var vault:Vault = _
 
     setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
@@ -98,5 +100,18 @@ class OMMetaToIncomingList (log:Boolean=false,logFields:Seq[String]=Seq("MXFS_FI
         pull(in)
       }
     })
+
+    override def preStart(): Unit = {
+      Try { MatrixStore.openVault(userInfo) } match {
+        case Failure(err)=>
+          logger.error(s"Could not open vault: ", err)
+          failStage(err)
+        case Success(v)=>vault=v
+      }
+    }
+
+    override def postStop(): Unit = {
+      vault.dispose()
+    }
   }
 }

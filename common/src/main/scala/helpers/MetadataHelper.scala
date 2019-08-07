@@ -9,7 +9,7 @@ import models.MxsMetadata
 import org.apache.commons.codec.binary.Hex
 import org.slf4j.LoggerFactory
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConverters._
 
 object MetadataHelper {
@@ -22,26 +22,35 @@ object MetadataHelper {
     * @return a Future, with the relevant map
     */
   def getAttributeMetadata(obj:MxsObject)(implicit mat:Materializer, ec:ExecutionContext) = {
-    val view = obj.getAttributeView
-
     //val sink = Sink.fold[Seq[(String,AnyRef)],(String,AnyRef)](Seq())((acc,elem)=>acc++Seq(elem))
     val sink = Sink.fold[MxsMetadata,(String,Any)](MxsMetadata(Map(),Map(),Map(),Map()))((acc,elem)=>{
       elem._2 match {
+        case null=>acc
         case boolValue: Boolean => acc.copy(boolValues = acc.boolValues ++ Map(elem._1->boolValue))
         case intValue:Int => acc.copy(intValues = acc.intValues ++ Map(elem._1 -> intValue))
         case longValue:Long => acc.copy(longValues = acc.longValues ++ Map(elem._1 -> longValue))
         case byteBuffer:ByteBuffer => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> Hex.encodeHexString(byteBuffer.array())))
         case stringValue:String => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> stringValue))
         case _=>
-          logger.warn(s"Could not get metadata value for ${elem._1} on ${obj.getId}, type ${elem._2.getClass.toString} not recognised")
+          try {
+            logger.warn(s"Could not get metadata value for ${elem._1} on ${obj.getId}, type ${elem._2.getClass.toString} not recognised")
+          } catch {
+            case err:Throwable=>
+              logger.warn(s"Could not get metadata value for ${elem._1}: ", err)
+          }
           acc
       }
     })
-    Source.fromIterator(()=>view.iterator.asScala)
-      .map(elem=>(elem.getKey, elem.getValue))
-      .toMat(sink)(Keep.right)
-      .run()
-      //.map()
+
+    Option(obj.getAttributeView) match {
+      case Some(view) =>
+        Source.fromIterator(() => view.iterator.asScala)
+          .map(elem => (elem.getKey, elem.getValue))
+          .toMat(sink)(Keep.right)
+          .run()
+      case None=>
+        Future(MxsMetadata.empty)
+    }
   }
 
   /**
