@@ -3,7 +3,7 @@ import akka.stream.scaladsl.{Balance, Broadcast, GraphDSL, Merge, RunnableGraph,
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape}
 import com.om.mxs.client.SimpleSearchTerm
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, UserInfo, Vault}
-import helpers.{Copier, ListReader}
+import helpers.{Copier, ListReader, MatrixStoreHelper}
 import models.{CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
@@ -39,6 +39,7 @@ object Main {
       opt[String]('l',"list").action((x,c)=>c.copy(listpath = Some(x))).text("read a list of files to backup from here. This could be a local filepath or an http/https URL.")
       opt[String]('p',"parallelism").action((x,c)=>c.copy(parallelism = x.toInt)).text("copy this many files at once")
       opt[String]("list-path").action((x,c)=>c.copy(listRemoteDirs = Some(x))).text("search the given filename path on the objectmatrix")
+      opt[String]("delete-oid").action((x,c)=>c.copy(oidsToDelete = x.split("\\s*,\\s*").toList)).text("Delete file with the given OID")
     }
   }
 
@@ -93,7 +94,7 @@ object Main {
       }
 
       val src = builder.add(new OMSearchSource(userInfo, None, searchAttribute=Some(search)))
-      val copierFactory = new ListRestoreFile(userInfo, vault, chunkSize, checksumType, copyToPath, mat)
+      val copierFactory = new ListRestoreFile(userInfo, vault, chunkSize, checksumType, copyToPath)
 
       if(copyToPath.isDefined){
         val updater = builder.add(new OMLookupMetadata(userInfo))
@@ -198,6 +199,14 @@ object Main {
                   println(err.toString)
                   terminate(1)
               })
+            } else if(options.oidsToDelete.nonEmpty){
+              options.oidsToDelete.foreach(oid=> {
+                MatrixStoreHelper.deleteFile(vault, oid) match {
+                  case Success(_)=>logger.info(s"Successfully deleted file with OID $oid")
+                  case Failure(err)=>logger.warn(s"Could not delete file with OID $oid: ", err)
+                }
+              })
+              terminate(0)
             }
         }
       case None=>

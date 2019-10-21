@@ -21,7 +21,7 @@ import org.apache.commons.io.FilenameUtils
   * @param checksumType
   * @param mat
   */
-class ListRestoreFile[T](userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:String, toPath:Option[String], implicit val mat:Materializer)
+class ListRestoreFile[T](userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumType:String, toPath:Option[String])(implicit mat:Materializer)
   extends GraphStage[FlowShape[ObjectMatrixEntry,CopyReport[T]]] {
   private final val in:Inlet[ObjectMatrixEntry] = Inlet.create("ListRestoreFile.in")
   private final val out:Outlet[CopyReport[T]] = Outlet.create("ListRestoreFile.out")
@@ -44,7 +44,8 @@ class ListRestoreFile[T](userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumT
 
         maybeOutPath match {
           case Some(outPath)=>
-            Copier.copyFromRemote(userInfo, vault, Some(outPath), entry, chunkSize, checksumType).onComplete({
+            //we put the whole restore path into outPath so restorePath is not needed
+            Copier.copyFromRemote(userInfo, vault, Some(outPath), "", entry, chunkSize, checksumType).onComplete({
               case Success(Right( (filePath,maybeChecksum) ))=>
                 logger.info(s"Copied ${entry.oid} to $outPath")
                 completedCb.invoke(CopyReport[T](filePath, entry.oid, maybeChecksum, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = false, validationPassed = None))

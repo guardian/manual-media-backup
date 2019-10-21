@@ -6,4 +6,5 @@ case class Options (lookup:Option[String]=None,
                    checksumType:String="md5",
                     parallelism:Int=4,
                     listpath:Option[String]=None,
-                    listRemoteDirs:Option[String]=None)
+                    listRemoteDirs:Option[String]=None,
+                    oidsToDelete:List[String]=List())

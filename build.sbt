@@ -57,7 +57,9 @@ lazy val `common` = (project in file("common"))
         "org.specs2" %% "specs2-core" % "4.5.1" % Test,
         "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
         "org.mockito" % "mockito-core" % "2.28.2" % Test
-      )
+      ),
+      unmanagedJars in Compile += file("lib/mxsjapi.jar"),
+      unmanagedJars in Compile += file("lib/mxsjapi.jar"),
     )
 
 lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins(DockerPlugin,AshScriptPlugin)

@@ -19,7 +19,6 @@ import org.apache.commons.codec.binary.Hex
 import scala.util.{Failure, Success, Try}
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.matching.Regex
 
 object MatrixStoreHelper {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -27,6 +26,8 @@ object MatrixStoreHelper {
   def openVault(userInfo:UserInfo):Try[Vault] = Try {
     MatrixStore.openVault(userInfo)
   }
+
+  def deleteFile(vault:Vault, oid:String) = Try { vault.getObject(oid).delete() }
 
   /**
     * locate files for the given filename, as stored in the metadata. This assumes that one or at most two records will

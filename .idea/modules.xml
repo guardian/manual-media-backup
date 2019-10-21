@@ -4,14 +4,11 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/common.iml" filepath="$PROJECT_DIR$/.idea/modules/common.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/inspectoid.iml" filepath="$PROJECT_DIR$/.idea/modules/inspectoid.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/manual-media-backup.iml" filepath="$PROJECT_DIR$/.idea/manual-media-backup.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup-build.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup-build.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup-common.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup-common.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup-manualbackup.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup-manualbackup.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/manualbackup.iml" filepath="$PROJECT_DIR$/.idea/modules/manualbackup.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/showmxschecksum.iml" filepath="$PROJECT_DIR$/.idea/modules/showmxschecksum.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/vsmediabackup.iml" filepath="$PROJECT_DIR$/.idea/modules/vsmediabackup.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/workdev-manual-media-backup.iml" filepath="$PROJECT_DIR$/.idea/modules/workdev-manual-media-backup.iml" />
     </modules>
   </component>
 </project>
