@@ -191,7 +191,7 @@ object Copier {
     }
   }
 
-  def copyFromRemote(userInfo: UserInfo, vault:Vault, destFileName: Option[String], remoteFile:ObjectMatrixEntry, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext, mat:Materializer) = {
+  def copyFromRemote(userInfo: UserInfo, vault:Vault, destFileName: Option[String], restorePath:String, remoteFile:ObjectMatrixEntry, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext, mat:Materializer) = {
     logger.debug("in copyFromRemote")
 
     val alternativePathLocations = List("MXFS_PATH","MXFS_FILENAME")
@@ -217,13 +217,14 @@ object Copier {
         logger.error(s"Could not find any file path to copy file to")
         Future(Left(CopyProblem(remoteFile,"Could not find any file path to copy file to")))
       case Some(actualFilePath)=>
-        logger.info(s"Copying to $actualFilePath")
-        if(!isAbsentOrZerolength(actualFilePath)){
+        val outputFilePath = new File(restorePath, actualFilePath).getPath
+        logger.info(s"Copying to $outputFilePath")
+        if(!isAbsentOrZerolength(outputFilePath)){
           logger.warn("File already exists, not overwriting")
           Future(Left(CopyProblem(remoteFile,"File already exists locally, not overwriting")))
         } else {
-          ensurePathExists(actualFilePath)
-          doCopy(userInfo, remoteFile, new File(actualFilePath).toPath).map(maybeCs => Right((actualFilePath, maybeCs)))
+          ensurePathExists(outputFilePath)
+          doCopy(userInfo, remoteFile, new File(outputFilePath).toPath).map(maybeCs => Right((actualFilePath, maybeCs)))
         }
     }
   }

@@ -32,6 +32,7 @@ libraryDependencies ++= Seq(
   "org.mockito" % "mockito-core" % "2.28.2" % Test
 )
 
+
 version := sys.props.getOrElse("build.number","DEV")
 
 dockerPermissionStrategy := DockerPermissionStrategy.Run

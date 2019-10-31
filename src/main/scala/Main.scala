@@ -80,7 +80,7 @@ object Main {
     }
   }
 
-  def remoteFileListGraph(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, copyOut:Boolean) = {
+  def remoteFileListGraph(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, restorePath:Option[String]) = {
     val sinkFactory = Sink.fold[Seq[CopyReport],CopyReport](Seq())((acc, entry)=>acc++Seq(entry))
 
     GraphDSL.create(sinkFactory) { implicit builder=> sink=>
@@ -95,14 +95,14 @@ object Main {
 
       val src = builder.add(new OMSearchSource(userInfo, None, searchAttribute=Some(search)))
 
-      if(copyOut){
+      if(restorePath.isDefined){
         val updater = builder.add(new OMLookupMetadata())
         val balancer = builder.add(Balance[ObjectMatrixEntry](paralellism))
         val merge = builder.add(Merge[CopyReport](paralellism, false))
 
         src ~> updater ~> balancer
         for(_ <- 0 until paralellism){
-          val copier = builder.add(new ListRestoreFile(userInfo, vault, chunkSize, checksumType, mat))
+          val copier = builder.add(new ListRestoreFile(userInfo, vault, chunkSize, checksumType, restorePath.get))
           //val validator = builder.add(new ValidateMD5(vault))
           balancer ~> copier ~> merge
         }
@@ -140,8 +140,8 @@ object Main {
     })
   }
 
-  def handleRemoteFileList(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, copyOut:Boolean) = {
-    RunnableGraph.fromGraph(remoteFileListGraph(paralellism, userInfo, vault, chunkSize, checksumType, searchTerm, copyOut)).run().map(filesList=>{
+  def handleRemoteFileList(paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String, searchTerm:String, restorePath:Option[String]) = {
+    RunnableGraph.fromGraph(remoteFileListGraph(paralellism, userInfo, vault, chunkSize, checksumType, searchTerm, restorePath)).run().map(filesList=>{
       val totalFileSize = filesList.foldLeft(0L)((acc,entry)=>acc+entry.size)
 
       filesList.foreach(entry=>logger.info(s"\tGot ${entry.filename} of ${entry.size}"))
@@ -172,7 +172,7 @@ object Main {
                   terminate(1)
               })
             } else if(options.listRemoteDirs.isDefined){
-              handleRemoteFileList(options.parallelism, userInfo, vault, options.chunkSize, options.checksumType, options.listRemoteDirs.get, options.copyToLocal.isDefined).andThen({
+              handleRemoteFileList(options.parallelism, userInfo, vault, options.chunkSize, options.checksumType, options.listRemoteDirs.get, options.copyToLocal).andThen({
                 case Success(_)=>
                   logger.info("All operations completed")
                   terminate(0)
