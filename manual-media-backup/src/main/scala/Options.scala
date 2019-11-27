@@ -7,4 +7,5 @@ case class Options (lookup:Option[String]=None,
                     parallelism:Int=4,
                     listpath:Option[String]=None,
                     listRemoteDirs:Option[String]=None,
+                    everything:Boolean=false,
                     oidsToDelete:List[String]=List())

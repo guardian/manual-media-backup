@@ -53,6 +53,24 @@ object MetadataHelper {
     }
   }
 
+  def getAttributeMetadataSync(obj:MxsObject) = {
+    val view = obj.getAttributeView
+
+    view.iterator.asScala.foldLeft(MxsMetadata.empty){ (acc, elem)=>{
+      val v = elem.getValue.asInstanceOf[Any]
+      v match {
+        case boolValue: Boolean => acc.copy(boolValues = acc.boolValues ++ Map(elem.getKey->boolValue))
+        case intValue:Int => acc.copy(intValues = acc.intValues ++ Map(elem.getKey -> intValue))
+        case longValue:Long => acc.copy(longValues = acc.longValues ++ Map(elem.getKey -> longValue))
+        case byteBuffer:ByteBuffer => acc.copy(stringValues = acc.stringValues ++ Map(elem.getKey -> Hex.encodeHexString(byteBuffer.array())))
+        case stringValue:String => acc.copy(stringValues = acc.stringValues ++ Map(elem.getKey -> stringValue))
+        case _=>
+          logger.warn(s"Could not get metadata value for ${elem.getKey} on ${obj.getId}, type ${elem.getValue.getClass.toString} not recognised")
+          acc
+      }
+    }}
+  }
+
   /**
     * get the MXFS file metadata
     * @param obj [[MxsObject]] entity to retrieve information from

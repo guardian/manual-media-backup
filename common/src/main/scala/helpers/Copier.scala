@@ -7,8 +7,8 @@ import java.time.Instant
 import akka.stream.{ClosedShape, Materializer}
 import akka.stream.scaladsl.{Broadcast, FileIO, GraphDSL, RunnableGraph, Sink}
 import akka.util.ByteString
-import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
-import models.{CopyProblem, ObjectMatrixEntry}
+import com.om.mxs.client.japi.{MatrixStore, MxsObject, UserInfo, Vault}
+import models.{CopyProblem, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ChecksumSink, MMappedFileSource, MatrixStoreFileSink, MatrixStoreFileSource}
 
@@ -44,6 +44,61 @@ object Copier {
     RunnableGraph.fromGraph(graph).run()
   }
 
+  def createObjectWithMetadata(destFileName:Option[String],fromFile:File,metadata:MxsMetadata)(implicit vault:Vault) = Try {
+    val mdToWrite = destFileName match {
+      case Some(fn) => metadata
+        .withString("MXFS_PATH",fromFile.getAbsolutePath)
+        .withString("MXFS_FILENAME", fn)
+        .withString("MXFS_FILENAME_UPPER", fn.toUpperCase)
+      case None => metadata
+    }
+
+    logger.debug(s"mdToWrite is $mdToWrite")
+    logger.debug(s"attributes are ${mdToWrite.toAttributes.map(_.toString).mkString(",")}")
+    val mxsFile = vault.createObject(mdToWrite.toAttributes.toArray)
+
+    MetadataHelper.setAttributeMetadata(mxsFile, mdToWrite)
+    (mxsFile, mdToWrite)
+  }
+
+  protected def createCopyGraph(fromFile:File, chunkSize:Int, checksumType:String, mxsFile:MxsObject)(implicit ec:ExecutionContext) = {
+    val checksumSinkFactory = checksumType match {
+      case "none"=>Sink.ignore.mapMaterializedValue(_=>Future(None))
+      case _=>new ChecksumSink(checksumType).async
+    }
+
+    GraphDSL.create(checksumSinkFactory) { implicit builder =>
+      checksumSink =>
+        import akka.stream.scaladsl.GraphDSL.Implicits._
+
+        val src = builder.add(new MMappedFileSource(fromFile, chunkSize))
+        val bcast = builder.add(new Broadcast[ByteString](2, true))
+        val omSink = builder.add(new MatrixStoreFileSink(mxsFile).async)
+
+        src.out.log("copyToStream") ~> bcast ~> omSink
+        bcast.out(1) ~> checksumSink
+        ClosedShape
+    }
+  }
+
+  def validateChecksum(mxsFile:MxsObject, actualChecksum:String, keepOnFailure:Boolean)(implicit ec:ExecutionContext) =  MatrixStoreHelper.getOMFileMd5(mxsFile).flatMap({
+    case Failure(err) =>
+      logger.error(s"Unable to get checksum from appliance, file should be considered unsafe", err)
+      Future.failed(err)
+    case Success(remoteChecksum) =>
+      logger.info(s"Appliance reported checksum of $remoteChecksum")
+      if (remoteChecksum != actualChecksum) {
+        logger.error(s"Checksum did not match!")
+        if (!keepOnFailure) {
+          logger.info(s"Deleting invalid file ${mxsFile.getId}")
+          mxsFile.deleteForcefully()
+        }
+        Future.failed(new RuntimeException(s"Checksum did not match"))
+      } else {
+        Future((mxsFile.getId, Some(actualChecksum)))
+      }
+  })
+
   /**
     * stream a file from the local filesystem into objectmatrix, creating metadata from what is provided by the filesystem.
     * also, performs a checksum on the data as it is copied and sets this in the object's metadata too.
@@ -60,92 +115,51 @@ object Copier {
     * @return a Future, with a tuple of (object ID, checksum)
     */
   def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String, keepOnFailure:Boolean=false,retryOnFailure:Boolean=true)(implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] = {
-    val checksumSinkFactory = checksumType match {
-      case "none"=>Sink.ignore.mapMaterializedValue(_=>Future(None))
-      case _=>new ChecksumSink(checksumType).async
-    }
     val metadata = MatrixStoreHelper.metadataFromFilesystem(fromFile)
 
     if(metadata.isFailure){
       logger.error(s"Could no lookup metadata")
       Future.failed(metadata.failed.get) //since the stream future fails on error, might as well do the same here.
     } else {
-      try {
-        val mdToWrite = destFileName match {
-          case Some(fn) => metadata.get
-            .withString("MXFS_PATH",fromFile.getAbsolutePath)
-            .withString("MXFS_FILENAME", fn)
-            .withString("MXFS_FILENAME_UPPER", fn.toUpperCase)
-          case None => metadata.get.withValue[Int]("dmmyInt",0)
-        }
-        val timestampStart = Instant.now.toEpochMilli
+        Future.fromTry(createObjectWithMetadata(destFileName,fromFile, metadata.get)(vault)).flatMap(result=> {
+          val mxsFile = result._1
+          val mdToWrite = result._2
+          val timestampStart = Instant.now.toEpochMilli
+          logger.debug(s"mxsFile is $mxsFile")
+          val graph = createCopyGraph(fromFile, chunkSize,checksumType,mxsFile)
 
-        logger.debug(s"mdToWrite is $mdToWrite")
-        logger.debug(s"attributes are ${mdToWrite.toAttributes.map(_.toString).mkString(",")}")
-        val mxsFile = vault.createObject(mdToWrite.toAttributes.toArray)
+          logger.debug(s"Created stream")
+          RunnableGraph.fromGraph(graph).run().flatMap(finalChecksum => {
+            val timestampFinish = Instant.now.toEpochMilli
+            val msDuration = timestampFinish - timestampStart
 
-        MetadataHelper.setAttributeMetadata(mxsFile, mdToWrite)
+            val rate = fromFile.length().toDouble / msDuration.toDouble //in bytes/ms
+            val mbps = rate / 1048576 * 1000 //in MByte/s
 
-        logger.debug(s"mxsFile is $mxsFile")
-        val graph = GraphDSL.create(checksumSinkFactory) { implicit builder =>
-          checksumSink =>
-            import akka.stream.scaladsl.GraphDSL.Implicits._
+            logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
+            finalChecksum match {
+              case Some(actualChecksum) =>
+                val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType -> actualChecksum))
+                MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
 
-            val src = builder.add(new MMappedFileSource(fromFile, chunkSize))
-            val bcast = builder.add(new Broadcast[ByteString](2, true))
-            val omSink = builder.add(new MatrixStoreFileSink(mxsFile).async)
+                logger.debug(s"mdToWrite is $updatedMetadata")
 
-            src.out.log("copyToStream") ~> bcast ~> omSink
-            bcast.out(1) ~> checksumSink
-            ClosedShape
-        }
-        logger.debug(s"Created stream")
-        RunnableGraph.fromGraph(graph).run().flatMap(finalChecksum=>{
-          val timestampFinish = Instant.now.toEpochMilli
-          val msDuration = timestampFinish - timestampStart
-
-          val rate = fromFile.length().toDouble / msDuration.toDouble //in bytes/ms
-          val mbps = rate /1048576 *1000  //in MByte/s
-
-          logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
-          finalChecksum match {
-            case Some(actualChecksum)=>
-              val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType->actualChecksum))
-              MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
-
-              logger.debug(s"mdToWrite is $updatedMetadata")
-
-              MatrixStoreHelper.getOMFileMd5(mxsFile).flatMap({
-                case Failure(err)=>
-                  logger.error(s"Unable to get checksum from appliance, file should be considered unsafe", err)
-                  Future.failed(err)
-                case Success(remoteChecksum)=>
-                  logger.info(s"Appliance reported checksum of $remoteChecksum")
-                  if(remoteChecksum!=actualChecksum){
-                    logger.error(s"Checksum did not match!")
-                    if(!keepOnFailure) {
-                      logger.info(s"Deleting invalid file ${mxsFile.getId}")
-                      mxsFile.deleteForcefully()
-                    }
-                    if(retryOnFailure){
+                validateChecksum(mxsFile, actualChecksum, keepOnFailure).recoverWith({
+                  case ex:RuntimeException=>
+                    logger.error("Got a runtime exception while validating checksum, retrying: ", ex)
+                    if (retryOnFailure) {
                       Thread.sleep(500)
                       doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
                     } else {
-                      Future.failed(new RuntimeException(s"Checksum did not match"))
+                      Future.failed(ex)
                     }
-                  } else {
-                    Future((mxsFile.getId, finalChecksum))
-                  }
-              })
-            case _=>
-              Future((mxsFile.getId, finalChecksum))
-          }
+                })
+
+              case None=>
+                Future((mxsFile.getId, finalChecksum))
+            }
+          })
         })
-      } catch {
-        case err:Throwable=>
-          logger.error(s"Could not prepare copy: ", err)
-          Future.failed(err)
-      }
     }
   }
 

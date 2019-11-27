@@ -39,6 +39,7 @@ object Main {
       opt[String]('p',"parallelism").action((x,c)=>c.copy(parallelism = x.toInt)).text("copy this many files at once")
       opt[String]("list-path").action((x,c)=>c.copy(listRemoteDirs = Some(x))).text("search the given filename path on the objectmatrix")
       opt[String]("delete-oid").action((x,c)=>c.copy(oidsToDelete = x.split("\\s*,\\s*").toList)).text("Delete file with the given OID")
+      opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
     }
   }
 
@@ -159,7 +160,11 @@ object Main {
           case Success(userInfo)=>
             val vault = MatrixStore.openVault(userInfo)
 
-            if(options.listpath.isDefined) {
+            if(options.everything){
+              if(options.copyFromLocal.isEmpty){
+                logger.error("Can't perform backup when a starting path is not supplied. Use --copy-from-local to specify a starting path")
+              }
+            } else if(options.listpath.isDefined) {
               handleList(options.listpath.get, userInfo, vault, options.chunkSize, options.checksumType, options.parallelism).andThen({
                 case Success(Right(finalReport)) =>
                   logger.info("All operations completed")
