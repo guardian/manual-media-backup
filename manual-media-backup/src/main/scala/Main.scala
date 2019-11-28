@@ -1,7 +1,7 @@
 import java.nio.file.Path
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Balance, Broadcast, GraphDSL, Merge, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{Balance, Broadcast, Flow, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape}
 import com.om.mxs.client.SimpleSearchTerm
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, UserInfo, Vault}
@@ -11,7 +11,7 @@ import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMet
 import helpers._
 import models.{BackupEntry, CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{FileListSource, FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
+import streamcomponents.{CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -49,32 +49,50 @@ object Main {
     }
   }
 
-//  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String) = {
-//    val copierFactory = new ListCopyFile(userInfo, vault, chunkSize, checksumType, mat)
-//
-//    val processingGraph = GraphDSL.create() { implicit builder=>
-//      import akka.stream.scaladsl.GraphDSL.Implicits._
-//
-//      FlowShape.of()
-//    }
-//
-//    GraphDSL.create() {implicit builder=>
-//      import akka.stream.scaladsl.GraphDSL.Implicits._
-//      val src = builder.add(FileListSource(startingPath))
-//      val splitter = builder.add(Balance[BackupEntry](paralellism))
-//      val merger = builder.add(Merge[BackupEntry](paralellism))
-//
-//      val processorFactory = processingGraph
-//
-//      src.out.map(path=>BackupEntry(path,None)) ~> splitter
-//      for(i <- 0 to paralellism) {
-//        val processor = builder.add(processorFactory)
-//        splitter.out(i) ~> processor ~> merger.in(i)
-//      }
-//
-//      ClosedShape
-//    }
-//  }
+  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String) = {
+    val copierFactory = new ListCopyFile(userInfo, vault, chunkSize, checksumType, mat)
+
+    val checkOMFileFactory = new CheckOMFile(userInfo)
+    val createEntryFactory = new CreateOMFileNoCopy(userInfo)
+    val needsBackupFactory = new NeedsBackupSwitch
+
+    val processingGraph = GraphDSL.create() { implicit builder=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+
+      val existSwitch = builder.add(checkOMFileFactory)
+      val createEntry = builder.add(createEntryFactory)
+      val needsBackupSwitch = builder.add(needsBackupFactory)
+      val fileCheckMerger = builder.add(Merge[BackupEntry](2))
+
+      existSwitch.out(0) ~> needsBackupSwitch                     //"yes" branch => given file exists on nearline
+      existSwitch.out(1) ~> createEntry ~> fileCheckMerger       //"no"  branch => given file does not exist on nearline
+
+      needsBackupSwitch.out(0) ~> fileCheckMerger                 //"yes" branch => file still needs backup
+
+      FlowShape.of(existSwitch.in, fileCheckMerger.out)
+    }
+
+    //placeholder, do something better with end result when we know what that is
+    val finalSinkFact = Sink.ignore
+
+    GraphDSL.create(finalSinkFact) {implicit builder=> sink=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+      val src = builder.add(FileListSource(startingPath))
+      val splitter = builder.add(Balance[BackupEntry](paralellism))
+      val merger = builder.add(Merge[BackupEntry](paralellism))
+
+      val processorFactory = processingGraph
+
+      src.out.map(path=>BackupEntry(path,None)) ~> splitter
+      for(i <- 0 to paralellism) {
+        val processor = builder.add(processorFactory)
+        splitter.out(i) ~> processor ~> merger.in(i)
+      }
+
+      merger ~> sink
+      ClosedShape
+    }
+  }
 
   def copyToRemoteGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile[Nothing]) = GraphDSL.create() { implicit builder=>
     import akka.stream.scaladsl.GraphDSL.Implicits._
