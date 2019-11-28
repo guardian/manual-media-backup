@@ -33,7 +33,7 @@ libraryDependencies ++= Seq(
 )
 
 
-lazy val `root` = (project in file(".")).enablePlugins(DockerPlugin,AshScriptPlugin)
+lazy val `root` = (project in file("."))
     .dependsOn(common)
     .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid)
 
@@ -70,11 +70,10 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       daemonUserUid in Docker := None,
       daemonUser in Docker := "daemon",
       dockerUsername  := sys.props.get("docker.username"),
-      dockerRepository := Some("guardianmultimedia"),
       packageName in Docker := "guardianmultimedia/manual-media-backup",
       packageName := "manual-media-backup",
+      dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
       dockerBaseImage := "openjdk:8-jdk-alpine",
-      dockerAlias := docker.DockerAlias(None, Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
       dockerCommands ++= Seq(
         Cmd("USER","root"), //fix the permissions in the built docker image
         Cmd("RUN", "chown daemon /opt/docker"),
@@ -92,11 +91,10 @@ lazy val `inspectoid` = (project in file("inspect-oid")).enablePlugins(DockerPlu
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
-    dockerRepository := Some("guardianmultimedia"),
     packageName in Docker := "guardianmultimedia/inspect-oid",
     packageName := "inspect-oid",
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"inspectoid",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerBaseImage := "openjdk:8-jdk-alpine",
-    dockerAlias := docker.DockerAlias(None, Some("guardianmultimedia"),"inspect-oid",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
       Cmd("RUN", "chown daemon /opt/docker"),
@@ -114,11 +112,10 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
-    dockerRepository := Some("guardianmultimedia"),
     packageName in Docker := "guardianmultimedia/vs-media-backup",
     packageName := "vs-media-backup",
     dockerBaseImage := "openjdk:8-jdk-alpine",
-    dockerAlias := docker.DockerAlias(Some("dc1-gitlab-01.dc1.gnm.int"), Some("guardianmultimedia"),"vs-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"vs-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
       Cmd("RUN", "chown daemon /opt/docker"),
@@ -159,11 +156,10 @@ lazy val `showmxschecksum` = (project in file("show-mxs-checksum")).enablePlugin
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
-    dockerRepository := Some("guardianmultimedia"),
     packageName in Docker := "guardianmultimedia/show-mxs-checksum",
     packageName := "show-mxs-checksum",
     dockerBaseImage := "openjdk:8-jdk-alpine",
-    dockerAlias := docker.DockerAlias(Some("dc1-gitlab-01.dc1.gnm.int"), Some("guardianmultimedia"),"show-mxs-checksum",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"show-mxs-checksum",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
       Cmd("RUN", "chown daemon /opt/docker"),
