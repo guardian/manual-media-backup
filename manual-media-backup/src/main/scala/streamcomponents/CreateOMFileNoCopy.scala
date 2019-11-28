@@ -3,10 +3,10 @@ package streamcomponents
 import java.io.File
 
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
-import akka.stream.stage.{AbstractInHandler, GraphStage, GraphStageLogic}
+import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import helpers.{Copier, MatrixStoreHelper}
-import models.{BackupEntry, ObjectMatrixEntry}
+import models.{BackupEntry, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 
 import scala.util.{Failure, Success}
@@ -17,6 +17,12 @@ class CreateOMFileNoCopy(userInfo:UserInfo) extends GraphStage[FlowShape[BackupE
 
   override def shape: FlowShape[BackupEntry, BackupEntry] = FlowShape.of(in,out)
 
+  //extracts out calls to static objects to make testing easier
+  def callOpenVault = Some(MatrixStore.openVault(userInfo))
+  def callCreateObjectWithMetadata(filePath:Option[String], srcFile:File, meta:MxsMetadata)(implicit v:Vault) =
+    Copier.createObjectWithMetadata(filePath, srcFile, meta)
+  def callMetadataFromFilesystem(srcFile:File) = MatrixStoreHelper.metadataFromFilesystem(srcFile)
+
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
 
@@ -26,20 +32,20 @@ class CreateOMFileNoCopy(userInfo:UserInfo) extends GraphStage[FlowShape[BackupE
       override def onPush(): Unit = {
         val elem = grab(in)
 
-        implicit val implVault = maybeVault.get
+        implicit val vault = maybeVault.get
         elem.maybeObjectMatrixEntry match {
           case Some(omEntry)=>
             logger.warn(s"CreateOMFile received an entry that already had an OM file, this indicates a code bug")
             push(out, elem)
           case None=> //we expect not to have an ObjectMatrixEntry yet
             val srcFile = elem.originalPath.toFile
-            MatrixStoreHelper.metadataFromFilesystem(srcFile).flatMap(metadata=>{
+            callMetadataFromFilesystem(srcFile).flatMap(metadata=>{
                 val updatedMeta = metadata
                   .withValue("GNM_BEING_WRITTEN", true)
                   .withString("MXFS_PATH",srcFile.getAbsolutePath)
                   .withString("MXFS_FILENAME", srcFile.getName)
                   .withString("MXFS_FILENAME_UPPER", srcFile.getName.toUpperCase)
-                Copier.createObjectWithMetadata(Some(srcFile.getAbsolutePath),srcFile,updatedMeta)
+                callCreateObjectWithMetadata(Some(srcFile.getAbsolutePath),srcFile,updatedMeta)
             }) match {
               case Failure(err)=>
                 logger.error("Could not create object: ", err)
@@ -54,8 +60,12 @@ class CreateOMFileNoCopy(userInfo:UserInfo) extends GraphStage[FlowShape[BackupE
       }
     })
 
+    setHandler(out, new AbstractOutHandler {
+      override def onPull(): Unit = pull(in)
+    })
+
     override def preStart(): Unit = {
-      maybeVault = Some(MatrixStore.openVault(userInfo))
+      maybeVault = callOpenVault
     }
 
     override def postStop(): Unit = {
