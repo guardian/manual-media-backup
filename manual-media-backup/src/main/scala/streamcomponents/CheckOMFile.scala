@@ -9,7 +9,7 @@ import helpers.MatrixStoreHelper
 import models.{BackupEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 
-import scala.util.Success
+import scala.util.{Failure, Success}
 
 /**
   * checks if the incoming Path points to something that exists in the Vault pointed to by the provided UserInfo.
@@ -25,6 +25,15 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
 
   override def shape: UniformFanOutShape[BackupEntry,BackupEntry] = new UniformFanOutShape[BackupEntry,BackupEntry](in, Array(yes,no))
 
+  def callOpenVault = Some(MatrixStore.openVault(userInfo))
+  /**
+    * helper method to make testing easier
+    * @param vault
+    * @param path
+    * @return
+    */
+  def callFindByFilename(vault:Vault, path:String) = MatrixStoreHelper.findByFilename(vault,path)
+
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
 
@@ -34,7 +43,7 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
       override def onPush(): Unit = {
         val elem = grab(in)
 
-        MatrixStoreHelper.findByFilename(vault.get, elem.originalPath.toString) match {
+        callFindByFilename(vault.get, elem.originalPath.toString) match {
           case Success(results)=>
             if(results.isEmpty){
               logger.info(s"Path ${elem.toString} does not exist in vault")
@@ -46,6 +55,9 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
               val finalOutput = elem.copy(maybeObjectMatrixEntry = Some(updated))
               push(yes,finalOutput)
             }
+          case Failure(err)=>
+            logger.error(s"Could not look up ${elem.originalPath.toString} on $vault: ", err)
+            failStage(err)
         }
       }
     })
@@ -59,7 +71,7 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
     })
 
     override def preStart(): Unit = {
-      vault = Some(MatrixStore.openVault(userInfo))
+      vault = callOpenVault
     }
 
     override def postStop(): Unit = {
