@@ -29,7 +29,7 @@ class CreateOMFileNoCopy(userInfo:UserInfo) extends GraphStage[FlowShape[BackupE
         implicit val implVault = maybeVault.get
         elem.maybeObjectMatrixEntry match {
           case Some(omEntry)=>
-            logger.warning(s"CreateOMFile received an entry that already had an OM file, this indicates a code bug")
+            logger.warn(s"CreateOMFile received an entry that already had an OM file, this indicates a code bug")
             push(out, elem)
           case None=> //we expect not to have an ObjectMatrixEntry yet
             val srcFile = elem.originalPath.toFile

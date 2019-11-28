@@ -1,3 +1,5 @@
+import java.nio.file.Path
+
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Balance, Broadcast, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape}
@@ -7,6 +9,10 @@ import models.{CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
 import helpers._
+import models.{BackupEntry, CopyReport, IncomingListEntry, ObjectMatrixEntry}
+import org.slf4j.LoggerFactory
+import streamcomponents.{FileListSource, FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
+
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -42,6 +48,33 @@ object Main {
       opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
     }
   }
+
+//  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String) = {
+//    val copierFactory = new ListCopyFile(userInfo, vault, chunkSize, checksumType, mat)
+//
+//    val processingGraph = GraphDSL.create() { implicit builder=>
+//      import akka.stream.scaladsl.GraphDSL.Implicits._
+//
+//      FlowShape.of()
+//    }
+//
+//    GraphDSL.create() {implicit builder=>
+//      import akka.stream.scaladsl.GraphDSL.Implicits._
+//      val src = builder.add(FileListSource(startingPath))
+//      val splitter = builder.add(Balance[BackupEntry](paralellism))
+//      val merger = builder.add(Merge[BackupEntry](paralellism))
+//
+//      val processorFactory = processingGraph
+//
+//      src.out.map(path=>BackupEntry(path,None)) ~> splitter
+//      for(i <- 0 to paralellism) {
+//        val processor = builder.add(processorFactory)
+//        splitter.out(i) ~> processor ~> merger.in(i)
+//      }
+//
+//      ClosedShape
+//    }
+//  }
 
   def copyToRemoteGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile[Nothing]) = GraphDSL.create() { implicit builder=>
     import akka.stream.scaladsl.GraphDSL.Implicits._

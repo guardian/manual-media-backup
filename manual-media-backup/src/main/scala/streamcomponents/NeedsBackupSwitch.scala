@@ -2,7 +2,7 @@ package streamcomponents
 
 import java.time.{Instant, ZoneId, ZonedDateTime}
 
-import akka.stream.{Attributes, FlowShape, Inlet, Outlet, UniformFanOutShape}
+import akka.stream.{Attributes, Inlet, Outlet, UniformFanOutShape}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import models.BackupEntry
 import org.slf4j.LoggerFactory
