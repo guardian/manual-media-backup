@@ -28,6 +28,10 @@ class NeedsBackupSwitch extends GraphStage[UniformFanOutShape[BackupEntry, Backu
         elem.maybeObjectMatrixEntry.flatMap(_.fileAttribues) match {
           case Some(omAttributes)=>try {
             val f = elem.originalPath.toFile
+            if(f.lastModified()==0L){
+              throw new RuntimeException("File does not exist or an IO error occurred")
+            }
+
             val fileLastModified: ZonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(f.lastModified()), ZoneId.systemDefault())
             val omLastModified = omAttributes.mtime
 
