@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<MetadataListDocument xmlns="http://xml.vidispine.com/schema/vidispine">
+    <item id="VX-18">
+        <metadata>
+            <revision>VX-188,VX-190,VX-189,VX-193,VX-216,VX-217</revision>
+            <group>Asset</group>
+            <timespan start="-INF" end="+INF">
+                <field uuid="6b6c1025-19c7-47b7-ba91-1659e5db0919" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>title</name>
+                    <value uuid="a62080d1-0033-4779-b23a-ea3e7718a107" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">getting busy.jpg (unknown project)</value>
+                </field>
+                <field uuid="d5cdb5b5-6fe8-4ad4-adde-586ef91f922c" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_asset_category</name>
+                    <value uuid="c80a1da1-94b9-45af-af00-612b030a0a13" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">Rushes</value>
+                </field>
+                <field uuid="0ce111ed-44e1-481c-8b43-662fe3c5dc0f" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_asset_status</name>
+                    <value uuid="22af00c8-82fa-4568-b744-bd77eae96f30" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">Ready for Editing</value>
+                </field>
+                <field uuid="087019af-e667-41a0-823d-78471b60ba6e" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_asset_owner</name>
+                    <value uuid="e79a02c6-2cfc-4169-a101-a7532ad4c07c" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">1000</value>
+                </field>
+                <field uuid="f2eedf3d-c1ef-49e1-a47a-9710d7293c51" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_asset_filename</name>
+                    <value uuid="e854b3b8-188f-4955-9f3a-089037289854" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">/media/sf_Assets/Gotham_PD/First_Test/admin_Second_Test/photos/getting busy.jpg</value>
+                </field>
+                <field uuid="5fa2c2fb-e8fd-424f-b25c-0bd65ebb47db" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_asset_file_last_modified</name>
+                    <value uuid="85a010f7-cf7b-408b-a95c-b7f92fab81a4" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">2015-11-16T10:21:55Z</value>
+                </field>
+                <field uuid="bbea0001-6ff8-44fd-9ded-6dfcea3543a8" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_rushes_general_original_owner</name>
+                    <value uuid="cb6ef032-983f-43e8-b620-99f7cf8f8f7b" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">1000</value>
+                </field>
+                <field uuid="dc152a63-e432-454f-bc71-40be5887797d" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_asset_createdby</name>
+                    <value uuid="433c077e-5439-4e07-9e3b-e30c28738789" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">1000</value>
+                </field>
+                <field uuid="171a7612-51d3-4cd4-86f7-502aeffbd097" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">
+                    <name>gnm_asset_file_created</name>
+                    <value uuid="05380ffc-677d-4175-bf6c-51f7a0f4b018" user="admin" timestamp="2018-07-20T14:06:33.049+01:00" change="VX-188">2018-07-20T14:05:00Z</value>
+                </field>
+                <field uuid="48bf7eff-75fc-4591-844a-2ec26c4aab46" user="system" timestamp="2018-07-20T14:06:33.152+01:00" change="VX-189">
+                    <name>created</name>
+                    <value uuid="d9be8ba0-891b-458a-bc5b-43f53083be84" user="system" timestamp="2018-07-20T14:06:33.152+01:00" change="VX-189">2018-07-20T13:06:32.978Z</value>
+                </field>
+                <field uuid="226ebee6-32b7-4299-8305-d289bbd48c89" user="system" timestamp="2018-07-20T14:06:33.938+01:00" change="VX-193">
+                    <name>originalFilename</name>
+                    <value uuid="d604533e-2083-4c0e-aa2f-763137b432ba" user="system" timestamp="2018-07-20T14:06:33.938+01:00" change="VX-193">getting busy.jpg</value>
+                </field>
+                <field uuid="cb654934-ab8d-463f-8ce9-38c5fffd9634" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>originalFormat</name>
+                    <value uuid="becb9423-5a32-42ee-9ca4-fb4e5c1795b2" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">JPEG</value>
+                </field>
+                <field uuid="2e0a2636-d16b-4bcf-b60e-ed5573e7cb18" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>originalVideoCodec</name>
+                    <value uuid="80cb7280-b79b-4f13-82a2-ffb82968cd19" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">JPEG</value>
+                </field>
+                <field uuid="49127e6a-68a2-4571-ae49-e6e7578cf35d" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>originalAudioCodec</name>
+                    <value uuid="e7339a85-9558-4567-ba25-3212e652ea79" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216"></value>
+                </field>
+                <field uuid="93ab75bf-4ef7-4481-b18c-bfe257a04bf9" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>durationSeconds</name>
+                    <value uuid="b734690d-0cbf-4716-a409-feda758c24db" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">0.0</value>
+                </field>
+                <field uuid="1eaa28fa-4c94-4248-8a24-99bf59ebf421" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>durationTimeCode</name>
+                    <value uuid="6d4a61cd-9eb7-40ea-bb6b-d4a1dfc079ba" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">0</value>
+                </field>
+                <field uuid="4d1a87f6-b900-4e3e-97b9-3f54b8665c8a" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>originalWidth</name>
+                    <value uuid="3c85a73d-e6c2-41ef-bb33-c5510893decb" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">900</value>
+                </field>
+                <field uuid="56ef0822-66d8-4bfc-86f9-4ec5cc3eb43b" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>originalHeight</name>
+                    <value uuid="86cb102e-949e-4530-a09f-347ff38326ce" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">1419</value>
+                </field>
+                <field uuid="8861211c-87ae-4d34-a77c-7607a445b6ff" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>mimeType</name>
+                    <value uuid="c6506ee1-470b-40e7-9dc9-ae538f4d840d" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">image/jpeg</value>
+                </field>
+                <field uuid="a36d2f33-f6da-42db-b68e-9f6751466733" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>itemId</name>
+                    <value uuid="d5c80e48-0067-4d0b-9e03-29f3b6d6eab2" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">VX-18</value>
+                </field>
+                <field uuid="89613c91-3330-4a86-a6bc-852a4750dc92" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>mediaType</name>
+                    <value uuid="8f6a4e82-f512-4026-a9ec-354e778d6ea3" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">image</value>
+                </field>
+                <field uuid="d7d6d24e-331b-431f-ba56-9a6cd7548758" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">
+                    <name>user</name>
+                    <value uuid="53357bf0-06bf-4d3a-9b54-78a48d286562" user="system" timestamp="2018-07-20T14:08:03.461+01:00" change="VX-216">admin</value>
+                </field>
+                <field uuid="86428eb7-33fa-4484-910a-9bf339f3fdb0" user="system" timestamp="2018-07-20T14:08:04.098+01:00" change="VX-217">
+                    <name>shapeTag</name>
+                    <value uuid="755e54c8-5fe4-4bef-ad41-394c0919102d" user="system" timestamp="2018-07-20T14:08:04.098+01:00" change="VX-217">lowimage</value>
+                    <value uuid="53b8c6f3-64bf-4f6a-8e19-7ff2c5e5c748" user="system" timestamp="2018-07-20T14:08:04.098+01:00" change="VX-217">original</value>
+                </field>
+                <field uuid="13fd05dc-5f49-4199-b06f-1b7ceddee82b" user="system" timestamp="2018-07-20T14:08:04.098+01:00" change="VX-217">
+                    <name>representativeThumbnail</name>
+                    <value uuid="7ef06f48-4dda-4b14-91d7-964d25268745" user="system" timestamp="2018-07-20T14:08:04.098+01:00" change="VX-217">/API/thumbnail/VX-1/VX-18;version=0/0</value>
+                </field>
+                <field uuid="949d4d14-f607-4e31-9baf-75bc4405c04a" user="system" timestamp="2018-07-20T14:08:04.098+01:00" change="VX-217">
+                    <name>representativeThumbnailNoAuth</name>
+                    <value uuid="b8243f35-92aa-4e6f-8cfc-769b579cbaf8" user="system" timestamp="2018-07-20T14:08:04.098+01:00" change="VX-217">/APInoauth/thumbnail/VX-1/VX-18;version=0/0?hash=fa4adf4f4d3f8447c7ae6d07566baf29</value>
+                </field>
+                <field>
+                    <name>__metadata_last_modified</name>
+                    <value>2018-07-20T14:08:04.098+01:00</value>
+                </field>
+                <field>
+                    <name>__placeholder_shape_size</name>
+                    <value>0</value>
+                </field>
+                <field>
+                    <name>__shape_size</name>
+                    <value>2</value>
+                </field>
+                <field>
+                    <name>__shape</name>
+                    <value>VX-48</value>
+                </field>
+                <field>
+                    <name>__shape</name>
+                    <value>VX-55</value>
+                </field>
+                <field>
+                    <name>__version_count</name>
+                    <value>1</value>
+                </field>
+                <field>
+                    <name>__version</name>
+                    <value>0</value>
+                </field>
+                <field>
+                    <name>__shapetag_original_hash</name>
+                    <value>df5f7ab55aa212a6e50448663defb7d4fa6fc586</value>
+                </field>
+                <field>
+                    <name>__shapetag_lowimage_hash</name>
+                    <value>f2a47610e69d5a929b24b9db02bc45f710df1258</value>
+                </field>
+                <field>
+                    <name>__shape_last_added</name>
+                    <value>2018-07-20T12:06:59.508Z</value>
+                </field>
+                <field>
+                    <name>__storage_original</name>
+                    <value>VX-2</value>
+                </field>
+                <field>
+                    <name>__storage_original_size</name>
+                    <value>1</value>
+                </field>
+                <field>
+                    <name>__storage_lowimage</name>
+                    <value>VX-3</value>
+                </field>
+                <field>
+                    <name>__storage_lowimage_size</name>
+                    <value>1</value>
+                </field>
+                <field>
+                    <name>__storage_size</name>
+                    <value>2</value>
+                </field>
+                <field>
+                    <name>__storage</name>
+                    <value>VX-3</value>
+                </field>
+                <field>
+                    <name>__storage</name>
+                    <value>VX-2</value>
+                </field>
+                <field>
+                    <name>__storagegroup_size</name>
+                    <value>0</value>
+                </field>
+                <field>
+                    <name>__sequence_size</name>
+                    <value>0</value>
+                </field>
+                <field>
+                    <name>__collection_size</name>
+                    <value>0</value>
+                </field>
+                <field>
+                    <name>__ancestor_collection_size</name>
+                    <value>0</value>
+                </field>
+                <field>
+                    <name>gnm_asset_filming_location</name>
+                </field>
+                <field>
+                    <name>gnm_storage_rule_projects_held</name>
+                </field>
+                <field>
+                    <name>gnm_mm_copyright</name>
+                </field>
+                <field>
+                    <name>gnm_mm_caption</name>
+                </field>
+                <field>
+                    <name>gnm_storage_rule_deletable</name>
+                </field>
+                <field>
+                    <name>gnm_asset_fee_notes</name>
+                </field>
+                <field>
+                    <name>gnm_asset_restrictions_apply</name>
+                </field>
+                <field>
+                    <name>gnm_storage_rule_sensitive</name>
+                </field>
+                <field>
+                    <name>gnm_asset_restrictions_notes</name>
+                </field>
+                <field>
+                    <name>gnm_type</name>
+                </field>
+                <field>
+                    <name>gnm_asset_user_keywords</name>
+                </field>
+                <field>
+                    <name>gnm_mm_photographer</name>
+                </field>
+                <field>
+                    <name>gnm_storage_rule_deep_archive</name>
+                </field>
+                <field>
+                    <name>gnm_storage_rule_projects_completed</name>
+                </field>
+                <field>
+                    <name>gnm_mm_ref</name>
+                </field>
+                <field>
+                    <name>gnm_mm_provider</name>
+                </field>
+                <field>
+                    <name>gnm_mm_headline</name>
+                </field>
+                <field>
+                    <name>gnm_asset_keywords</name>
+                </field>
+                <field>
+                    <name>gnm_asset_description</name>
+                </field>
+                <group uuid="7000237f-3c8f-4a13-b00e-acb3423c0ed5" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                    <name>xmp_root</name>
+                    <field uuid="a267d8a0-16d1-4c55-80eb-ed36c3cf8b51" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_aux_LensID</name>
+                        <value uuid="3164e782-6d3a-4fca-aaa4-4afbd8595396" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">48</value>
+                    </field>
+                    <field uuid="fa399362-874d-41a1-beb6-b5160553ba93" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_aux_LensInfo</name>
+                        <value uuid="29cc2ea9-e389-4ccf-99d5-ef12db3214a1" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">18/1 55/1 0/0 0/0</value>
+                    </field>
+                    <field uuid="02457582-7c69-4637-b79c-5ae1849327bf" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_aux_Lens</name>
+                        <value uuid="a76469a8-8779-4b03-b7e6-5cdd9d25bf24" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">Canon EF-S 18-55mm f/3.5-5.6 IS</value>
+                    </field>
+                    <field uuid="9eaae64b-cd98-4b7a-be1c-ce1ef01ba97f" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_aux_FlashCompensation</name>
+                        <value uuid="b502cdc8-8e3b-494c-a72a-7d3a2febf618" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0/1</value>
+                    </field>
+                    <field uuid="8e3dc17d-144e-4afa-9558-640e4a25e514" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_aux_Firmware</name>
+                        <value uuid="4fb36493-1f4c-41d7-88d0-3ba26190de46" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">Firmware Version 1.0.9</value>
+                    </field>
+                    <field uuid="9cbe3d68-318e-4188-9010-4f8395d77f23" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_aux_SerialNumber</name>
+                        <value uuid="0dd425ce-377e-4f01-a985-9832e4b7c40a" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">1331706594</value>
+                    </field>
+                    <field uuid="c102de57-89aa-4c0d-ba51-190ed9b35a76" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_xmp_CreateDate</name>
+                        <value uuid="19fdd69c-8187-4cbe-bc99-c14a4e50640f" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">2015-11-12T18:30:44</value>
+                    </field>
+                    <field uuid="a3cdc503-f1f7-4b22-88b8-fcd4d0bf2966" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_xmp_ModifyDate</name>
+                        <value uuid="178ffb11-2d76-4a40-96e2-f89186975e52" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">2015-11-12T18:30:44</value>
+                    </field>
+                    <field uuid="300d1632-ea3e-4262-b16e-b00d420fde0c" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_xmp_CreatorTool</name>
+                        <value uuid="09fee1e6-ce57-4f93-a8e3-5393cc582c4a" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">Acorn version 4.5.1</value>
+                    </field>
+                    <field uuid="8fec4361-6be1-4c4e-86f4-e8087c7d0527" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_tiff_XResolution</name>
+                        <value uuid="63f753d7-011f-4729-a8ef-9a736c464c68" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">72/1</value>
+                    </field>
+                    <field uuid="91b298ae-91e7-4c1a-8ff8-31a1c4982970" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_tiff_YResolution</name>
+                        <value uuid="1f1012b3-4d68-4132-995b-6eda48a7385e" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">72/1</value>
+                    </field>
+                    <field uuid="f9a02f17-fa03-4b0b-a351-763bab609379" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_tiff_ResolutionUnit</name>
+                        <value uuid="d213036a-2388-45d0-8f48-b466e1867c92" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">2</value>
+                    </field>
+                    <field uuid="2c56e57a-f79b-40a2-a001-67077aa5ff5c" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_tiff_Make</name>
+                        <value uuid="2a104c73-7c36-40db-b113-d2e35e75e7fa" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">Canon</value>
+                    </field>
+                    <field uuid="94c9c920-9cc7-47c9-b768-f3e49b64a5a1" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_tiff_Model</name>
+                        <value uuid="c0c662fe-aa07-4750-98d0-43860cfb4230" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">Canon EOS 550D</value>
+                    </field>
+                    <field uuid="71db62bd-4545-4adb-a1d4-e21fde81bc8f" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ColorSpace</name>
+                        <value uuid="96f3ae73-ab49-437e-8c0a-b8b0e100c91e" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">1</value>
+                    </field>
+                    <field uuid="0baa80b3-4d16-4232-b78c-3a649882d7df" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_PixelXDimension</name>
+                        <value uuid="432abdd3-0b5f-4262-9624-6f367ed3f883" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">900</value>
+                    </field>
+                    <field uuid="7c887893-325d-4b06-8eff-8edae4f372ff" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_PixelYDimension</name>
+                        <value uuid="96f2caa5-7f10-4470-b934-1c98d54a7eba" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">1419</value>
+                    </field>
+                    <field uuid="0e6b198e-ab75-4cc7-b3a8-471b35848f4e" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ExposureTime</name>
+                        <value uuid="c224f971-7e08-48ba-b080-a15ed7530a9c" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">1/60</value>
+                    </field>
+                    <field uuid="ba3db437-fd4b-4b86-bd71-880d5969d36f" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_FNumber</name>
+                        <value uuid="9812b1a2-ab58-475c-8833-b419ec15d323" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">4/1</value>
+                    </field>
+                    <field uuid="b4f3788a-8df3-4bb4-8d26-5a62a88956ee" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ExposureProgram</name>
+                        <value uuid="237d7dad-559a-4051-bb16-3a4c2a8efaf6" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">2</value>
+                    </field>
+                    <field uuid="371e278a-8572-483e-a4c9-8276c7cbfeb2" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ShutterSpeedValue</name>
+                        <value uuid="fc32a50d-59e2-4927-99f7-a2e3a12407ed" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">6/1</value>
+                    </field>
+                    <field uuid="d8c04a39-5818-44c9-840f-fa4db87ede4f" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ApertureValue</name>
+                        <value uuid="56e4c27a-ae85-47a9-a74b-25cb8554cbeb" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">4/1</value>
+                    </field>
+                    <field uuid="245d5bee-81fa-4788-941b-783ecb19838c" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ExposureBiasValue</name>
+                        <value uuid="de3c28bb-63ae-4593-9a09-c16111032664" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0/1</value>
+                    </field>
+                    <field uuid="9f248a8f-7c26-4ed5-aefa-8b410ac3242c" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_MaxApertureValue</name>
+                        <value uuid="709905ed-61f8-4625-bd90-f590213a4c57" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">4/1</value>
+                    </field>
+                    <field uuid="4b184dcf-3853-4adf-a94d-2a6df89fe172" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_MeteringMode</name>
+                        <value uuid="87310bea-6595-4203-8129-d2c15be122b4" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">5</value>
+                    </field>
+                    <field uuid="78d8c778-3c0f-44e1-9c05-277d8cafe2e7" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_FocalLength</name>
+                        <value uuid="eda16fe9-2ae8-4e56-9ccf-cc3e9c8e2bf0" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">25/1</value>
+                    </field>
+                    <field uuid="dbcd364c-a9d9-4ae6-8c5e-d8ffb2f1eec7" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_FocalPlaneXResolution</name>
+                        <value uuid="eea7ef87-ec66-42b3-b0e2-0a1c59acc591" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">97379/17</value>
+                    </field>
+                    <field uuid="262de810-2dbc-4073-afdd-5a6c654eb148" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_FocalPlaneYResolution</name>
+                        <value uuid="dc218b0f-5e5b-4a92-b585-d225a4dc1f0d" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">331079/57</value>
+                    </field>
+                    <field uuid="ac176685-28c3-402c-b632-d962b20df3a4" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_FocalPlaneResolutionUnit</name>
+                        <value uuid="792f83ac-2cee-4256-aea8-3ee3aaf0bc2c" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">2</value>
+                    </field>
+                    <field uuid="af26a262-2603-45e0-826c-0e6f132a054c" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_CustomRendered</name>
+                        <value uuid="356a6efe-f52a-4783-a54c-9f1821418384" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0</value>
+                    </field>
+                    <field uuid="a4b14584-7d85-4d01-a3da-495a0d2f19d9" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ExposureMode</name>
+                        <value uuid="225d0acb-e6ac-49fe-a9c1-7e8dbaea79ee" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0</value>
+                    </field>
+                    <field uuid="3ff35b5e-1a8e-419a-b151-5cf13cf0fa02" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_WhiteBalance</name>
+                        <value uuid="dc0b1c23-64bb-471d-8a3a-ae687d3a495e" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0</value>
+                    </field>
+                    <field uuid="2b613352-f2a9-4491-aeeb-3d7ef5ee5825" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_SceneCaptureType</name>
+                        <value uuid="baa4e1fd-e370-4543-891d-3c4f54af0414" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0</value>
+                    </field>
+                    <field uuid="38fe39e6-83c8-40ae-89ef-7bab57ccb74f" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_DateTimeOriginal</name>
+                        <value uuid="cb536015-41cc-454d-8e7c-14e94488f9ca" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">2015-11-12T18:30:44.92</value>
+                    </field>
+                    <field uuid="1e39da7c-065c-4c3e-ae98-67c94ad572e7" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ISOSpeedRatings</name>
+                        <value uuid="17ec0a8d-93a8-43aa-b873-1c184b5f6286" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">400</value>
+                    </field>
+                    <field uuid="4e68ae93-7800-419d-8683-b4c7a8286378" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ExifVersion</name>
+                        <value uuid="dec26c12-70d4-49c1-bad2-acd6a66d4c24" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0221</value>
+                    </field>
+                    <field uuid="dd720946-3b71-40c6-abae-3e302e8602b0" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_FlashpixVersion</name>
+                        <value uuid="568f0251-bf9e-48c6-8050-45d517e9b899" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0100</value>
+                    </field>
+                    <field uuid="4b511b85-a2a3-4270-9ca1-53a03f799660" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_ComponentsConfiguration</name>
+                        <value uuid="6e726460-8649-4f0e-8372-343c1fffdaf7" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0</value>
+                        <value uuid="e872f239-2cc4-4091-9ba2-96e62c7d1e1a" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">2</value>
+                        <value uuid="d5747192-b939-4279-b47a-43247b22c62f" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">3</value>
+                        <value uuid="df0d81e0-846c-4791-81e9-97d0cf17bdc1" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">1</value>
+                    </field>
+                    <group uuid="2378d50d-25f3-45cb-a3a9-b5aaa35bf733" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                        <name>xmp_exif_Flash</name>
+                        <field uuid="e2a92927-6fed-400b-bf50-355f2f66656a" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                            <name>xmp_exif_RedEyeMode</name>
+                            <value uuid="74f0e637-8131-4dda-8d9f-b70a7fe9facf" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">False</value>
+                        </field>
+                        <field uuid="2cdf3245-8c0f-4ebd-8014-b4a82691d984" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                            <name>xmp_exif_Function</name>
+                            <value uuid="9b4bfc50-a4f3-45b0-8d4b-967d15bd83d1" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">False</value>
+                        </field>
+                        <field uuid="662f08fe-2feb-4ee5-b22c-cf6706f9fba4" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                            <name>xmp_exif_Mode</name>
+                            <value uuid="54bf0f7b-ad52-4039-ab9c-4e35552afdd2" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">1</value>
+                        </field>
+                        <field uuid="2c71585f-bbb1-430b-9520-328df50120f5" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                            <name>xmp_exif_Return</name>
+                            <value uuid="b5e03727-2f17-44eb-b234-3663d63f16a1" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">0</value>
+                        </field>
+                        <field uuid="0f198273-599d-4ced-abe5-fce53748586e" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">
+                            <name>xmp_exif_Fired</name>
+                            <value uuid="eaa0628f-a932-4386-bf35-6de58ac9ecd9" user="system" timestamp="2018-07-20T14:06:33.730+01:00" change="VX-190">True</value>
+                        </field>
+                    </group>
+                </group>
+            </timespan>
+        </metadata>
+    </item>
+</MetadataListDocument>
