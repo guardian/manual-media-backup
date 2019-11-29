@@ -15,3 +15,7 @@ trait LocalDateTimeEncoder {
     str <- c.value.as[String]
   } yield LocalDateTime.parse(str, dateTimeFormatter)
 }
+
+//also make it available as an importable object, as i have been having issues with retry-recursion when
+//simply extending the trait
+object LocalDateTimeEncoder extends LocalDateTimeEncoder

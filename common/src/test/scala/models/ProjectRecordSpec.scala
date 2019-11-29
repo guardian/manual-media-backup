@@ -6,6 +6,7 @@ import helpers.LocalDateTimeEncoder
 import org.specs2.mutable.Specification
 import io.circe.generic.auto._
 import io.circe.syntax._
+import models.pluto.ProjectRecord
 
 class ProjectRecordSpec extends Specification with LocalDateTimeEncoder {
   "ProjectRecord" should {

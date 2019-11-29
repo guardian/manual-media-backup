@@ -1,0 +1,229 @@
+package helpers
+
+import java.net.URLEncoder
+import java.nio.file.Path
+import java.util.UUID
+
+import akka.actor.{Actor, ActorRef, ActorSystem}
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model._
+import akka.stream.Materializer
+import akka.stream.scaladsl.{Keep, Sink}
+import akka.util.ByteString
+import io.circe.parser
+import io.circe.syntax._
+import io.circe.generic.auto._
+import models.pluto.{AssetFolderRecord, CommissionRecord, ProjectRecord, WorkingGroupRecord}
+import org.slf4j.LoggerFactory
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.util.{Failure, Success}
+
+object PlutoCommunicator {
+  trait AFHMsg
+
+  case class Lookup(forPath:Path) extends AFHMsg
+  case class StoreInCache(forPath:Path,result:Option[AssetFolderRecord]) extends AFHMsg
+
+  case class LookupProject(forId:String) extends AFHMsg
+  case class CacheProject(forId:String, result:Option[ProjectRecord]) extends AFHMsg
+  case class LookupCommission(forId:String) extends AFHMsg
+  case class CacheCommission(forId:String, result:Option[CommissionRecord]) extends AFHMsg
+  case class LookupWorkingGroup(forId:UUID) extends AFHMsg
+  case class CacheWorkingGroups(list:Seq[WorkingGroupRecord],maybeReturnId:Option[UUID]) extends AFHMsg
+
+  case class FoundAssetFolder(result:Option[AssetFolderRecord]) extends AFHMsg
+  case class FoundProject(result:Option[ProjectRecord]) extends AFHMsg
+  case class FoundCommission(result:Option[CommissionRecord]) extends AFHMsg
+  case class FoundWorkingGroup(result:Option[WorkingGroupRecord]) extends AFHMsg
+  case object LookupFailed extends AFHMsg
+}
+
+class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)(implicit system:ActorSystem, mat:Materializer) extends Actor {
+  import PlutoCommunicator._
+  private val logger = LoggerFactory.getLogger(getClass)
+
+  private var assetFolderCache:Map[Path, Option[AssetFolderRecord]] = Map()
+  private var projectsCache:Map[String,Option[ProjectRecord]] = Map()
+  private var commissionsCache:Map[String, Option[CommissionRecord]] = Map()
+  private var workingGroupCache:Map[UUID, Option[WorkingGroupRecord]] = Map()
+
+  protected val ownRef:ActorRef = self
+
+  override def receive: Receive = {
+    case StoreInCache(forPath, assetFolder)=>
+      assetFolderCache ++= Map(forPath->assetFolder)
+      sender() ! akka.actor.Status.Success
+    case Lookup(forPath)=>
+      assetFolderCache.get(forPath) match {
+        case Some(assetFolder)=>
+          sender() ! FoundAssetFolder(assetFolder)
+        case None=>
+          val originalSender = sender()
+          performAssetFolderLookup(forPath).onComplete({
+            case Success(assetFolder)=>
+              ownRef ! StoreInCache(forPath, assetFolder)
+              originalSender ! FoundAssetFolder(assetFolder)
+            case Failure(err)=>
+              logger.error(s"Could not look up potential asset folder path ${forPath.toString}: ", err)
+              originalSender ! LookupFailed
+          })
+      }
+
+    case CacheProject(forId, result)=>
+      projectsCache ++= Map(forId->result)
+      sender() ! akka.actor.Status.Success
+    case LookupProject(forId)=>
+      projectsCache.get(forId) match {
+        case Some(projectRecord)=>
+          sender() ! FoundProject(projectRecord)
+        case None=>
+          val originalSender = sender()
+          performProjectLookup(forId).onComplete({
+            case Success(record)=>
+              ownRef ! CacheProject(forId, record)
+              originalSender ! FoundProject(record)
+            case Failure(err)=>
+              logger.error(s"Could not look up project with ID $forId: ", err)
+              originalSender ! LookupFailed
+          })
+      }
+
+    case CacheCommission(forId, result)=>
+      commissionsCache ++= Map(forId->result)
+      sender() ! akka.actor.Status.Success
+    case LookupCommission(forId)=>
+      commissionsCache.get(forId) match {
+        case Some(record)=>
+          sender() ! FoundCommission(record)
+        case None=>
+          val originalSender = sender()
+          performCommissionLookup(forId).onComplete({
+            case Success(record)=>
+              ownRef ! CacheCommission(forId, record)
+              originalSender ! FoundCommission(record)
+            case Failure(err)=>
+              logger.error(s"Could no look up commission with ID $forId: ", err)
+              originalSender ! LookupFailed
+          })
+      }
+
+    case CacheWorkingGroups(list, maybeReturn)=>
+      workingGroupCache = list.map(rec=>(rec.uuid->Some(rec))).toMap
+      maybeReturn match {
+        case Some(idToReturn)=>
+          sender() ! FoundWorkingGroup(workingGroupCache.get(idToReturn).flatten)
+        case None=>
+          sender() ! akka.actor.Status.Success
+      }
+    case LookupWorkingGroup(forId)=>
+      if(workingGroupCache.isEmpty){
+        val originalSender = sender()
+        performWorkingGroupLookup().onComplete({
+          case Success(maybeRecords)=>
+            //cache the record, perform the lookup on the cached values and then return it to orginalSender
+            ownRef.tell(CacheWorkingGroups(maybeRecords.getOrElse(Seq()), Some(forId)), originalSender)
+          case Success(None)=>
+            originalSender ! FoundWorkingGroup(None)
+          case Failure(err)=>
+            logger.error(s"Could not look up working groups: ", err)
+            originalSender ! LookupFailed
+        })
+      } else {
+        sender() ! FoundWorkingGroup(workingGroupCache.get(forId).flatten)
+      }
+  }
+
+  /**
+    * internal method that consumes a given response entity to a String
+    * @param entity ResponseEntity object
+    * @return a Future containing the String of the content
+    */
+  def consumeResponseEntity(entity:ResponseEntity) = {
+    val sink = Sink.reduce[ByteString]((acc,elem)=>acc ++ elem)
+    entity.dataBytes.toMat(sink)(Keep.right).run().map(_.utf8String)
+  }
+
+  /**
+    * convenience method that consumes a given response entity and parses it into a Json object
+    * @param entity ResponseEntity object
+    * @return a Future containing either the ParsingFailure error or the parsed Json object
+    */
+  def consumeResponseEntityJson(entity:ResponseEntity) = consumeResponseEntity(entity)
+    .map(io.circe.parser.parse)
+
+  /* extract call to static object to make testing easier */
+  def callHttp = Http()
+
+  /**
+    * internal method that performs a call to pluto, handles response codes/retries and unmarshals reutrned JSON to a domain object.
+    * If the server returns a 200 response then the content is parsed as JSON and unmarshalled into the given object
+    * If the server returns a 404 response then None is returned
+    * If the server returns a 403 or a 400 then a failed future is returned
+    * If the server returns a 500, 502, 503 or 504 then the request is retried after (attempt*0.5) seconds up till 10 attempts
+    * @param req constructed akka HttpRequest to perform
+    * @param attempt attempt counter, you don't need to specify this when calling
+    * @tparam T the type of domain object to unmarshal the response into. There must be an io.circe.Decoder in-scope for this kind of object.
+    *           if the unmarshalling fails then a failed Future is returned
+    * @return a Future containing an Option with either the unmarshalled domain object or None
+    */
+  protected def callToPluto[T:io.circe.Decoder](req:HttpRequest, attempt:Int=1):Future[Option[T]] = if(attempt>10) {
+    Future.failed(new RuntimeException("Too many retries, see logs for details"))
+  } else {
+    callHttp.singleRequest(req).flatMap(response => {
+      val contentBody = consumeResponseEntity(response.entity)
+
+      response.status.intValue() match {
+        case 200 =>
+          contentBody
+            .map(io.circe.parser.parse)
+            .map(_.flatMap(_.as[T]))
+            .map({
+              case Left(err) => throw new RuntimeException("Could not understand server response: ", err)
+              case Right(data) => Some(data)
+            })
+        case 404 =>
+          Future(None)
+        case 403 =>
+          throw new RuntimeException(s"Pluto said permission denied.")  //throwing an exception here will fail the future,
+                                                                        //which is picked up in onComplete in the call
+        case 400 =>
+          throw new RuntimeException(s"Pluto returned bad data error: $contentBody")
+        case 500|502|503|504 =>
+          logger.error(s"Pluto returned a server error: $contentBody. Retrying...")
+          Thread.sleep(500 * attempt)
+          callToPluto(req, attempt +1)
+      }
+    })
+  }
+
+  /**
+    * asks Pluto for information on the given (potential) asset folder path.
+    *
+    * @param forPath java.nio.file.Path representing the path to look up
+    * @return a Future containing an AssetFolderResponse, or if there was an error a failed Future (catch this with
+    *         .recover() or .onComplete)
+    */
+  def performAssetFolderLookup(forPath:Path):Future[Option[AssetFolderRecord]] = {
+    val req = HttpRequest(uri=s"$plutoBaseUri/gnm_asset_folder/lookup?path=${URLEncoder.encode(forPath.toString)}")
+    callToPluto[AssetFolderRecord](req)
+  }
+
+  def performCommissionLookup(forId:String) = {
+    import LocalDateTimeEncoder._
+    val req = HttpRequest(uri=s"$plutoBaseUri/commission/api/$forId")
+    callToPluto[CommissionRecord](req)
+  }
+
+  def performProjectLookup(forId:String) = {
+    import LocalDateTimeEncoder._
+    val req = HttpRequest(uri=s"$plutoBaseUri/project/api/$forId")
+    callToPluto[ProjectRecord](req)
+  }
+
+  def performWorkingGroupLookup() = {
+    val req = HttpRequest(uri=s"$plutoBaseUri/commission/api/groups/")
+    callToPluto[Seq[WorkingGroupRecord]](req)
+  }
+}
