@@ -78,6 +78,41 @@ class AssetFolderHelper(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   /* extract call to static object to make testing easier */
   def callHttp = Http()
 
+  protected def callToPluto[T:io.circe.Decoder](req:HttpRequest, attempt:Int=1):Future[Option[T]] =
+    callHttp.singleRequest(req).flatMap(response => {
+      val contentBody = consumeResponseEntity(response.entity)
+
+      response.status.intValue() match {
+        case 200 =>
+          contentBody
+            .map(io.circe.parser.parse)
+            .map(_.flatMap(_.as[T]))
+            .map({
+              case Left(err) => throw new RuntimeException("Could not understand server response: ", err)
+              case Right(data) => Some(data)
+            })
+        case 404 =>
+          Future(None)
+        case 403 =>
+          throw new RuntimeException(s"Pluto said permission denied.")  //throwing an exception here will fail the future,
+                                                                        //which is picked up in onComplete in the call
+        case 400 =>
+          throw new RuntimeException(s"Pluto returned bad data error: $contentBody")
+        case 500 =>
+          logger.error(s"Pluto returned a server error: $contentBody. Retrying...")
+          Thread.sleep(500 * attempt)
+          callToPluto(req, attempt +1)
+        case 503 =>
+          logger.error(s"Pluto returned server not available. Retrying...")
+          Thread.sleep(500 * attempt)
+          callToPluto(req, attempt +1)
+        case 504 =>
+          logger.error(s"Pluto returned server not available. Retrying...")
+          Thread.sleep(500 * attempt)
+          callToPluto(req, attempt +1)
+      }
+    })
+
   /**
     * asks Pluto for information on the given (potential) asset folder path.
     *
@@ -93,39 +128,7 @@ class AssetFolderHelper(plutoBaseUri:String, plutoUser:String, plutoPass:String)
       logger.error(s"Too many attempts, giving up")
       throw new RuntimeException("Too many attempts, giving up")
     } else {
-      callHttp.singleRequest(req).flatMap(response => {
-        val contentBody = consumeResponseEntity(response.entity)
-
-        response.status.intValue() match {
-          case 200 =>
-            contentBody
-              .map(io.circe.parser.parse)
-              .map(_.flatMap(_.as[AssetFolderResponse]))
-              .map({
-                case Left(err) => throw new RuntimeException("Could not understand server response: ", err)
-                case Right(data) => Some(data)
-              })
-          case 404 =>
-            logger.info(s"No asset folder was found for ${forPath.toString}")
-            Future(None)
-          case 403 =>
-            throw new RuntimeException(s"Pluto said permission denied.")
-          case 400 =>
-            throw new RuntimeException(s"Pluto returned bad data error: $contentBody")
-          case 500 =>
-            logger.error(s"Pluto returned a server error: $contentBody. Retrying...")
-            Thread.sleep(500 * attempt)
-            performLookup(forPath)
-          case 503 =>
-            logger.error(s"Pluto returned server not available. Retrying...")
-            Thread.sleep(500 * attempt)
-            performLookup(forPath, attempt + 1)
-          case 504 =>
-            logger.error(s"Pluto returned server not available. Retrying...")
-            Thread.sleep(500 * attempt)
-            performLookup(forPath, attempt + 1)
-        }
-      })
+      callToPluto[AssetFolderResponse](req)
     }
   }
 
