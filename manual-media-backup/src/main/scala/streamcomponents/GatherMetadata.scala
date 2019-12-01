@@ -4,14 +4,15 @@ import java.nio.file.Path
 
 import akka.actor.ActorRef
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
-import akka.stream.stage.{AbstractInHandler, GraphStage, GraphStageLogic}
-import models.{BackupEntry, CustomMXSMetadata}
+import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
+import models.{BackupEntry, CustomMXSMetadata, MxsMetadata}
 import org.slf4j.LoggerFactory
 import akka.pattern.ask
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[BackupEntry, BackupEntry]] {
   import helpers.PlutoCommunicator._
@@ -87,15 +88,34 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
 
         logger.info(s"basePath is $basePath")
 
-        val updatedCustomMeta = maybeMetadata match {
+        val updatedCustomMetaFut = maybeMetadata match {
           case Some(existingMeta)=>
             existingMeta.itemType match {
               case CustomMXSMetadata.TYPE_RUSHES=>
                 lookupAllMetaForRushes(basePath, existingMeta)
+              //FIXME: endpoints and fetch calls for Master and Deliverable
+              case CustomMXSMetadata.TYPE_UNSORTED=>
+                Future(existingMeta)
             }
+          case None=>
+            Future.failed(new RuntimeException("Incoming item had no type field so cannot determine metadata"))
         }
 
+        updatedCustomMetaFut.onComplete({
+          case Success(newmeta)=>
+            val omEntry = elem.maybeObjectMatrixEntry.get
+            val updatedEntry = omEntry.copy(attributes = Some(newmeta.toAttributes(omEntry.attributes.getOrElse(MxsMetadata.empty()))))
+            val updatedBackupEntry = elem.copy(maybeObjectMatrixEntry = Some(updatedEntry))
+            completedCb.invoke(updatedBackupEntry)
+          case Failure(err)=>
+            logger.error(s"Could not look up metadata for ${elem.originalPath}: ", err)
+            failedCb.invoke(err)
+        })
       }
+    })
+
+    setHandler(out, new AbstractOutHandler {
+      override def onPull(): Unit = pull(in)
     })
   }
 }
