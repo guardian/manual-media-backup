@@ -1,7 +1,18 @@
 package models
 
-case class CustomMXSMetadata(itemType:String, projectId:Option[String], commissionId:Option[String], masterId:Option[String],
-                             projectName:Option[String],commissionName:Option[String],workingGroupName:Option[String]) {
+case class CustomMXSMetadata(itemType:String,
+                             projectId:Option[String],
+                             commissionId:Option[String],
+                             masterId:Option[String],
+                             masterName:Option[String],
+                             masterUser:Option[String],
+                             projectName:Option[String],
+                             commissionName:Option[String],
+                             workingGroupName:Option[String],
+                             deliverableAssetId:Option[Int],
+                             deliverableBundle:Option[Int],
+                             deliverableVersion:Option[Int],
+                             deliverableType:Option[String]) {
   /**
     * adds the contents of the record to the given MxsMetadata object, ignoring empty fields
     * @param addTo existing [[MxsMetadata]] object to add to; this can be `MxsMetadata.empty`
@@ -29,9 +40,19 @@ object CustomMXSMetadata {
 
   def fromMxsMetadata(incoming:MxsMetadata):Option[CustomMXSMetadata] =
     incoming.stringValues.get("GNM_TYPE").map(itemType=>
-      new CustomMXSMetadata(itemType, incoming.stringValues.get("GNM_PROJECT_ID"), incoming.stringValues.get("GNM_COMMISSION_ID"),
-        incoming.stringValues.get("GNM_MASTER_ID"),incoming.stringValues.get("GNM_PROJECT_NAME"),incoming.stringValues.get("GNM_COMMISSION_NAME"),
-        incoming.stringValues.get("GNM_WORKING_GROUP_NAME")
+      new CustomMXSMetadata(itemType,
+        incoming.stringValues.get("GNM_PROJECT_ID"),
+        incoming.stringValues.get("GNM_COMMISSION_ID"),
+        incoming.stringValues.get("GNM_MASTER_ID"),
+        incoming.stringValues.get("GNM_MASTER_NAME"),
+        incoming.stringValues.get("GNM_MASTER_USER"),
+        incoming.stringValues.get("GNM_PROJECT_NAME"),
+        incoming.stringValues.get("GNM_COMMISSION_NAME"),
+        incoming.stringValues.get("GNM_WORKING_GROUP_NAME"),
+        incoming.intValues.get("GNM_DELIVERABLE_ASSET_ID"),
+        incoming.intValues.get("GNM_DELIVERABLE_BUNDLE_ID"),
+        incoming.intValues.get("GNM_DELIVERABLE_VERSION"),
+        incoming.stringValues.get("GNM_DELIVERABLE_TYPE")
       )
     )
 }

@@ -6,7 +6,7 @@ import akka.actor.ActorRef
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import models.{BackupEntry, CustomMXSMetadata, MxsMetadata}
-import org.slf4j.LoggerFactory
+import org.slf4j.{Logger, LoggerFactory}
 import akka.pattern.ask
 
 import scala.concurrent.duration._
@@ -24,6 +24,49 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
   override def shape: FlowShape[BackupEntry, BackupEntry] = FlowShape.of(in,out)
 
   /**
+    * look up project and associated commission and working group data
+    * @param forProjectId vidispine project ID to look up
+    * @param existingMxsMeta CustomMXSMetadata object representing the current state of file metadata
+    * @return a Future containing a copy of `existingMxsMeta` that has been updated with known fields
+    */
+  def lookupProjectAndCommission(forProjectId:String, existingMxsMeta:CustomMXSMetadata) = {
+    val projectFut = (plutoCommunicator ? LookupProject(forProjectId)).mapTo[AFHMsg]
+    projectFut.flatMap({
+      case LookupFailed => Future.failed(new RuntimeException("Lookup failed, see previous logs"))
+      case FoundProject(Some(project)) =>
+        //fixme: this is a cheat but will work for now
+        val commissionFut = (plutoCommunicator ? LookupCommission(s"VX-${project.commission}")).mapTo[AFHMsg]
+        commissionFut.flatMap({
+          case LookupFailed => Future.failed(new RuntimeException("Lookup failed, see previous logs"))
+          case FoundCommission(Some(commission)) =>
+            val workingGroupFut = (plutoCommunicator ? LookupWorkingGroup(commission.gnm_commission_workinggroup)).mapTo[AFHMsg]
+            workingGroupFut.flatMap({
+              case LookupFailed => Future.failed(new RuntimeException("Lookup failed, see previous logs"))
+              case FoundWorkingGroup(Some(workingGroup)) =>
+                Future(existingMxsMeta.copy(
+                  projectId = Some(forProjectId),
+                  commissionId = Some(commission.collection_id.toString),
+                  projectName = project.gnm_project_headline,
+                  commissionName = Some(commission.gnm_commission_title),
+                  workingGroupName = Some(workingGroup.name))
+                )
+              case FoundWorkingGroup(None) =>
+                Future(existingMxsMeta.copy(
+                  projectId = Some(forProjectId),
+                  commissionId = Some(commission.collection_id.toString),
+                  projectName = project.gnm_project_headline,
+                  commissionName = Some(commission.gnm_commission_title)
+                ))
+            })
+          case FoundCommission(None) =>
+            Future(existingMxsMeta.copy(projectId = Some(forProjectId), projectName = project.gnm_project_headline))
+        })
+      case FoundProject(None) =>
+        Future(existingMxsMeta.copy(projectId = None))
+    })
+  }
+
+  /**
     * looks up asset folder, project, commission and working group from the provided cache
     * @param basePath path to use for initial asset folder lookup
     * @param existingMxsMeta existing metadata for item
@@ -34,47 +77,70 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
     assetFolderFut.flatMap({
       case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
       case FoundAssetFolder(Some(assetFolder))=>
-        val projectFut = (plutoCommunicator ? LookupProject(assetFolder.project)).mapTo[AFHMsg]
-        projectFut.flatMap({
-          case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
-          case FoundProject(Some(project))=>
-            //fixme: this is a cheat but will work for now
-            val commissionFut = (plutoCommunicator ? LookupCommission(s"VX-${project.commission}")).mapTo[AFHMsg]
-            commissionFut.flatMap({
-              case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
-              case FoundCommission(Some(commission))=>
-                val workingGroupFut = (plutoCommunicator ? LookupWorkingGroup(commission.gnm_commission_workinggroup)).mapTo[AFHMsg]
-                workingGroupFut.flatMap({
-                  case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
-                  case FoundWorkingGroup(Some(workingGroup))=>
-                    Future(existingMxsMeta.copy(
-                      projectId=Some(assetFolder.project),
-                      commissionId=Some(commission.collection_id.toString),
-                      projectName=project.gnm_project_headline,
-                      commissionName=Some(commission.gnm_commission_title),
-                      workingGroupName=Some(workingGroup.name))
-                    )
-                  case FoundWorkingGroup(None)=>
-                    Future(existingMxsMeta.copy(
-                      projectId=Some(assetFolder.project),
-                      commissionId=Some(commission.collection_id.toString),
-                      projectName=project.gnm_project_headline,
-                      commissionName=Some(commission.gnm_commission_title)
-                    ))
-                })
-              case FoundCommission(None)=>
-                Future(existingMxsMeta.copy(projectId=Some(assetFolder.project), projectName = project.gnm_project_headline))
-            })
-          case FoundProject(None)=>
-            Future(existingMxsMeta.copy(projectId = Some(assetFolder.project)))
-        })
+        lookupProjectAndCommission(assetFolder.project, existingMxsMeta)
       case FoundAssetFolder(None)=>
         Future(existingMxsMeta)
     })
   }
 
+  def lookupAllMetadataForMasters(masterFile:Path, existingMxsMeta:CustomMXSMetadata)(implicit logger:Logger) = {
+    val masterFut = (plutoCommunicator ? LookupMaster(masterFile.getFileName.toString)).mapTo[AFHMsg]
+
+    masterFut.flatMap({
+      case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
+      case FoundMaster(masterRecords)=>
+        if(masterRecords.length>1){
+          logger.warn(s"Got ${masterRecords.length} records for $masterFile, expected 1. Using the first.")
+        }
+
+        masterRecords.headOption match {
+          case Some(masterRecord)=>
+            lookupProjectAndCommission(s"VX-${masterRecord.project}", existingMxsMeta).map(updatedMeta=>
+              //FIXME: not got master ID yet!
+              updatedMeta.copy(masterName=Some(masterRecord.title), masterUser = Some(masterRecord.user.toString))
+            )
+          case None=>
+            logger.warn(s"Got no master record for $masterFile")
+            Future(existingMxsMeta)
+        }
+    })
+  }
+
+  def lookupAllMetadataForDeliverables(deliverablePath:Path, existingMxsMeta:CustomMXSMetadata)(implicit logger:Logger) = {
+    val assetFut = (plutoCommunicator ? LookupDeliverableAsset(deliverablePath.getFileName.toString)).mapTo[AFHMsg]
+
+    assetFut.flatMap({
+      case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
+      case FoundDeliverableAsset(Some(record))=>
+        val delivFut = (plutoCommunicator ? LookupDeliverableBundle(record.deliverable)).mapTo[AFHMsg]
+        delivFut.flatMap({
+          case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
+          case FoundDeliverableBundle(Some(bundle))=>
+            lookupProjectAndCommission(bundle.project_id, existingMxsMeta).map(updatedMeta=>
+              updatedMeta.copy(
+                deliverableBundle = Some(record.deliverable),
+                deliverableType = record.type_string,
+                deliverableVersion = record.version,
+                deliverableAssetId = Some(record.id)
+              )
+            )
+          case FoundDeliverableBundle(None)=>
+            logger.warn(s"Got a deliverable record referring to a non-existing bundle ${record.deliverable}")
+            Future(existingMxsMeta.copy(
+              deliverableBundle = Some(record.deliverable),
+              deliverableType = record.type_string,
+              deliverableVersion = record.version,
+              deliverableAssetId = Some(record.id)
+            ))
+        })
+      case FoundDeliverableAsset(None)=>
+        logger.warn(s"Got no deliverable asset for path ${deliverablePath.toString}")
+        Future(existingMxsMeta) //we did not find any record so we can't update anything
+    })
+  }
+
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    private val logger = LoggerFactory.getLogger(getClass)
+    private implicit val logger:org.slf4j.Logger = LoggerFactory.getLogger(getClass)
 
     val completedCb = createAsyncCallback[BackupEntry](e=>push(out,e))
     val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
@@ -93,7 +159,10 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
             existingMeta.itemType match {
               case CustomMXSMetadata.TYPE_RUSHES=>
                 lookupAllMetaForRushes(basePath, existingMeta)
-              //FIXME: endpoints and fetch calls for Master and Deliverable
+              case CustomMXSMetadata.TYPE_MASTER=>
+                lookupAllMetadataForMasters(elem.originalPath, existingMeta)
+              case CustomMXSMetadata.TYPE_DELIVERABLE=>
+                lookupAllMetadataForDeliverables(elem.originalPath, existingMeta)
               case CustomMXSMetadata.TYPE_UNSORTED=>
                 Future(existingMeta)
             }

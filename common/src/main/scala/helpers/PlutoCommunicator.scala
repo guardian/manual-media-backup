@@ -13,7 +13,7 @@ import akka.util.ByteString
 import io.circe.parser
 import io.circe.syntax._
 import io.circe.generic.auto._
-import models.pluto.{AssetFolderRecord, CommissionRecord, ProjectRecord, WorkingGroupRecord}
+import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -32,11 +32,21 @@ object PlutoCommunicator {
   case class CacheCommission(forId:String, result:Option[CommissionRecord]) extends AFHMsg
   case class LookupWorkingGroup(forId:UUID) extends AFHMsg
   case class CacheWorkingGroups(list:Seq[WorkingGroupRecord],maybeReturnId:Option[UUID]) extends AFHMsg
+  case class LookupMaster(forFileName:String) extends AFHMsg
+  case class CacheMaster(forFileName:String, result:Seq[MasterRecord]) extends AFHMsg
+  case class LookupDeliverableAsset(forFileName:String) extends AFHMsg
+  case class CacheDeliverableAsset(forFileName:String, result:Option[DeliverableAssetRecord]) extends AFHMsg
+  case class LookupDeliverableBundle(forId:Int) extends AFHMsg
+  case class CacheDeliverableBundle(forId:Int, result:Option[DeliverableBundleRecord]) extends AFHMsg
 
   case class FoundAssetFolder(result:Option[AssetFolderRecord]) extends AFHMsg
   case class FoundProject(result:Option[ProjectRecord]) extends AFHMsg
   case class FoundCommission(result:Option[CommissionRecord]) extends AFHMsg
   case class FoundWorkingGroup(result:Option[WorkingGroupRecord]) extends AFHMsg
+  case class FoundMaster(result:Seq[MasterRecord]) extends AFHMsg
+  case class FoundDeliverableAsset(result:Option[DeliverableAssetRecord]) extends AFHMsg
+  case class FoundDeliverableBundle(result:Option[DeliverableBundleRecord]) extends AFHMsg
+
   case object LookupFailed extends AFHMsg
 }
 
@@ -48,6 +58,9 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   private var projectsCache:Map[String,Option[ProjectRecord]] = Map()
   private var commissionsCache:Map[String, Option[CommissionRecord]] = Map()
   private var workingGroupCache:Map[UUID, Option[WorkingGroupRecord]] = Map()
+  private var masterCache:Map[String,Seq[MasterRecord]] = Map()
+  private var deliverableAssetCache:Map[String,Option[DeliverableAssetRecord]] = Map()
+  private var deliverableBundleCache:Map[Int,Option[DeliverableBundleRecord]] = Map()
 
   protected val ownRef:ActorRef = self
 
@@ -133,6 +146,65 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
       } else {
         sender() ! FoundWorkingGroup(workingGroupCache.get(forId).flatten)
       }
+
+    case CacheMaster(fileName, result)=>
+      masterCache += (fileName -> result)
+      sender() ! akka.actor.Status.Success
+    case LookupMaster(fileName)=>
+      masterCache.get(fileName) match {
+        case Some(cachedRecord)=>
+          sender() ! FoundMaster(cachedRecord)
+        case None=>
+          val originalSender = sender()
+          performMasterLookup(fileName).onComplete({
+            case Success(maybeRecords)=>
+              ownRef ! CacheMaster(fileName, maybeRecords)
+              originalSender ! FoundMaster(maybeRecords)
+            case Failure(err)=>
+              logger.error(s"Could not look up master $fileName: ", err)
+              originalSender ! LookupFailed
+          })
+      }
+
+    case CacheDeliverableAsset(fileName, result)=>
+      deliverableAssetCache += (fileName->result)
+      sender() ! akka.actor.Status.Success
+    case LookupDeliverableAsset(fileName)=>
+      deliverableAssetCache.get(fileName) match {
+        case Some(cachedRecord)=>
+          sender() ! FoundDeliverableAsset(cachedRecord)
+        case None=>
+          val originalSender = sender()
+          performDeliverableLookup(fileName).onComplete({
+            case Success(maybeRecord)=>
+              ownRef ! CacheDeliverableAsset(fileName, maybeRecord)
+              originalSender ! FoundDeliverableAsset(maybeRecord)
+            case Success(None)=>
+              originalSender ! FoundDeliverableAsset(None)
+            case Failure(err)=>
+              logger.error(s"Could not look up deliverables for $fileName: ", err)
+              originalSender ! LookupFailed
+          })
+      }
+
+    case CacheDeliverableBundle(forId, result)=>
+      deliverableBundleCache += (forId->result)
+      sender() ! akka.actor.Status.Success
+    case LookupDeliverableBundle(forId)=>
+      deliverableBundleCache.get(forId) match {
+        case Some(cachedRecord)=>
+          sender() ! FoundDeliverableBundle(cachedRecord)
+        case None=>
+          val originalSender = sender()
+          performDelvierableBundleLookup(forId).onComplete({
+            case Success(maybeRecord)=>
+              ownRef ! CacheDeliverableBundle(forId, maybeRecord)
+              originalSender ! FoundDeliverableBundle(maybeRecord)
+            case Failure(err)=>
+              logger.error(s"Could not look up deliverable bundle with ID $forId: ", err)
+              originalSender ! LookupFailed
+          })
+      }
   }
 
   /**
@@ -206,7 +278,7 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
     *         .recover() or .onComplete)
     */
   def performAssetFolderLookup(forPath:Path):Future[Option[AssetFolderRecord]] = {
-    val req = HttpRequest(uri=s"$plutoBaseUri/gnm_asset_folder/lookup?path=${URLEncoder.encode(forPath.toString)}")
+    val req = HttpRequest(uri=s"$plutoBaseUri/gnm_asset_folder/lookup?path=${URLEncoder.encode(forPath.toString, "UTF-8")}")
     callToPluto[AssetFolderRecord](req)
   }
 
@@ -225,5 +297,23 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   def performWorkingGroupLookup() = {
     val req = HttpRequest(uri=s"$plutoBaseUri/commission/api/groups/")
     callToPluto[Seq[WorkingGroupRecord]](req)
+  }
+
+  def performMasterLookup(forFileName:String) = {
+    import LocalDateTimeEncoder._
+    val req = HttpRequest(uri=s"$plutoBaseUri/master/api/byFileName?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
+    callToPluto[Seq[MasterRecord]](req).map(_.getOrElse(Seq()))
+  }
+
+  def performDeliverableLookup(forFileName:String) = {
+    import LocalDateTimeEncoder._
+    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/byFileName?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
+    callToPluto[DeliverableAssetRecord](req)
+  }
+
+  def performDelvierableBundleLookup(forId:Int) = {
+    import LocalDateTimeEncoder._
+    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/$forId")
+    callToPluto[DeliverableBundleRecord](req)
   }
 }
