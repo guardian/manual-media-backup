@@ -27,13 +27,13 @@ case class CounterData(count1:Int,count2:Int)
   * an instance of the case class CounterData as above)
   * @tparam T type of data that the inputs will receive
   */
-class TwoPortCounter[T] extends GraphStageWithMaterializedValue[TwoPortCounterShape[T], Future[CounterData]]{
+class TwoPortCounter[T] extends GraphStageWithMaterializedValue[TwoPortCounterShape[T], Promise[CounterData]]{
   private final val in1:Inlet[T] = Inlet.create("TwoPortCounter.in1")
   private final val in2:Inlet[T] = Inlet.create("TwoPortCounter.in2")
 
   override def shape: TwoPortCounterShape[T] = new TwoPortCounterShape(immutable.Seq(in1,in2))
 
-  override def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, Future[CounterData]) = {
+  override def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, Promise[CounterData]) = {
     val counterPromise = Promise[CounterData]
     var counter = CounterData(0,0)
 
@@ -46,7 +46,6 @@ class TwoPortCounter[T] extends GraphStageWithMaterializedValue[TwoPortCounterSh
       setHandler(in1, new AbstractInHandler {
         override def onPush(): Unit = {
           val elem = grab(in1)
-          println(s"Got $elem")
           counter = counter.copy(count1=counter.count1+1)
           pull(in1)
         }
@@ -79,6 +78,6 @@ class TwoPortCounter[T] extends GraphStageWithMaterializedValue[TwoPortCounterSh
       }
     }
 
-    (logic, counterPromise.future)
+    (logic, counterPromise)
   }
 }

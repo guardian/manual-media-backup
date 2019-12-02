@@ -14,8 +14,8 @@
     <logger name="ListReader$" level="INFO"/>
     <logger name="Main$" level="INFO"/>
     <logger name="Copier$" level="DEBUG"/>
-
-    <root level="INFO">
+    <logger name="streamcomponents" level="DEBUG"/>
+    <root level="WARN">
         <appender-ref ref="ASYNCSTDOUT" />
     </root>
 

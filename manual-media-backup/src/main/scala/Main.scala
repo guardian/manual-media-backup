@@ -1,7 +1,8 @@
-import java.io.File
+import java.io.{File, FileInputStream, FileOutputStream}
 import java.nio.file.Path
+import java.util.Properties
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.scaladsl.{Balance, Broadcast, Flow, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape}
 import com.om.mxs.client.SimpleSearchTerm
@@ -11,8 +12,10 @@ import org.slf4j.LoggerFactory
 import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
 import helpers._
 import models.{BackupEntry, CopyReport, IncomingListEntry, ObjectMatrixEntry}
+import helpers.{Copier, ListReader, MatrixStoreHelper, PlutoCommunicator}
+import models.{BackupEntry, CopyReport, CustomMXSMetadata, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, TwoPortCounter, ValidateMD5}
+import streamcomponents.{AddTypeField, CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, GatherMetadata, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, TwoPortCounter, ValidateMD5}
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -46,16 +49,20 @@ object Main {
       opt[String]('p',"parallelism").action((x,c)=>c.copy(parallelism = x.toInt)).text("copy this many files at once")
       opt[String]("list-path").action((x,c)=>c.copy(listRemoteDirs = Some(x))).text("search the given filename path on the objectmatrix")
       opt[String]("delete-oid").action((x,c)=>c.copy(oidsToDelete = x.split("\\s*,\\s*").toList)).text("Delete file with the given OID")
+      opt[String]("pluto-credentials").action((x,c)=>c.copy(plutoCredentialsProperties = Some(x))).text("A .properties file with host and credentials for Pluto, used for metadata extraction")
+      opt[String]("path-definitions-file").action((x,c)=>c.copy(pathDefinitionsFile = Some(x))).text("A json file that gives mappings from paths to types")
       opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
     }
   }
 
-  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, vault:Vault, chunkSize:Int, checksumType:String) = {
-    val copierFactory = new ListCopyFile(userInfo, vault, chunkSize, checksumType, mat)
+  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int, checksumType:String, plutoCommunicator:ActorRef,pathDefinitionsFile:String) = {
+    val copierFactory = new ListCopyFile(userInfo, chunkSize, checksumType, mat)
 
     val checkOMFileFactory = new CheckOMFile(userInfo)
     val createEntryFactory = new CreateOMFileNoCopy(userInfo)
     val needsBackupFactory = new NeedsBackupSwitch
+    val addTypeFactory = new AddTypeField(pathDefinitionsFile)
+    val gatherMetadataFactory = new GatherMetadata(plutoCommunicator)
 
     val processingGraph = GraphDSL.create() { implicit builder=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
@@ -65,16 +72,23 @@ object Main {
       val needsBackupSwitch = builder.add(needsBackupFactory)
       val fileCheckMerger = builder.add(Merge[BackupEntry](2))
 
+      val gatherMetadata = builder.add(gatherMetadataFactory)
+      val addType = builder.add(addTypeFactory)
+      val finalMerger = builder.add(Merge[BackupEntry](2))
+
       existSwitch.out(0) ~> needsBackupSwitch                     //"yes" branch => given file exists on nearline
-      existSwitch.out(1) ~> createEntry ~> fileCheckMerger       //"no"  branch => given file does not exist on nearline
+      //existSwitch.out(1) ~> createEntry ~> fileCheckMerger       //"no"  branch => given file does not exist on nearline
+      existSwitch.out(1) ~> fileCheckMerger //temporary - skip out create of OM entitiy while testing
 
       needsBackupSwitch.out(0) ~> fileCheckMerger                 //"yes" branch => file still needs backup
+      needsBackupSwitch.out(1) ~> finalMerger                   //"no" branch => file does not need backup
 
-      FlowShape.of(existSwitch.in, fileCheckMerger.out)
+      fileCheckMerger ~> addType ~> gatherMetadata ~> finalMerger
+      FlowShape.of(existSwitch.in, finalMerger.out)
     }
 
     //placeholder, do something better with end result when we know what that is
-    val finalSinkFact = Sink.ignore
+    val finalSinkFact = Sink.seq[BackupEntry]
 
     GraphDSL.create(finalSinkFact) {implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
@@ -85,7 +99,7 @@ object Main {
       val processorFactory = processingGraph
 
       src.out.map(path=>BackupEntry(path,None)) ~> splitter
-      for(i <- 0 to paralellism) {
+      for(i <- 0 until paralellism) {
         val processor = builder.add(processorFactory)
         splitter.out(i) ~> processor ~> merger.in(i)
       }
@@ -145,7 +159,7 @@ object Main {
     val sinkFactory = new ProgressMeterAndReport(Some(filesList.length), Some(totalFileSize)).async
 
     val fileFilterFactory = new FilesFilter(true)
-    val copierFactory = new ListCopyFile(userInfo, vault,chunkSize, checksumType,mat)
+    val copierFactory = new ListCopyFile(userInfo, chunkSize, checksumType,mat)
 
     GraphDSL.create(sinkFactory) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
@@ -233,6 +247,48 @@ object Main {
     })
   }
 
+  def getPlutoCommunicator(filePath:String):Try[ActorRef] = {
+    val propsFile = Try {
+      val prop = new Properties()
+
+      val f = new File(filePath)
+      val strm = new FileInputStream(f)
+      prop.load(strm)
+      strm.close()
+      prop
+    }
+
+    propsFile.flatMap(properties=>{
+      val baseUri = Option(properties.getProperty("base-uri"))
+      val user = Option(properties.getProperty("user"))
+      val passwd = Option(properties.getProperty("password"))
+
+      if(baseUri.isEmpty || user.isEmpty || passwd.isEmpty){
+        Failure(new RuntimeException("Invalid properties. You must provide base-uri, user and password properties for pluto access"))
+      } else {
+        Success(actorSystem.actorOf(Props(new PlutoCommunicator(baseUri.get, user.get, passwd.get))))
+      }
+    })
+  }
+
+  /**
+    * write the given sequence of BackupEntry to TSV, for debugging
+    * @param entries
+    * @return
+    */
+  def writeBackupEntries(entries:Seq[BackupEntry]) = Try {
+    val f = new File("/etc/vaults/backup-report.csv")
+    val stream = new FileOutputStream(f)
+
+    entries.foreach(entry=>{
+      val maybeMeta = entry.maybeObjectMatrixEntry.flatMap(_.attributes).flatMap(CustomMXSMetadata.fromMxsMetadata)
+
+      val strToWrite = s"${entry.originalPath.toString}\t${entry.status}\t$maybeMeta\n"
+      stream.write(strToWrite.toCharArray.map(_.toByte))
+    })
+    stream.close()
+  }
+
   def main(args:Array[String]):Unit = {
     buildOptionParser.parse(args, Options()) match {
       case Some(options)=>
@@ -248,6 +304,17 @@ object Main {
                 logger.error("Can't perform backup when a starting path is not supplied. Use --copy-from-local to specify a starting path")
                 terminate(1)
               }
+              if(options.plutoCredentialsProperties.isEmpty){
+                logger.error("You must provide a pluto credentials property file for this operation.")
+                terminate(1)
+              }
+              val plutoCommunicator:ActorRef = getPlutoCommunicator(options.plutoCredentialsProperties.get) match {
+                case Success(comm)=>comm
+                case Failure(err)=>
+                  logger.error(s"Could not set up pluto communicator: ", err)
+                  terminate(2)
+                  throw new RuntimeException("This code should not be reachable")
+              }
               val startPath = new File(options.copyFromLocal.get)
               if(!startPath.exists()){
                 logger.error(s"Provided starting path ${startPath.toString} does not exist.")
@@ -255,12 +322,28 @@ object Main {
               }
 
               val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo)
-              val resultFuture = RunnableGraph.fromGraph(estimateGraph).run()
+              val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize, options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get)
+//              logger.info("Counting total files for backup...")
+//              val countPromise = RunnableGraph.fromGraph(estimateGraph).run()
+//
+//              countPromise.future.onComplete({
+//                case Success(countData)=>
+//                  logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
+//                case Failure(err)=>
+//                  logger.error(s"Could not count files to back up: ",err)
+//              })
+              val resultFuture = RunnableGraph.fromGraph(actualGraph).run()
 
               resultFuture.onComplete({
-                case Success(countData)=>
-                  logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
-                  terminate(0)
+                case Success(backupEntrySeq)=>
+                  writeBackupEntries(backupEntrySeq) match {
+                    case Failure(err)=>
+                      logger.error(s"Could not output test dump: ", err)
+                      terminate(2)
+                    case Success(_)=>
+                      logger.info("All done")
+                      terminate(0)
+                  }
                 case Failure(err)=>
                   logger.error("Could not perform full backup estimate: ", err)
                   terminate(2)
