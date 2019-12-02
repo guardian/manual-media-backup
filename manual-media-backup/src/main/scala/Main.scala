@@ -1,3 +1,4 @@
+import java.io.File
 import java.nio.file.Path
 
 import akka.actor.ActorSystem
@@ -11,7 +12,7 @@ import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMet
 import helpers._
 import models.{BackupEntry, CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
+import streamcomponents.{CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, TwoPortCounter, ValidateMD5}
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -90,6 +91,37 @@ object Main {
       }
 
       merger ~> sink
+      ClosedShape
+    }
+  }
+
+  /**
+    * builds a graph that counts how many files need to be backed up in a fill backup
+    * @param startingPath java.nio.Path indicating the path which needs to be recursively backed up
+    * @param userInfo UserInfo instance indicating the OM appliance and vault which the backup will be performed to
+    * @return a Graph that materializes an instance of CounterData. count1 represents the files that need backup and count2 represents the files that don't.
+    */
+  def fullBackupEstimateGraph(startingPath:Path, userInfo:UserInfo) = {
+    val sinkFac = new TwoPortCounter[BackupEntry]
+    val checkOMFileFactory = new CheckOMFile(userInfo)
+    val needsBackupFactory = new NeedsBackupSwitch
+
+    GraphDSL.create(sinkFac) { implicit builder=> sink=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+      val src = builder.add(FileListSource(startingPath))
+      val existSwitch = builder.add(checkOMFileFactory)
+      val needsBackupSwitch = builder.add(needsBackupFactory)
+      val needsBackupMerger = builder.add(Merge[BackupEntry](2))
+
+      src.out.map(path=>BackupEntry(path)) ~> existSwitch
+      existSwitch.out(0) ~> needsBackupSwitch       // "yes" branch => file does exist so check if it needs backup
+      existSwitch.out(1) ~> needsBackupMerger         // "no" branch  => file does not exist so it does need backup
+
+      needsBackupSwitch.out(0) ~> needsBackupMerger
+
+      needsBackupMerger.out ~> sink.inlets(0)       //input 0 => needs backup
+      needsBackupSwitch.out(1) ~> sink.inlets(1)    //input 1 => does not need backup
+
       ClosedShape
     }
   }
@@ -214,7 +246,25 @@ object Main {
             if(options.everything){
               if(options.copyFromLocal.isEmpty){
                 logger.error("Can't perform backup when a starting path is not supplied. Use --copy-from-local to specify a starting path")
+                terminate(1)
               }
+              val startPath = new File(options.copyFromLocal.get)
+              if(!startPath.exists()){
+                logger.error(s"Provided starting path ${startPath.toString} does not exist.")
+                terminate(2)
+              }
+
+              val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo)
+              val resultFuture = RunnableGraph.fromGraph(estimateGraph).run()
+
+              resultFuture.onComplete({
+                case Success(countData)=>
+                  logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
+                  terminate(0)
+                case Failure(err)=>
+                  logger.error("Could not perform full backup estimate: ", err)
+                  terminate(2)
+              })
             } else if(options.listpath.isDefined) {
               handleList(options.listpath.get, userInfo, vault, options.chunkSize, options.checksumType, options.parallelism).andThen({
                 case Success(Right(finalReport)) =>
