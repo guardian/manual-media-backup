@@ -2,4 +2,4 @@ package models.pluto
 
 import java.util.UUID
 
-case class WorkingGroupRecord(uuid:UUID, name:String, hide:Boolean)
+case class WorkingGroupRecord(uuid:UUID, name:String, hide:Option[Boolean])

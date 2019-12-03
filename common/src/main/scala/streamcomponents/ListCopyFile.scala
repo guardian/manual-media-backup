@@ -13,7 +13,6 @@ import scala.util.{Failure, Success}
 /**
   * perform a single file copy in a bulk file copy operation.  This will spin up an entire substream to perform
   * the file copy.
-  * @param vault
   * @param chunkSize
   * @param checksumType
   * @param mat

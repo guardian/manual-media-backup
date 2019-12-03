@@ -23,7 +23,7 @@ import java.util.UUID
   "project_locker_id_prelude": null
 }
  */
-case class ProjectRecord (collection_id:Int, user:Int, created:LocalDateTime, updated:LocalDateTime, commission:Int, gnm_project_status:String,
+case class ProjectRecord (collection_id:Int, user:Int, created:LocalDateTime, updated:LocalDateTime, commission:Int, gnm_project_status:Option[String],
                           gnm_project_standfirst:Option[String], gnm_project_headline:Option[String], gnm_project_username:List[Int],
                           gnm_project_file_item:Option[String], gnm_prelude_file_item:Option[String], gnm_project_type:UUID,
-                          project_locker_id:Option[String], project_locked_id_prelude:Option[String])
+                          project_locker_id:Option[Int], project_locked_id_prelude:Option[Int])

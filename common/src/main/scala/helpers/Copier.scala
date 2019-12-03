@@ -61,7 +61,7 @@ object Copier {
     (mxsFile, mdToWrite)
   }
 
-  protected def createCopyGraph(fromFile:File, chunkSize:Int, checksumType:String, mxsFile:MxsObject)(implicit ec:ExecutionContext) = {
+  def createCopyGraph(fromFile:File, chunkSize:Int, checksumType:String, mxsFile:MxsObject)(implicit ec:ExecutionContext) = {
     val checksumSinkFactory = checksumType match {
       case "none"=>Sink.ignore.mapMaterializedValue(_=>Future(None))
       case _=>new ChecksumSink(checksumType).async

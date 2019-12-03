@@ -58,6 +58,11 @@ class AddTypeField(pathDefinitionsFile:String) extends GraphStage[FlowShape[Back
 
         val pathToCheck = elem.originalPath.toString
         val matches = knownPaths.get.filter(kv=>kv._1.findFirstIn(pathToCheck).isDefined)
+        if(elem.maybeObjectMatrixEntry.isEmpty){
+          logger.error(s"Can't add type tag if there is no objectmatrix entry present. Aborting.")
+          failStage(new RuntimeException("No objectmatrix entry present"))
+          return
+        }
         val updatedElem = matches.headOption match {
           case None=>
             logger.info(s"Path $pathToCheck did not match any known location, tagging as '${CustomMXSMetadata.TYPE_UNSORTED}'")

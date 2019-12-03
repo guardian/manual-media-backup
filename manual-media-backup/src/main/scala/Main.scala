@@ -15,7 +15,7 @@ import models.{BackupEntry, CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import helpers.{Copier, ListReader, MatrixStoreHelper, PlutoCommunicator}
 import models.{BackupEntry, CopyReport, CustomMXSMetadata, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{AddTypeField, CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, GatherMetadata, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, TwoPortCounter, ValidateMD5}
+import streamcomponents.{AddTypeField, CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, FilterOutDirectories, GatherMetadata, GetMimeType, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, TwoPortCounter, UTF8PathCharset, ValidateMD5}
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -58,6 +58,7 @@ object Main {
   def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int, checksumType:String, plutoCommunicator:ActorRef,pathDefinitionsFile:String) = {
     val copierFactory = new ListCopyFile(userInfo, chunkSize, checksumType, mat)
 
+    val getMimeFactory = new GetMimeType
     val checkOMFileFactory = new CheckOMFile(userInfo)
     val createEntryFactory = new CreateOMFileNoCopy(userInfo)
     val needsBackupFactory = new NeedsBackupSwitch
@@ -69,6 +70,7 @@ object Main {
 
       val existSwitch = builder.add(checkOMFileFactory)
       val createEntry = builder.add(createEntryFactory)
+      val getMimeType = builder.add(getMimeFactory)
       val needsBackupSwitch = builder.add(needsBackupFactory)
       val fileCheckMerger = builder.add(Merge[BackupEntry](2))
 
@@ -77,13 +79,12 @@ object Main {
       val finalMerger = builder.add(Merge[BackupEntry](2))
 
       existSwitch.out(0) ~> needsBackupSwitch                     //"yes" branch => given file exists on nearline
-      //existSwitch.out(1) ~> createEntry ~> fileCheckMerger       //"no"  branch => given file does not exist on nearline
-      existSwitch.out(1) ~> fileCheckMerger //temporary - skip out create of OM entitiy while testing
+      existSwitch.out(1) ~> createEntry ~> fileCheckMerger       //"no"  branch => given file does not exist on nearline
 
       needsBackupSwitch.out(0) ~> fileCheckMerger                 //"yes" branch => file still needs backup
       needsBackupSwitch.out(1) ~> finalMerger                   //"no" branch => file does not need backup
 
-      fileCheckMerger ~> addType ~> gatherMetadata ~> finalMerger
+      fileCheckMerger ~> getMimeType ~> addType ~> gatherMetadata ~> finalMerger
       FlowShape.of(existSwitch.in, finalMerger.out)
     }
 
@@ -93,12 +94,15 @@ object Main {
     GraphDSL.create(finalSinkFact) {implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
       val src = builder.add(FileListSource(startingPath))
+      val dirFilter = builder.add(new FilterOutDirectories)
+      val pathCharsetConverter = builder.add(new UTF8PathCharset)
       val splitter = builder.add(Balance[BackupEntry](paralellism))
       val merger = builder.add(Merge[BackupEntry](paralellism))
 
       val processorFactory = processingGraph
 
-      src.out.map(path=>BackupEntry(path,None)) ~> splitter
+      src ~> dirFilter ~> pathCharsetConverter
+      pathCharsetConverter.out.take(50).map(path=>BackupEntry(path,None)).log("streamcomponents.fullbackupgraph") ~> splitter
       for(i <- 0 until paralellism) {
         val processor = builder.add(processorFactory)
         splitter.out(i) ~> processor ~> merger.in(i)
@@ -281,9 +285,10 @@ object Main {
     val stream = new FileOutputStream(f)
 
     entries.foreach(entry=>{
-      val maybeMeta = entry.maybeObjectMatrixEntry.flatMap(_.attributes).flatMap(CustomMXSMetadata.fromMxsMetadata)
-
-      val strToWrite = s"${entry.originalPath.toString}\t${entry.status}\t$maybeMeta\n"
+      val maybeAttribs = entry.maybeObjectMatrixEntry.flatMap(_.attributes)
+      val maybeMeta = maybeAttribs.flatMap(CustomMXSMetadata.fromMxsMetadata)
+      val maybeMimeType = maybeAttribs.flatMap(_.stringValues.get("MXFS_MIMETYPE"))
+      val strToWrite = s"${entry.originalPath.toString}\t${entry.status}\t${maybeMimeType.getOrElse("(none)")}\t$maybeMeta\n"
       stream.write(strToWrite.toCharArray.map(_.toByte))
     })
     stream.close()
@@ -332,6 +337,7 @@ object Main {
 //                case Failure(err)=>
 //                  logger.error(s"Could not count files to back up: ",err)
 //              })
+              logger.info("Starting up copy graph...")
               val resultFuture = RunnableGraph.fromGraph(actualGraph).run()
 
               resultFuture.onComplete({

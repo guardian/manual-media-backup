@@ -35,9 +35,14 @@ class NeedsBackupSwitch extends GraphStage[UniformFanOutShape[BackupEntry, Backu
             val fileLastModified: ZonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(f.lastModified()), ZoneId.systemDefault())
             val omLastModified = omAttributes.mtime
 
-            logger.info(s"File ${elem.originalPath} was modified at $fileLastModified but backup was modified at $omLastModified")
+            val maybeBeingWritten:Option[Boolean] = elem.maybeObjectMatrixEntry.flatMap(_.attributes).flatMap(_.boolValues.get("GNM_BEING_WRITTEN"))
 
-            if (fileLastModified.isAfter(omLastModified)) {
+            logger.info(s"File ${elem.originalPath} was modified at $fileLastModified and backup was modified at $omLastModified")
+
+            if(maybeBeingWritten.contains(true)) {
+              logger.info(s"File ${elem.originalPath} has 'being written' flag, assuming a previous run crashed and it must be updated")
+              push(yes, elem)
+            } else if (fileLastModified.isAfter(omLastModified)) {
               logger.info(s"File ${elem.originalPath} needs backup")
               push(yes, elem)
             } else {

@@ -5,8 +5,10 @@ import java.nio.file.Path
 import java.util.UUID
 
 import akka.actor.{Actor, ActorRef, ActorSystem}
+import akka.http.javadsl.model.headers.BasicHttpCredentials
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.{headers, _}
+import akka.http.scaladsl.model.headers.{Authorization, BasicHttpCredentials}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
@@ -16,6 +18,7 @@ import io.circe.generic.auto._
 import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord}
 import org.slf4j.LoggerFactory
 
+import scala.collection.parallel.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -243,7 +246,11 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   protected def callToPluto[T:io.circe.Decoder](req:HttpRequest, attempt:Int=1):Future[Option[T]] = if(attempt>10) {
     Future.failed(new RuntimeException("Too many retries, see logs for details"))
   } else {
-    callHttp.singleRequest(req).flatMap(response => {
+    logger.debug(s"Request URL is ${req.uri.toString()}")
+    val auth:HttpHeader = Authorization(headers.BasicHttpCredentials(plutoUser, plutoPass))
+    val updatedReq = req.copy(headers = scala.collection.immutable.Seq(auth)) //add in the authorization header
+
+    callHttp.singleRequest(updatedReq).flatMap(response => {
       val contentBody = consumeResponseEntity(response.entity)
 
       response.status.intValue() match {
@@ -261,11 +268,13 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
           throw new RuntimeException(s"Pluto said permission denied.")  //throwing an exception here will fail the future,
                                                                         //which is picked up in onComplete in the call
         case 400 =>
-          throw new RuntimeException(s"Pluto returned bad data error: $contentBody")
+          contentBody.map(body=>throw new RuntimeException(s"Pluto returned bad data error: $body"))
         case 500|502|503|504 =>
-          logger.error(s"Pluto returned a server error: $contentBody. Retrying...")
-          Thread.sleep(500 * attempt)
-          callToPluto(req, attempt +1)
+          contentBody.flatMap(body=> {
+            logger.error(s"Pluto returned a server error: $body. Retrying...")
+            Thread.sleep(500 * attempt)
+            callToPluto(req, attempt + 1)
+          })
       }
     })
   }

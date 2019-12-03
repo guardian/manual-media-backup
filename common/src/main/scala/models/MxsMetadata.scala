@@ -50,7 +50,8 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
       case timeValue:LocalDateTime=>this.copy(longValues = this.longValues ++ Map(key->timeValue.toInstant(ZoneOffset.UTC).toEpochMilli))
       case instant:Instant=>this.copy(longValues = this.longValues ++ Map(key->instant.toEpochMilli))
       case _=>
-        logger.warn(s"Could not set key $key to value $value (type ${value.getClass.toGenericString}), type not recognised")
+        val maybeTypeString = Option(value).map(_.getClass.toGenericString)
+        logger.warn(s"Could not set key $key to value $value (type $maybeTypeString), type not recognised")
         this
     }
   }

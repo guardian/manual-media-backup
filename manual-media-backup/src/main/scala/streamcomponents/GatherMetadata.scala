@@ -156,15 +156,22 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
 
         val updatedCustomMetaFut = maybeMetadata match {
           case Some(existingMeta)=>
-            existingMeta.itemType match {
+            val currentMeta = if(elem.originalPath.getFileName.toString.startsWith(".")){
+              logger.debug(s"${elem.originalPath.getFileName.toString} is a dot-file")
+              existingMeta.copy(hidden = true)
+            } else {
+              existingMeta
+            }
+
+            currentMeta.itemType match {
               case CustomMXSMetadata.TYPE_RUSHES=>
-                lookupAllMetaForRushes(basePath, existingMeta)
+                lookupAllMetaForRushes(basePath, currentMeta)
               case CustomMXSMetadata.TYPE_MASTER=>
-                lookupAllMetadataForMasters(elem.originalPath, existingMeta)
+                lookupAllMetadataForMasters(elem.originalPath, currentMeta)
               case CustomMXSMetadata.TYPE_DELIVERABLE=>
-                lookupAllMetadataForDeliverables(elem.originalPath, existingMeta)
+                lookupAllMetadataForDeliverables(elem.originalPath, currentMeta)
               case CustomMXSMetadata.TYPE_UNSORTED=>
-                Future(existingMeta)
+                Future(currentMeta)
             }
           case None=>
             Future.failed(new RuntimeException("Incoming item had no type field so cannot determine metadata"))

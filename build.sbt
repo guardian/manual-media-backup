@@ -79,13 +79,13 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
         "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
         "org.mockito" % "mockito-core" % "2.28.2" % Test
       ),
-      dockerBaseImage := "openjdk:8-jdk-alpine",
+      dockerBaseImage := "openjdk:8-jdk-slim",
       dockerCommands ++= Seq(
         Cmd("USER","root"), //fix the permissions in the built docker image
         Cmd("RUN", "chown daemon /opt/docker"),
         Cmd("RUN", "chmod u+w /opt/docker"),
         Cmd("RUN", "chmod -R a+x /opt/docker"),
-        Cmd("USER", "daemon")
+        //Cmd("USER", "daemon")
       )
     )
 

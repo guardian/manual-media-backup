@@ -12,7 +12,8 @@ case class CustomMXSMetadata(itemType:String,
                              deliverableAssetId:Option[Int],
                              deliverableBundle:Option[Int],
                              deliverableVersion:Option[Int],
-                             deliverableType:Option[String]) {
+                             deliverableType:Option[String],
+                             hidden:Boolean=false) {
   /**
     * adds the contents of the record to the given MxsMetadata object, ignoring empty fields
     * @param addTo existing [[MxsMetadata]] object to add to; this can be `MxsMetadata.empty`
@@ -25,10 +26,11 @@ case class CustomMXSMetadata(itemType:String,
       masterId.map(s=>"GNM_MASTER_ID"->s),
       projectName.map(s=>"GNM_PROJECT_NAME"->s),
       commissionName.map(s=>"GNM_COMMISSION_NAME"->s),
-      workingGroupName.map(s=>"GNM_WORKING_GROUP_NAME"->s)
+      workingGroupName.map(s=>"GNM_WORKING_GROUP_NAME"->s),
     ).collect({case Some(kv)=>kv}).toMap
 
-    content.foldLeft(addTo)((acc,kv)=>acc.withString(kv._1,kv._2))
+    val firstUpdate = content.foldLeft(addTo)((acc,kv)=>acc.withString(kv._1,kv._2))
+    firstUpdate.withValue("GNM_HIDDEN_FILE", hidden)
   }
 }
 
@@ -52,7 +54,8 @@ object CustomMXSMetadata {
         incoming.intValues.get("GNM_DELIVERABLE_ASSET_ID"),
         incoming.intValues.get("GNM_DELIVERABLE_BUNDLE_ID"),
         incoming.intValues.get("GNM_DELIVERABLE_VERSION"),
-        incoming.stringValues.get("GNM_DELIVERABLE_TYPE")
+        incoming.stringValues.get("GNM_DELIVERABLE_TYPE"),
+        incoming.boolValues.getOrElse("GNM_HIDDEN_FILE", false)
       )
     )
 }
