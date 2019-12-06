@@ -9,7 +9,7 @@ import helpers.MatrixStoreHelper
 import models.{BackupEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 /**
   * checks if the incoming Path points to something that exists in the Vault pointed to by the provided UserInfo.
@@ -43,17 +43,35 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
       override def onPush(): Unit = {
         val elem = grab(in)
 
-        callFindByFilename(vault.get, elem.originalPath.toString) match {
+        val metadataUpdate = callFindByFilename(vault.get, elem.originalPath.toString)
+          .flatMap(results=> {
+            val trySeq = results.map(result => Try {
+              result.getMetadataSync(vault.get)
+            })
+            val failures = trySeq.collect({case Failure(err)=>err})
+            if(failures.nonEmpty){
+              Failure(failures.head)
+            } else {
+              Success(trySeq.collect({case Success(m)=>m}))
+            }
+          })
+
+
+        metadataUpdate match {
           case Success(results)=>
-            if(results.isEmpty){
-              logger.info(s"Path ${elem.toString} does not exist in vault")
+            if(results.length>1){
+              logger.warn(s"Got ${results.length} results for ${elem.originalPath}, using the first")
+            }
+            if(results.isEmpty) {
               push(no, elem)
             } else {
-              logger.debug(s"Path ${elem.toString} does exist in the vault")
-              if(results.length>1) logger.warn(s"Got ${results.length} entries for ${elem.toString}, using the first")
-              val updated = results.head.getMetadataSync(vault.get)
-              val finalOutput = elem.copy(maybeObjectMatrixEntry = Some(updated))
-              push(yes,finalOutput)
+              val updatedElem = elem.copy(maybeObjectMatrixEntry = Some(results.head))
+              push(yes, updatedElem)
+            }
+          case Failure(err:java.io.IOException)=>
+            if(err.getMessage.contains("error 311")){
+              logger.warn(s"Ignoring ObjectMatrix can't lock file error for ${elem.originalPath.toString}, moving along to next file")
+              pull(in)
             }
           case Failure(err)=>
             logger.error(s"Could not look up ${elem.originalPath.toString} on $vault: ", err)

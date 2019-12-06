@@ -3,7 +3,7 @@ package models.pluto
 import java.time.LocalDateTime
 
 case class DeliverableAssetRecord(id:Int,
-                                  `type`:Option[String],
+                                  `type`:Option[Int],
                                   filename:String,
                                   size:Long,
                                   access_dt:LocalDateTime,

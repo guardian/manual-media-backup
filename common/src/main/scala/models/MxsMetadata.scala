@@ -12,13 +12,16 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
     * converts the data to a Seq[com.om.mxs.client.japi.Attribute], suitable for passing to ObjectMatrix API calls
     * @return sequence of Attributes.
     */
-  def toAttributes:Seq[Attribute] = {
+  def toAttributes(filterUnwritable:Boolean=false):Seq[Attribute] = {
+    val longsToWrite = if(filterUnwritable) longValues - "MXFS_ARCHIVE_TIME" else longValues
+    val intsToWrite = if(filterUnwritable) intValues - "MXFS_ARCHMONTH" - "MXFS_ARCHYEAR" - "MXFS_ARCHYEAR" - "MXFS_ARCHDAY" else intValues
+
     stringValues.map(entry=>
       Option(entry._2).map(realValue=>Attribute.createTextAttribute(entry._1,realValue,true))
     ).toSeq.collect({case Some(attrib)=>attrib}) ++
     boolValues.map(entry=>new Attribute(entry._1,entry._2,true)) ++
-    longValues.map(entry=>new Attribute(entry._1, entry._2, true)) ++
-    intValues.map(entry=>new Attribute(entry._1, entry._2, true))
+      longsToWrite.map(entry=>new Attribute(entry._1, entry._2, true)) ++
+      intsToWrite.map(entry=>new Attribute(entry._1, entry._2, true))
   }
 
   /**
@@ -54,6 +57,15 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
         logger.warn(s"Could not set key $key to value $value (type $maybeTypeString), type not recognised")
         this
     }
+  }
+
+  def withoutValue(key:String):MxsMetadata = {
+    this.copy(
+      boolValues = this.boolValues - key,
+      stringValues = this.stringValues - key,
+      intValues = this.intValues - key,
+      longValues = this.longValues - key
+    )
   }
 
   def dumpString(fieldNames:Seq[String]) = {

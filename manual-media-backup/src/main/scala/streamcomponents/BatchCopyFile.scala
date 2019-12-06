@@ -79,7 +79,7 @@ class BatchCopyFile (userInfo:UserInfo, checksumType: String, chunkSize:Int, max
             logger.error(s"Could not get existing MxsEntry from the appliance: ", err)
             failStage(err)
           case Some(Success(mxsObject))=>
-            val copyGraph = Copier.createCopyGraph(fileToBackUp, chunkSize, checksumType, mxsObject)
+            val copyGraph = Copier.createCopyGraph(fileToBackUp, chunkSize*1024, checksumType, mxsObject)
             makeCopy(copyGraph, mxsObject).onComplete({
               case Success(applianceChecksum)=> //if we get here either the checksums matched or no checksumming was requested
                 val updated = elem.copy(applianceChecksum=Some(applianceChecksum), status = BackupStatus.BACKED_UP)

@@ -24,13 +24,25 @@ case class CustomMXSMetadata(itemType:String,
       projectId.map(s=>"GNM_PROJECT_ID"->s),
       commissionId.map(s=>"GNM_COMMISSION_ID"->s),
       masterId.map(s=>"GNM_MASTER_ID"->s),
+      masterName.map(s=>"GNM_MASTER_NAME"->s),
+      masterUser.map(s=>"GNM_MASTER_USER"->s),
       projectName.map(s=>"GNM_PROJECT_NAME"->s),
       commissionName.map(s=>"GNM_COMMISSION_NAME"->s),
       workingGroupName.map(s=>"GNM_WORKING_GROUP_NAME"->s),
+      deliverableType.map(s=>"GNM_DELIVERABLE_TYPE"->s)
     ).collect({case Some(kv)=>kv}).toMap
 
     val firstUpdate = content.foldLeft(addTo)((acc,kv)=>acc.withString(kv._1,kv._2))
-    firstUpdate.withValue("GNM_HIDDEN_FILE", hidden)
+
+    val intContent = Seq(
+      deliverableAssetId.map(i=>"GNM_DELIVERABLE_ASSETID"->i),
+      deliverableBundle.map(i=>"GNM_DELIVERABLE_BUNDLEID"->i),
+      deliverableVersion.map(i=>"GNM_DELIVERABLE_VERSION"->i)
+    ).collect({case Some(kv)=>kv}).toMap
+
+    val secondUpdate = intContent.foldLeft(firstUpdate)((acc,kv)=>acc.withValue(kv._1,kv._2))
+
+    secondUpdate.withValue("GNM_HIDDEN_FILE", hidden)
   }
 }
 

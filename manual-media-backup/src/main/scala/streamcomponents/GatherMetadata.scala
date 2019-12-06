@@ -34,7 +34,7 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
     projectFut.flatMap({
       case LookupFailed => Future.failed(new RuntimeException("Lookup failed, see previous logs"))
       case FoundProject(Some(project)) =>
-        //fixme: this is a cheat but will work for now
+        //fixme: the site id is a cheat but will work for now
         val commissionFut = (plutoCommunicator ? LookupCommission(s"VX-${project.commission}")).mapTo[AFHMsg]
         commissionFut.flatMap({
           case LookupFailed => Future.failed(new RuntimeException("Lookup failed, see previous logs"))
@@ -45,7 +45,7 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
               case FoundWorkingGroup(Some(workingGroup)) =>
                 Future(existingMxsMeta.copy(
                   projectId = Some(forProjectId),
-                  commissionId = Some(commission.collection_id.toString),
+                  commissionId = commission.collection_id.map(_.toString),
                   projectName = project.gnm_project_headline,
                   commissionName = Some(commission.gnm_commission_title),
                   workingGroupName = Some(workingGroup.name))

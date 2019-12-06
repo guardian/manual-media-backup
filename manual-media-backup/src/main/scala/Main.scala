@@ -15,7 +15,7 @@ import models.{BackupEntry, CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import helpers.{Copier, ListReader, MatrixStoreHelper, PlutoCommunicator}
 import models.{BackupEntry, CopyReport, CustomMXSMetadata, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
-import streamcomponents.{AddTypeField, CheckOMFile, CreateOMFileNoCopy, FileListSource, FilesFilter, FilterOutDirectories, GatherMetadata, GetMimeType, ListCopyFile, ListRestoreFile, NeedsBackupSwitch, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, TwoPortCounter, UTF8PathCharset, ValidateMD5}
+import streamcomponents._
 
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -56,8 +56,9 @@ object Main {
   }
 
   def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int, checksumType:String, plutoCommunicator:ActorRef,pathDefinitionsFile:String) = {
-    val copierFactory = new ListCopyFile(userInfo, chunkSize, checksumType, mat)
-
+    val copierFactory = new BatchCopyFile(userInfo,checksumType, chunkSize)
+    val commitMetaFactory = new OMCommitMetadata(userInfo)
+    val clearBeingWrittenFactory = new ClearBeingWritten
     val getMimeFactory = new GetMimeType
     val checkOMFileFactory = new CheckOMFile(userInfo)
     val createEntryFactory = new CreateOMFileNoCopy(userInfo)
@@ -76,15 +77,18 @@ object Main {
 
       val gatherMetadata = builder.add(gatherMetadataFactory)
       val addType = builder.add(addTypeFactory)
+      val copier = builder.add(copierFactory)
+      val omCommitMetadata = builder.add(commitMetaFactory)
+      val clearBeingWritten = builder.add(clearBeingWrittenFactory)
       val finalMerger = builder.add(Merge[BackupEntry](2))
 
       existSwitch.out(0) ~> needsBackupSwitch                     //"yes" branch => given file exists on nearline
-      existSwitch.out(1) ~> createEntry ~> fileCheckMerger       //"no"  branch => given file does not exist on nearline
+      existSwitch.out(1) ~> createEntry ~> fileCheckMerger        //"no"  branch => given file does not exist on nearline
 
       needsBackupSwitch.out(0) ~> fileCheckMerger                 //"yes" branch => file still needs backup
-      needsBackupSwitch.out(1) ~> finalMerger                   //"no" branch => file does not need backup
+      needsBackupSwitch.out(1) ~> finalMerger                     //"no" branch => file does not need backup
 
-      fileCheckMerger ~> getMimeType ~> addType ~> gatherMetadata ~> finalMerger
+      fileCheckMerger ~> getMimeType ~> addType ~> gatherMetadata ~> copier ~> clearBeingWritten ~> omCommitMetadata ~> finalMerger
       FlowShape.of(existSwitch.in, finalMerger.out)
     }
 
@@ -327,7 +331,7 @@ object Main {
               }
 
               val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo)
-              val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize, options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get)
+              val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize*1024, options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get)
 //              logger.info("Counting total files for backup...")
 //              val countPromise = RunnableGraph.fromGraph(estimateGraph).run()
 //
@@ -351,7 +355,7 @@ object Main {
                       terminate(0)
                   }
                 case Failure(err)=>
-                  logger.error("Could not perform full backup estimate: ", err)
+                  logger.error("Could not perform full backup : ", err)
                   terminate(2)
               })
             } else if(options.listpath.isDefined) {

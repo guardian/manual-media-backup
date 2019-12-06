@@ -54,8 +54,8 @@ object Copier {
     }
 
     logger.debug(s"mdToWrite is $mdToWrite")
-    logger.debug(s"attributes are ${mdToWrite.toAttributes.map(_.toString).mkString(",")}")
-    val mxsFile = vault.createObject(mdToWrite.toAttributes.toArray)
+    logger.debug(s"attributes are ${mdToWrite.toAttributes().map(_.toString).mkString(",")}")
+    val mxsFile = vault.createObject(mdToWrite.toAttributes().toArray)
 
     MetadataHelper.setAttributeMetadata(mxsFile, mdToWrite)
     (mxsFile, mdToWrite)
@@ -64,7 +64,7 @@ object Copier {
   def createCopyGraph(fromFile:File, chunkSize:Int, checksumType:String, mxsFile:MxsObject)(implicit ec:ExecutionContext) = {
     val checksumSinkFactory = checksumType match {
       case "none"=>Sink.ignore.mapMaterializedValue(_=>Future(None))
-      case _=>new ChecksumSink(checksumType).async
+      case _=>new ChecksumSink(checksumType)
     }
 
     GraphDSL.create(checksumSinkFactory) { implicit builder =>
@@ -72,8 +72,8 @@ object Copier {
         import akka.stream.scaladsl.GraphDSL.Implicits._
 
         val src = builder.add(new MMappedFileSource(fromFile, chunkSize))
-        val bcast = builder.add(new Broadcast[ByteString](2, true))
-        val omSink = builder.add(new MatrixStoreFileSink(mxsFile).async)
+        val bcast = builder.add(new Broadcast[ByteString](2, false).async)
+        val omSink = builder.add(new MatrixStoreFileSink(mxsFile))
 
         src.out.log("copyToStream") ~> bcast ~> omSink
         bcast.out(1) ~> checksumSink

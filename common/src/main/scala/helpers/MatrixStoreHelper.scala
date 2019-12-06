@@ -139,9 +139,9 @@ object MatrixStoreHelper {
     * @param file java.io.File object to check
     * @return either an MxsMetadata object or an error
     */
-  def metadataFromFilesystem(file:File):Try[MxsMetadata] = Try {
+  def metadataFromFilesystem(file:File, maybeOverrideMimetype:Option[String]=None):Try[MxsMetadata] = Try {
     val path = file.getAbsoluteFile.toPath
-    val mimeType = Option(Files.probeContentType(file.toPath))
+    val mimeType = if(maybeOverrideMimetype.isDefined) maybeOverrideMimetype else Option(Files.probeContentType(file.toPath))
 
     val fsAttrs = Files.readAttributes(path,"*",LinkOption.NOFOLLOW_LINKS).asScala
 

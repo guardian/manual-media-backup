@@ -31,6 +31,7 @@ class MMappedFileSource(file:File, pageSize:Int=2*1024*1024) extends GraphStage[
     setHandler(out, new AbstractOutHandler {
       override def onPull(): Unit = {
 
+        logger.debug(s"File length is ${file.length}, ctr is $ctr")
         if (ctr >= file.length()) {
           logger.info(s"Finished streaming ${file.getAbsolutePath}")
           complete(out)

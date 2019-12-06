@@ -259,7 +259,9 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
             .map(io.circe.parser.parse)
             .map(_.flatMap(_.as[T]))
             .map({
-              case Left(err) => throw new RuntimeException("Could not understand server response: ", err)
+              case Left(err) =>
+                logger.error(s"Problematic response: ${contentBody.value}")
+                throw new RuntimeException("Could not understand server response: ", err)
               case Right(data) => Some(data)
             })
         case 404 =>
@@ -310,13 +312,13 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
 
   def performMasterLookup(forFileName:String) = {
     import LocalDateTimeEncoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/master/api/byFileName?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
+    val req = HttpRequest(uri=s"$plutoBaseUri/master/api/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
     callToPluto[Seq[MasterRecord]](req).map(_.getOrElse(Seq()))
   }
 
   def performDeliverableLookup(forFileName:String) = {
     import LocalDateTimeEncoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/byFileName?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
+    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
     callToPluto[DeliverableAssetRecord](req)
   }
 

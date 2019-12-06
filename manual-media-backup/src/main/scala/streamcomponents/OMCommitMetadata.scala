@@ -3,10 +3,11 @@ package streamcomponents
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
-import models.BackupEntry
+import models.{BackupEntry, MxsMetadata}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
 
 class OMCommitMetadata(userInfo:UserInfo) extends GraphStage[FlowShape[BackupEntry, BackupEntry]] {
   private val in:Inlet[BackupEntry] = Inlet.create("OMCommitMetadata.in")
@@ -25,23 +26,32 @@ class OMCommitMetadata(userInfo:UserInfo) extends GraphStage[FlowShape[BackupEnt
 
         elem.maybeObjectMatrixEntry match {
           case Some(omEntry)=>
-            omEntry.attributes match {
-              case Some(attribs)=>
-                try {
-                  val fileToWrite = maybeVault.get.getObject(omEntry.oid)
-                  val attribView = fileToWrite.getAttributeView
-                  attribView.writeAllAttributes(attribs.toAttributes.asJava)
-                } catch {
-                  case err:Throwable=>
-                    logger.error(s"Could not update metadata for ${omEntry.oid}: ", err)
-                    failStage(err)
-                }
-              case None=>
-                logger.error(s"Incoming entry for ${omEntry.oid} had no metadata to write")
-                //not a fatal error
+            try {
+              omEntry.attributes match {
+                case Some(attribs)=>
+                    val fileToWrite = maybeVault.get.getObject(omEntry.oid)
+                    val attribView = fileToWrite.getAttributeView
+
+                    val writeTries = attribs.toAttributes(filterUnwritable=true).map(attr=>(attr, Try { attribView.writeAttribute(attr) }))
+                    val writeFailures = writeTries.collect({case (failedAttr, Failure(err))=>(failedAttr, err)})
+                    val writeSuccesses = writeTries.collect({case(_, Success(x))=>x})
+                    if(writeFailures.nonEmpty){
+                      logger.error(s"Could not write attributes to file: ${writeSuccesses.length} succeeded and ${writeFailures.length} failed")
+                      writeFailures.foreach(err=>logger.error(s"\tFailed to write: ${err._1.getKey}: ${err._1.getValue.toString} of type ${Option(err._1.getValue).map(_.getClass.getCanonicalName)}"))
+                      throw writeFailures.head._2
+                    }
+
+                case None=>
+                  logger.error(s"Incoming entry for ${omEntry.oid} had no metadata to write")
+                  //not a fatal error
+              }
+              val updatedElem = elem.copy(maybeObjectMatrixEntry = Some(omEntry))
+              push(out, updatedElem)
+            } catch {
+              case err:Throwable=>
+                logger.error(s"Could not update metadata for ${omEntry.oid}: ", err)
+                failStage(err)
             }
-            val updatedElem = elem.copy(maybeObjectMatrixEntry = Some(omEntry))
-            push(out, updatedElem)
           case None=>
             logger.error(s"No objectmatrix entry present to write!")
             failStage(new RuntimeException("No objectmatrix entry to write"))
@@ -61,6 +71,10 @@ class OMCommitMetadata(userInfo:UserInfo) extends GraphStage[FlowShape[BackupEnt
           logger.error("Could not connect to vault: ", err)
           failStage(err)
       }
+    }
+
+    override def postStop(): Unit = {
+      maybeVault.map(_.dispose())
     }
   }
 }

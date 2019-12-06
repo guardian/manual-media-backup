@@ -74,6 +74,7 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
       dockerBaseImage := "openjdk:14-jdk-alpine",
       libraryDependencies ++= Seq(
+        "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
         "org.specs2" %% "specs2-core" % "4.5.1" % Test,
         "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
@@ -82,9 +83,9 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       dockerBaseImage := "openjdk:8-jdk-slim",
       dockerCommands ++= Seq(
         Cmd("USER","root"), //fix the permissions in the built docker image
-        Cmd("RUN", "chown daemon /opt/docker"),
-        Cmd("RUN", "chmod u+w /opt/docker"),
-        Cmd("RUN", "chmod -R a+x /opt/docker"),
+//        Cmd("RUN", "chown daemon /opt/docker"),
+//        Cmd("RUN", "chmod u+w /opt/docker"),
+//        Cmd("RUN", "chmod -R a+x /opt/docker"),
         //Cmd("USER", "daemon")
       )
     )
