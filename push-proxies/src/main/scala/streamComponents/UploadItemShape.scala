@@ -34,7 +34,7 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
     * @return a Future containing the bytestring Source.  The Future is failed if all of the files error.
     */
   def getContentSource(forFile:VSFile, otherFiles:Seq[VSFile])(implicit logger:org.slf4j.Logger):Future[Source[ByteString,Any]] =
-    VSFileContentSource.sourceFor(forFile).flatMap({
+    callSourceFor(forFile).flatMap({
       case Right(source)=>Future(source)
       case Left(err)=>
         logger.warn(s"Could not get source for file ${forFile.vsid}: $err")
@@ -44,6 +44,9 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
           Future.failed(new RuntimeException("Could not get a content source for any file"))
         }
     })
+
+  //callout to static object done this way to make mocking easier
+  protected def callSourceFor(forFile:VSFile) = VSFileContentSource.sourceFor(forFile)
 
   /**
     * build a graph to copy from a ByteString source to an S3 file

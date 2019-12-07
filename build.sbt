@@ -32,7 +32,6 @@ libraryDependencies ++= Seq(
   "org.mockito" % "mockito-core" % "2.28.2" % Test
 )
 
-
 lazy val `root` = (project in file("."))
     .dependsOn(common)
     .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid)
@@ -147,6 +146,7 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
       "org.scala-lang.modules" %% "scala-xml" % "1.0.5",
     )
   )
+
 
 lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(DockerPlugin, AshScriptPlugin)
   .dependsOn(common)
