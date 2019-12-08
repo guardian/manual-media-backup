@@ -1,6 +1,8 @@
 package streamComponents
 
+import akka.Done
 import akka.http.scaladsl.model.ContentType
+import akka.stream.alpakka.s3.MultipartUploadResult
 import akka.stream.alpakka.s3.headers.CannedAcl
 import akka.stream.alpakka.s3.scaladsl.S3
 import akka.stream.scaladsl.{GraphDSL, Keep, RunnableGraph, Source}
@@ -12,8 +14,9 @@ import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSLazyItem, VSSha
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success}
+import scala.concurrent.duration._
 
 class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:CannedAcl)(implicit comm:VSCommunicator, mat:Materializer)
   extends GraphStage[FlowShape[VSLazyItem, VSLazyItem ]] with FilenameHelpers {
@@ -63,12 +66,24 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private implicit val logger:org.slf4j.Logger = LoggerFactory.getLogger(getClass)
 
-    setHandler(in, new AbstractInHandler {
-      private val completedCb = createAsyncCallback[VSLazyItem](i=>push(out, i))
-      private val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
+    private var canComplete:Boolean=true
 
+    setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
+        val completedCb = createAsyncCallback[VSLazyItem](i=>{
+          logger.info(s"called createAsyncCallback")
+          canComplete=true
+          push(out, i)
+        })
+
+        val failedCb = createAsyncCallback[Throwable](err=>{
+          logger.error("Called failedCallback: ", err)
+          canComplete=true
+          failStage(err)
+        })
+
         val elem = grab(in)
+        canComplete = false
 
         val shapes = shapeNameAnyOf.map(shapeName=>
           findShape(elem,shapeName)
@@ -79,7 +94,7 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
             logger.warn(s"Got shapes multiple shapes $shapes for item ${elem.itemId}, using the first")
           }
 
-          val result = getContentSource(shapes.head.files.head, shapes.head.files.tail).flatMap(src=>
+          getContentSource(shapes.head.files.head, shapes.head.files.tail).flatMap(src=>
             determineFileName(elem, Some(shapes.head)) match {
               case Some(filepath)=>
                 ContentType.parse(shapes.head.mimeType) match {
@@ -97,22 +112,43 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
               case None=>
                 Future.failed(new RuntimeException("Could not determine any filepath to upload for "))
             }
-          )
-
-          result.onComplete({
-            case Failure(err)=>
+          ).flatMap(uploadResult=>{
+            logger.info(s"Uploaded to ${uploadResult.location}")
+            completedCb.invokeWithFeedback(elem)
+          }).recoverWith({
+            case err:Throwable=>
               logger.error(s"Could not perform upload for any of shape $shapeNameAnyOf on item ${elem.itemId}: ", err)
-              failedCb.invoke(err)
-            case Success(uploadResult)=>
-              logger.info(s"Uploaded to ${uploadResult.location}")
-              completedCb.invoke(elem)
+              failedCb.invokeWithFeedback(err)
           })
+
+//          result.get.onComplete({
+//            case Failure(err)=>
+//              logger.error(s"Could not perform upload for any of shape $shapeNameAnyOf on item ${elem.itemId}: ", err)
+//              failedCb.invoke(err)
+//            case Success(uploadResult)=>
+//              logger.info(s"Uploaded to ${uploadResult.location}")
+//              completedCb.invoke(elem)
+//          })
 
         } else {
           val actualShapeNames = elem.shapes.map(_.keySet)
           logger.error(s"No shapes could be found matching $shapeNameAnyOf on the given item (got $actualShapeNames)")
           push(out, elem)
         }
+      }
+
+      //override the finish function to ensure that any async procesing has completed before we allow ourselves
+      //to shut down
+      override def onUpstreamFinish(): Unit = {
+        var i=0
+        while(!canComplete){
+          logger.info(s"Async processing ongoing, waiting for completion...")
+          i+=1
+          if(i>10) canComplete=true
+          Thread.sleep(1000)
+        }
+        logger.info(s"Processing completed")
+        completeStage()
       }
     })
 
