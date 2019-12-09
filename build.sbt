@@ -10,7 +10,7 @@ version := "0.1"
 
 scalaVersion := "2.12.8"
 
-val akkaVersion = "2.5.22"
+val akkaVersion = "2.5.23"
 val circeVersion = "0.9.3"
 val slf4jVersion = "1.7.25"
 

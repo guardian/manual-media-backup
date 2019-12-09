@@ -71,7 +71,7 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
     setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
         val completedCb = createAsyncCallback[VSLazyItem](i=>{
-          logger.info(s"called createAsyncCallback")
+          logger.info(s"called completedCb")
           canComplete=true
           push(out, i)
         })
@@ -106,8 +106,8 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
                     RunnableGraph.fromGraph(graph).run()
                   case Left(errs) =>
                     logger.error(s"Could not determine mime type with ${errs.length} errors: ")
-                    errs.foreach(err => logger.error(err.toString))
-                    Future.failed(new RuntimeException(errs.head.toString))
+                    errs.foreach(err => logger.error(s"${err.errorHeaderName}: ${err.detail}"))
+                    Future.failed(new RuntimeException(errs.head.summary))
                 }
               case None=>
                 Future.failed(new RuntimeException("Could not determine any filepath to upload for "))
@@ -139,21 +139,27 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
 
       //override the finish function to ensure that any async procesing has completed before we allow ourselves
       //to shut down
-      override def onUpstreamFinish(): Unit = {
-        var i=0
-        while(!canComplete){
-          logger.info(s"Async processing ongoing, waiting for completion...")
-          i+=1
-          if(i>10) canComplete=true
-          Thread.sleep(1000)
-        }
-        logger.info(s"Processing completed")
-        completeStage()
-      }
+//      override def onUpstreamFinish(): Unit = {
+//        var i=0
+//
+//        logger.info(s"Upstream finished")
+//        while(!canComplete){
+//          logger.info(s"Async processing ongoing, waiting for completion...")
+//          i+=1
+//          if(i>10) canComplete=true
+//          Thread.sleep(1000)
+//        }
+//        logger.info(s"Processing completed")
+//        completeStage()
+//      }
     })
 
     setHandler(out, new AbstractOutHandler {
       override def onPull(): Unit = pull(in)
+//
+//      override def onDownstreamFinish(): Unit = {
+//        logger.info("Downstream finished")
+//      }
     })
   }
 }
