@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
 
 lazy val `root` = (project in file("."))
     .dependsOn(common)
-    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid)
+    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid, `push-proxies`)
 
 lazy val `common` = (project in file("common"))
     .settings(
@@ -156,10 +156,10 @@ lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(Docker
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
-    packageName in Docker := "guardianmultimedia/vs-media-backup",
-    packageName := "vs-media-backup",
+    packageName in Docker := "guardianmultimedia/push-proxies",
+    packageName := "push-proxies",
     dockerBaseImage := "openjdk:8-jdk-alpine",
-    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"vs-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"push-proxies",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
       Cmd("RUN", "chown daemon /opt/docker"),
