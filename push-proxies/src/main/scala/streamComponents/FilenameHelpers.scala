@@ -16,6 +16,16 @@ trait FilenameHelpers {
   }
 
   /**
+    * remove the extension for the given file
+    * @param forPath
+    * @return
+    */
+  def removeExtension(forPath:String) = forPath match {
+    case extensionExtractor(path, _)=>path
+    case _=>forPath
+  }
+
+  /**
     * try to determine the correct file for an upload.
     * prefers the "gnm_asset_filename" field from the item, but if that can't be found then use the "path" field
     * from any valid file on the given shape
