@@ -34,12 +34,14 @@ trait FilenameHelpers {
     * @return either the filepath or None if no path could be determined
     */
   def determineFileName(fromItem:VSLazyItem, fromShape:Option[VSShape]) = {
-    fromItem.getSingle("gnm_asset_filename") match {
-      case Some(fileName)=>
+    (fromItem.getSingle("gnm_asset_filename") match {
+      case Some(fileName) =>
         Some(fileName)
-      case None=>
+      case None =>
         fromShape.flatMap(_.files.map(_.path).headOption)
-    }
+    }).map(path=>{
+      if(path.startsWith("/")) path.substring(1) else path
+    })
   }
 
   /**

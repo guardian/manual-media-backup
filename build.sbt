@@ -2,7 +2,7 @@ import com.typesafe.sbt.packager.docker
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport.{dockerExposedPorts, dockerPermissionStrategy, dockerUsername}
 import com.typesafe.sbt.packager.docker.{Cmd, DockerPermissionStrategy}
 
-enablePlugins(DockerPlugin, AshScriptPlugin)
+enablePlugins(DockerPlugin, RpmPlugin, AshScriptPlugin)
 
 name := "manual-media-backup"
 
@@ -167,6 +167,8 @@ lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(Docker
       Cmd("RUN", "chmod -R a+x /opt/docker"),
       Cmd("USER", "daemon")
     ),
+    rpmRelease := "1",
+    rpmVendor := "Guardian Multimedia <guardianmultimedia@theguardian.com>",
     libraryDependencies ++=Seq(
       "com.typesafe.akka" %% "akka-stream" % akkaVersion,
       "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
@@ -187,7 +189,7 @@ lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(Docker
       "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
       "org.mockito" % "mockito-core" % "2.28.2" % Test,
       "org.scala-lang.modules" %% "scala-xml" % "1.0.5",
-      "com.gu" %% "akka-vidispine-components" % "0.1"
+      "com.gu" %% "akka-vidispine-components" % "0.2-SNAPSHOT"
     )
   )
 

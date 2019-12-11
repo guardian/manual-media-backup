@@ -43,7 +43,7 @@ class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm
         val maybeSourceFuture = elem.getSingle("representativeThumbnail") match {
           case Some(tnUrl)=>
             comm
-              .sendGeneric(VSCommunicator.OperationType.GET, tnUrl, None,Map(),Map())
+              .sendGeneric(VSCommunicator.OperationType.GET, tnUrl, None,headers=Map("Accept"->"*/*"), queryParams=Map())
               .map(_.body)
             .map({
               case Left(err)=>throw new RuntimeException(s"Could not get thumbnail content: $err")
@@ -53,7 +53,9 @@ class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm
             Future.failed(new NoThumbnailErr())
         }
 
-        val outputFilename = determineFileName(elem, None) match {
+        val maybeOriginalShape = elem.shapes.flatMap(_.get("original"))
+
+        val outputFilename = determineFileName(elem, maybeOriginalShape) match {
           case Some(fn)=>
             val strippedFn = removeExtension(fn)
             strippedFn + "_thumb.jpg"
