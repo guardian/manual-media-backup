@@ -5,8 +5,9 @@ import akka.stream.alpakka.s3.MultipartUploadResult
 import akka.stream.alpakka.s3.headers.CannedAcl
 import akka.stream.scaladsl.{Keep, RunnableGraph, Sink, Source}
 import akka.stream.{ActorAttributes, ActorMaterializer, Attributes, Materializer, Supervision}
+import akka.testkit.TestProbe
 import akka.util.ByteString
-import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSLazyItem, VSShape}
+import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSFileState, VSLazyItem, VSShape}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 
@@ -23,10 +24,13 @@ class UploadItemShapeSpec extends Specification with Mockito {
       implicit val mat:Materializer = ActorMaterializer.create(system)
 
       val originalShapefile = mock[VSFile]
+      originalShapefile.state returns Some(VSFileState.CLOSED)
       originalShapefile.path returns "/path/to/mediafile.mxf"
+
       val originalShape = VSShape("VX-22341",1,"original","application/mxf", Seq(originalShapefile))
       val proxyShapeFile = mock[VSFile]
       proxyShapeFile.path returns "/path/to/somefile.mp4"
+      proxyShapeFile.state returns Some(VSFileState.CLOSED)
       val proxyShape = VSShape("VX-22342",1,"lowres","video/mp4",Seq(proxyShapeFile))
       val shapeTable = Map("original"->originalShape, "lowres"->proxyShape)
       implicit val item = new VSLazyItem("VX-1234",Map(),Some(shapeTable))
@@ -37,7 +41,8 @@ class UploadItemShapeSpec extends Specification with Mockito {
 
       val copyGraphAssertArgs = mock[(Source[ByteString,Any], String, ContentType)=>Unit]
 
-      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private) {
+      val mockLostFilesCounter = TestProbe()
+      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private, Some(mockLostFilesCounter.ref)) {
         override def callSourceFor(forFile: VSFile): Future[Either[String, Source[ByteString, Any]]] = mockCallSourceFor(forFile)
 
         override def createCopyGraph(src: Source[ByteString, Any], fileName: String, mimeType: ContentType): RunnableGraph[Future[MultipartUploadResult]] = {
@@ -60,7 +65,8 @@ class UploadItemShapeSpec extends Specification with Mockito {
       val result = Await.result(resultFut,30 seconds)
 
       there were two(mockCallSourceFor).apply(proxyShapeFile)
-      there were two(copyGraphAssertArgs).apply(mockContentSource,"/path/to/somefile.mp4",expectedContentType)
+      there were two(copyGraphAssertArgs).apply(mockContentSource,"path/to/somefile.mp4",expectedContentType)
+      mockLostFilesCounter.expectNoMessage()
     }
 
     "fail if getContentSource fails" in new AkkaTestkitSpecs2Support {
@@ -68,10 +74,12 @@ class UploadItemShapeSpec extends Specification with Mockito {
       implicit val mat:Materializer = ActorMaterializer.create(system)
 
       val originalShapefile = mock[VSFile]
+      originalShapefile.state returns Some(VSFileState.CLOSED)
       originalShapefile.path returns "/path/to/mediafile.mxf"
       val originalShape = VSShape("VX-22341",1,"original","application/mxf", Seq(originalShapefile))
       val proxyShapeFile = mock[VSFile]
       proxyShapeFile.path returns "/path/to/somefile.mp4"
+      proxyShapeFile.state returns Some(VSFileState.CLOSED)
       val proxyShape = VSShape("VX-22342",1,"lowres","video/mp4",Seq(proxyShapeFile))
       val shapeTable = Map("original"->originalShape, "lowres"->proxyShape)
       implicit val item = new VSLazyItem("VX-1234",Map(),Some(shapeTable))
@@ -81,7 +89,9 @@ class UploadItemShapeSpec extends Specification with Mockito {
 
       val copyGraphAssertArgs = mock[(Source[ByteString,Any], String, ContentType)=>Unit]
 
-      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private) {
+      val mockLostFilesCounter = TestProbe()
+
+      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private,Some(mockLostFilesCounter.ref)) {
         override def callSourceFor(forFile: VSFile): Future[Either[String, Source[ByteString, Any]]] = mockCallSourceFor(forFile)
 
         override def createCopyGraph(src: Source[ByteString, Any], fileName: String, mimeType: ContentType): RunnableGraph[Future[MultipartUploadResult]] = {
@@ -106,6 +116,7 @@ class UploadItemShapeSpec extends Specification with Mockito {
       }
 
       theTest must throwA[RuntimeException]
+      mockLostFilesCounter.expectNoMessage()
       there was one(mockCallSourceFor).apply(proxyShapeFile)
     }
 
@@ -114,10 +125,12 @@ class UploadItemShapeSpec extends Specification with Mockito {
       implicit val mat:Materializer = ActorMaterializer.create(system)
 
       val originalShapefile = mock[VSFile]
+      originalShapefile.state returns Some(VSFileState.CLOSED)
       originalShapefile.path returns "/path/to/mediafile.mxf"
       val originalShape = VSShape("VX-22341",1,"original","application/mxf", Seq(originalShapefile))
       val proxyShapeFile = mock[VSFile]
       proxyShapeFile.path returns "/path/to/somefile.mp4"
+      proxyShapeFile.state returns Some(VSFileState.CLOSED)
       val proxyShape = VSShape("VX-22342",1,"lowres","video/mp4",Seq(proxyShapeFile))
       val shapeTable = Map("original"->originalShape, "lowres"->proxyShape)
       implicit val item = new VSLazyItem("VX-1234",Map(),Some(shapeTable))
@@ -128,7 +141,8 @@ class UploadItemShapeSpec extends Specification with Mockito {
 
       val copyGraphAssertArgs = mock[(Source[ByteString,Any], String, ContentType)=>Unit]
 
-      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private) {
+      val mockLostFilesCounter = TestProbe()
+      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private, Some(mockLostFilesCounter.ref)) {
         override def determineFileName(fromItem: VSLazyItem, fromShape: Option[VSShape]): Option[String] = None
 
         override def callSourceFor(forFile: VSFile): Future[Either[String, Source[ByteString, Any]]] = mockCallSourceFor(forFile)
@@ -155,6 +169,7 @@ class UploadItemShapeSpec extends Specification with Mockito {
       }
 
       theTest must throwA[RuntimeException]
+      mockLostFilesCounter.expectNoMessage()
       there was one(mockCallSourceFor).apply(proxyShapeFile)
     }
 
@@ -163,10 +178,12 @@ class UploadItemShapeSpec extends Specification with Mockito {
       implicit val mat:Materializer = ActorMaterializer.create(system)
 
       val originalShapefile = mock[VSFile]
+      originalShapefile.state returns Some(VSFileState.CLOSED)
       originalShapefile.path returns "/path/to/mediafile.mxf"
       val originalShape = VSShape("VX-22341",1,"original","application/mxf", Seq(originalShapefile))
       val proxyShapeFile = mock[VSFile]
       proxyShapeFile.path returns "/path/to/somefile.mp4"
+      proxyShapeFile.state returns Some(VSFileState.CLOSED)
       val proxyShape = VSShape("VX-22342",1,"lowres","j,hbsdfzmbzsfzfsmnbzfsinvalid-mime-type",Seq(proxyShapeFile))
       val shapeTable = Map("original"->originalShape, "lowres"->proxyShape)
       implicit val item = new VSLazyItem("VX-1234",Map(),Some(shapeTable))
@@ -176,8 +193,9 @@ class UploadItemShapeSpec extends Specification with Mockito {
       mockCallSourceFor.apply(any) returns Future(Right(mockContentSource))
 
       val copyGraphAssertArgs = mock[(Source[ByteString,Any], String, ContentType)=>Unit]
+      val mockLostFilesCounter = TestProbe()
 
-      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private) {
+      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private, Some(mockLostFilesCounter.ref)) {
         override def callSourceFor(forFile: VSFile): Future[Either[String, Source[ByteString, Any]]] = mockCallSourceFor(forFile)
 
         override def createCopyGraph(src: Source[ByteString, Any], fileName: String, mimeType: ContentType): RunnableGraph[Future[MultipartUploadResult]] = {
@@ -202,8 +220,60 @@ class UploadItemShapeSpec extends Specification with Mockito {
       }
 
       theTest must throwA[RuntimeException]
-
+      mockLostFilesCounter.expectNoMessage()
       there was one(mockCallSourceFor).apply(proxyShapeFile)
     }
+
+    "inform LostFilesCounter if the file is not in the right state" in new AkkaTestkitSpecs2Support {
+      implicit val vsComm = mock[VSCommunicator]
+      implicit val mat:Materializer = ActorMaterializer.create(system)
+
+      val originalShapefile = mock[VSFile]
+      originalShapefile.state returns Some(VSFileState.CLOSED)
+      originalShapefile.path returns "/path/to/mediafile.mxf"
+
+      val originalShape = VSShape("VX-22341",1,"original","application/mxf", Seq(originalShapefile))
+      val proxyShapeFile = mock[VSFile]
+      proxyShapeFile.path returns "/path/to/somefile.mp4"
+      proxyShapeFile.state returns Some(VSFileState.LOST)
+      val proxyShape = VSShape("VX-22342",1,"lowres","video/mp4",Seq(proxyShapeFile))
+      val shapeTable = Map("original"->originalShape, "lowres"->proxyShape)
+      implicit val item = new VSLazyItem("VX-1234",Map(),Some(shapeTable))
+
+      val mockContentSource:Source[ByteString,Any] = Source.single(ByteString("File content would go here"))
+      val mockCallSourceFor = mock[VSFile=>Future[Either[String, Source[ByteString, Any]]]]
+      mockCallSourceFor.apply(any) returns Future(Right(mockContentSource))
+
+      val copyGraphAssertArgs = mock[(Source[ByteString,Any], String, ContentType)=>Unit]
+
+      val mockLostFilesCounter = TestProbe()
+      val testStage = new UploadItemShape(Seq("lowres","lowaudio","lowimage"),"somebucket",CannedAcl.Private, Some(mockLostFilesCounter.ref)) {
+        override def callSourceFor(forFile: VSFile): Future[Either[String, Source[ByteString, Any]]] = mockCallSourceFor(forFile)
+
+        override def createCopyGraph(src: Source[ByteString, Any], fileName: String, mimeType: ContentType): RunnableGraph[Future[MultipartUploadResult]] = {
+          copyGraphAssertArgs(src, fileName, mimeType)
+          val sink = Sink.reduce[MultipartUploadResult]((acc,elem)=>elem)
+          src
+            .map(fakeContent=>MultipartUploadResult(Uri("s3://somebucket/path/to/somefile"),"somebucket","path/to/somefile",fakeContent.utf8String,None))
+            .toMat(sink)(Keep.right)
+        }
+      }
+      val expectedContentType = ContentType(MediaType.video("mp4",MediaType.NotCompressible))
+
+      val resultFut = Source
+        .fromIterator(()=>Seq(item,item).toIterator)
+        .via(testStage)
+        .log("streamComponents.UploadItemShape")
+        .toMat(Sink.seq)(Keep.right)
+        .run()
+
+      val result = Await.result(resultFut,30 seconds)
+
+      there were no(mockCallSourceFor).apply(any)
+      there were no(copyGraphAssertArgs).apply(any,any,any)
+      mockLostFilesCounter.expectMsgAllClassOf(classOf[LostFilesCounter.RegisterLost])
+      mockLostFilesCounter.expectMsg(LostFilesCounter.RegisterLost(proxyShapeFile,proxyShape,item))
+    }
   }
+
 }

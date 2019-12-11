@@ -1,6 +1,6 @@
 package streamComponents
 
-import akka.Done
+import akka.actor.ActorRef
 import akka.http.scaladsl.model.ContentType
 import akka.stream.alpakka.s3.MultipartUploadResult
 import akka.stream.alpakka.s3.headers.CannedAcl
@@ -10,17 +10,16 @@ import akka.stream.{Attributes, ClosedShape, FlowShape, Inlet, Materializer, Out
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import akka.util.ByteString
 import com.gu.vidispineakka.streamcomponents.VSFileContentSource
-import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSLazyItem, VSShape}
+import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSFileState, VSLazyItem, VSShape}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
-import scala.util.{Failure, Success}
-import scala.concurrent.duration._
 
-class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:CannedAcl)(implicit comm:VSCommunicator, mat:Materializer)
+class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:CannedAcl, lostFilesCounter:Option[ActorRef]=None)(implicit comm:VSCommunicator, mat:Materializer)
   extends GraphStage[FlowShape[VSLazyItem, VSLazyItem ]] with FilenameHelpers {
 
+  import streamComponents.LostFilesCounter._
   private final val in:Inlet[VSLazyItem] = Inlet.create("UploadItemShape.in")
   private final val out:Outlet[VSLazyItem] = Outlet.create("UploadItemShape.out")
 
@@ -63,6 +62,10 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
     src.toMat(sink)(Keep.right)
   }
 
+  def findClosedFiles(vsFiles:Seq[VSFile]):Seq[VSFile] = {
+    vsFiles.filter(_.state.contains(VSFileState.CLOSED))
+  }
+
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private implicit val logger:org.slf4j.Logger = LoggerFactory.getLogger(getClass)
 
@@ -94,43 +97,43 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
             logger.warn(s"Got shapes multiple shapes $shapes for item ${elem.itemId}, using the first")
           }
 
-          getContentSource(shapes.head.files.head, shapes.head.files.tail).flatMap(src=>
-            determineFileName(elem, Some(shapes.head)) match {
-              case Some(filepath)=>
-                val shapeMimeTypeString = Option(shapes.head.mimeType).flatMap(str=>if(str=="") None else Some(str)).getOrElse("application/octet-stream")
-                ContentType.parse(shapeMimeTypeString) match {
-                  case Right(mimeType) =>
-                    logger.info(s"Determined $filepath as the path to upload")
-                    val fixedFileName = fixFileExtension(filepath, shapes.head.files.head)
-                    logger.info(s"Filename with fixed extension is $fixedFileName")
-                    val graph = createCopyGraph(src, fixedFileName, mimeType)
-                    RunnableGraph.fromGraph(graph).run()
-                  case Left(errs) =>
-                    logger.error(s"Could not determine mime type from ${shapes.head.mimeType} with ${errs.length} errors: ")
-                    errs.foreach(err => logger.error(s"${err.errorHeaderName}: ${err.detail}"))
-                    Future.failed(new RuntimeException(errs.head.summary))
-                }
-              case None=>
-                Future.failed(new RuntimeException("Could not determine any filepath to upload for "))
+          val potentialFiles = findClosedFiles(shapes.head.files)
+          if(potentialFiles.nonEmpty) {
+            getContentSource(shapes.head.files.head, shapes.head.files.tail).flatMap(src =>
+              determineFileName(elem, Some(shapes.head)) match {
+                case Some(filepath) =>
+                  val shapeMimeTypeString = Option(shapes.head.mimeType).flatMap(str => if (str == "") None else Some(str)).getOrElse("application/octet-stream")
+                  ContentType.parse(shapeMimeTypeString) match {
+                    case Right(mimeType) =>
+                      logger.info(s"Determined $filepath as the path to upload")
+                      val fixedFileName = fixFileExtension(filepath, shapes.head.files.head)
+                      logger.info(s"Filename with fixed extension is $fixedFileName")
+                      val graph = createCopyGraph(src, fixedFileName, mimeType)
+                      RunnableGraph.fromGraph(graph).run()
+                    case Left(errs) =>
+                      logger.error(s"Could not determine mime type from ${shapes.head.mimeType} with ${errs.length} errors: ")
+                      errs.foreach(err => logger.error(s"${err.errorHeaderName}: ${err.detail}"))
+                      Future.failed(new RuntimeException(errs.head.summary))
+                  }
+                case None =>
+                  Future.failed(new RuntimeException("Could not determine any filepath to upload for "))
+              }
+            ).flatMap(uploadResult => {
+              logger.info(s"Uploaded to ${uploadResult.location}")
+              completedCb.invokeWithFeedback(elem)
+            }).recoverWith({
+              case err: Throwable =>
+                logger.error(s"Could not perform upload for any of shape $shapeNameAnyOf on item ${elem.itemId}: ", err)
+                failedCb.invokeWithFeedback(err)
+            })
+          } else {
+            logger.error(s"There were no files to upload on item ${elem.itemId}")
+            if(lostFilesCounter.isDefined){
+              //notify the counter that we have a lost file
+              lostFilesCounter.get ! RegisterLost(shapes.head.files.head,shapes.head, elem)
             }
-          ).flatMap(uploadResult=>{
-            logger.info(s"Uploaded to ${uploadResult.location}")
             completedCb.invokeWithFeedback(elem)
-          }).recoverWith({
-            case err:Throwable=>
-              logger.error(s"Could not perform upload for any of shape $shapeNameAnyOf on item ${elem.itemId}: ", err)
-              failedCb.invokeWithFeedback(err)
-          })
-
-//          result.get.onComplete({
-//            case Failure(err)=>
-//              logger.error(s"Could not perform upload for any of shape $shapeNameAnyOf on item ${elem.itemId}: ", err)
-//              failedCb.invoke(err)
-//            case Success(uploadResult)=>
-//              logger.info(s"Uploaded to ${uploadResult.location}")
-//              completedCb.invoke(elem)
-//          })
-
+          }
         } else {
           val actualShapeNames = elem.shapes.map(_.keySet)
           logger.error(s"No shapes could be found matching $shapeNameAnyOf on the given item (got $actualShapeNames)")

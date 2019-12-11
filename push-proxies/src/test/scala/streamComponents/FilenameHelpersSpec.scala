@@ -38,7 +38,7 @@ class FilenameHelpersSpec extends Specification with Mockito {
   }
 
   "FilenameHelpers.determineFileName" should {
-    "take the filepath from the item, if present" in {
+    "take the filepath from the item, if present and strip any leading /" in {
       val fakeItem = mock[VSLazyItem]
       fakeItem.getSingle(any) returns Some("/path/to/some/file.mxf")
 
@@ -49,7 +49,7 @@ class FilenameHelpersSpec extends Specification with Mockito {
 
       val test = new TestClass
       val result = test.determineFileName(fakeItem, Some(fakeShape))
-      result must beSome("/path/to/some/file.mxf")
+      result must beSome("path/to/some/file.mxf")
       there was one(fakeItem).getSingle("gnm_asset_filename")
     }
 
@@ -64,7 +64,7 @@ class FilenameHelpersSpec extends Specification with Mockito {
 
       val test = new TestClass
       val result = test.determineFileName(fakeItem, Some(fakeShape))
-      result must beSome("/path/to/some/proxy.mp4")
+      result must beSome("path/to/some/proxy.mp4")
       there was one(fakeItem).getSingle("gnm_asset_filename")
     }
 
