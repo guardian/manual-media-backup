@@ -162,9 +162,7 @@ lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(Docker
     dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"push-proxies",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
-      Cmd("RUN", "chown daemon /opt/docker"),
-      Cmd("RUN", "chmod u+w /opt/docker"),
-      Cmd("RUN", "chmod -R a+x /opt/docker"),
+      Cmd("RUN", "chown daemon /opt/docker && chmod u+w /opt/docker && chmod -R a+x /opt/docker"),
       Cmd("USER", "daemon")
     ),
     rpmRelease := "1",

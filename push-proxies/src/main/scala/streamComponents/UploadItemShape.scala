@@ -97,7 +97,8 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
           getContentSource(shapes.head.files.head, shapes.head.files.tail).flatMap(src=>
             determineFileName(elem, Some(shapes.head)) match {
               case Some(filepath)=>
-                ContentType.parse(shapes.head.mimeType) match {
+                val shapeMimeTypeString = Option(shapes.head.mimeType).flatMap(str=>if(str=="") None else Some(str)).getOrElse("application/octet-stream")
+                ContentType.parse(shapeMimeTypeString) match {
                   case Right(mimeType) =>
                     logger.info(s"Determined $filepath as the path to upload")
                     val fixedFileName = fixFileExtension(filepath, shapes.head.files.head)
@@ -105,7 +106,7 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
                     val graph = createCopyGraph(src, fixedFileName, mimeType)
                     RunnableGraph.fromGraph(graph).run()
                   case Left(errs) =>
-                    logger.error(s"Could not determine mime type with ${errs.length} errors: ")
+                    logger.error(s"Could not determine mime type from ${shapes.head.mimeType} with ${errs.length} errors: ")
                     errs.foreach(err => logger.error(s"${err.errorHeaderName}: ${err.detail}"))
                     Future.failed(new RuntimeException(errs.head.summary))
                 }

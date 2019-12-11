@@ -5,23 +5,24 @@ import akka.actor.ActorSystem
 import akka.stream.alpakka.s3.headers.CannedAcl
 import akka.stream.alpakka.s3.scaladsl.S3
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
-import akka.stream.scaladsl.{Framing, GraphDSL, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{Framing, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.amazonaws.services.s3.model.{CannedAccessControlList, ObjectMetadata, PutObjectRequest}
 import com.gu.vidispineakka.streamcomponents.{VSItemGetFullMeta, VSItemSearchSource}
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSLazyItem}
 import com.softwaremill.sttp.Uri
 import org.slf4j.LoggerFactory
-import streamComponents.{UploadItemShape, UploadItemThumbnail}
+import streamComponents.{FilenameHelpers, IsProjectSwitch, UploadItemShape, UploadItemThumbnail}
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.softwaremill.sttp._
 import com.typesafe.config.ConfigFactory
+
 import scala.collection.JavaConverters._
 
-object PushProxiesMain {
+object PushProxiesMain extends FilenameHelpers {
   private val logger = LoggerFactory.getLogger(getClass)
 
   lazy val vsPageSize = sys.env.get("VS_PAGE_SIZE").map(_.toInt).getOrElse(100)
@@ -41,6 +42,11 @@ object PushProxiesMain {
   val mediaBucket = sys.env.get("MEDIA_BUCKET") match {
     case Some(b)=>b
     case None=>throw new RuntimeException("You must specify MEDIA_BUCKET in the environment")
+  }
+
+  val projectBucket = sys.env.get("PROJECT_BUCKET") match {
+    case Some(b)=>b
+    case None=>throw new RuntimeException("You must specify PROJECT_BUCKET in the environment")
   }
 
   val vsUrl = sys.env("VIDISPINE_URL")
@@ -63,17 +69,24 @@ object PushProxiesMain {
     * @return
     */
   def writeMetaCallback(forItem:VSLazyItem, metaDoc:String):Future[Unit] = {
-    val destFileName = forItem.getSingle("gnm_asset_filename") match {
+    val destFileName = determineFileName(forItem, forItem.shapes.flatMap(_.get("original"))) match {
       case Some(filePath)=>filePath + ".xml"
       case None=>forItem.itemId + ".xml"
     }
-    logger.info(s"Writing metadata to $destFileName on $metaBucket")
+
+    val uploadBucket = if(forItem.getSingle("gnm_type").map(_.toLowerCase).contains("projectfile")){
+      projectBucket
+    } else {
+      metaBucket
+    }
+
+    logger.info(s"Writing metadata to $destFileName on $uploadBucket")
 
     val strm = new ByteArrayInputStream(metaDoc.getBytes(StandardCharsets.UTF_8))
     val s3meta = new ObjectMetadata()
     s3meta.setContentLength(metaDoc.length)
 
-    val putRequest = new PutObjectRequest(metaBucket,destFileName,strm,s3meta)
+    val putRequest = new PutObjectRequest(uploadBucket,destFileName,strm,s3meta)
       .withCannedAcl(CannedAccessControlList.Private)
 
     s3Client.putObject(putRequest)
@@ -86,12 +99,26 @@ object PushProxiesMain {
 
     GraphDSL.create(counterSinkFact) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
-      val src = builder.add(new VSItemSearchSource(Seq("gnm_original_filename","representativeThumbnail"),makeVSSearch.toString(),includeShape=true,pageSize=vsPageSize))
-      val metadataGrabber = builder.add(new VSItemGetFullMeta(writeMetaCallback))
+      val src = builder.add(new VSItemSearchSource(Seq("gnm_original_filename","representativeThumbnail","gnm_type"),makeVSSearch.toString(),includeShape=true,pageSize=vsPageSize))
+      val projectSwitch = builder.add(new IsProjectSwitch)
+
+      val metaGrabberFactory = new VSItemGetFullMeta(writeMetaCallback)
+      val mediaMetadataGrabber = builder.add(metaGrabberFactory)
+      val projectMetadataGrabber = builder.add(metaGrabberFactory)
+
       val uploadProxy = builder.add(new UploadItemShape(proxyShapeNames,proxyBucket,CannedAcl.Private))
       val uploadThumb = builder.add(new UploadItemThumbnail(proxyBucket,CannedAcl.Private))
       val uploadMedia = builder.add(new UploadItemShape(Seq("original"),mediaBucket,CannedAcl.Private))
-      src ~> metadataGrabber ~> uploadProxy ~> uploadThumb ~> uploadMedia ~> sink
+      val uploadProject = builder.add(new UploadItemShape(Seq("original"),projectBucket,CannedAcl.Private))
+      val finalMerge = builder.add(new Merge[VSLazyItem](2, eagerComplete = false))
+      src ~> projectSwitch
+
+      //"is a project" branch
+      projectSwitch.out(0) ~> projectMetadataGrabber ~> uploadProject ~> finalMerge
+      //"not a project" branch
+      projectSwitch.out(1) ~> mediaMetadataGrabber ~> uploadProxy ~> uploadThumb ~> uploadMedia ~> finalMerge
+
+      finalMerge ~> sink
       ClosedShape
     }
   }
