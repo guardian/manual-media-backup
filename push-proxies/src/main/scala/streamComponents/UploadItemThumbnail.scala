@@ -8,6 +8,7 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{Attributes, FlowShape, Inlet, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import akka.util.ByteString
+import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSLazyItem}
 import org.slf4j.LoggerFactory
 
@@ -22,6 +23,8 @@ class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm
   private val out:Outlet[VSLazyItem] = Outlet.create("UploadItemThumbnail.out")
 
   override def shape: FlowShape[VSLazyItem, VSLazyItem] = FlowShape.of(in, out)
+
+  private val s3Client = AmazonS3ClientBuilder.defaultClient()
 
   //included here to make testing easier
   def getUploadSink(outputFilename:String) = S3.multipartUpload(bucketName,outputFilename, contentType=ContentType.parse("image/jpeg").right.get, cannedAcl=cannedAcl)
@@ -40,6 +43,21 @@ class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm
         val elem = grab(in)
         canComplete = false
 
+        val maybeOriginalShape = elem.shapes.flatMap(_.get("original"))
+
+        val outputFilename = determineFileName(elem, maybeOriginalShape) match {
+          case Some(fn)=>
+            val strippedFn = removeExtension(fn)
+            strippedFn + "_thumb.jpg"
+          case None=>elem.itemId + "_thumb.jpg"
+        }
+
+        if(s3Client.doesObjectExist(bucketName, outputFilename)){
+          logger.warn(s"A file with the name $outputFilename already exists in $bucketName, not overwriting")
+          push(out, elem)
+          return
+        }
+
         val maybeSourceFuture = elem.getSingle("representativeThumbnail") match {
           case Some(tnUrl)=>
             comm
@@ -51,15 +69,6 @@ class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm
             })
           case None=>
             Future.failed(new NoThumbnailErr())
-        }
-
-        val maybeOriginalShape = elem.shapes.flatMap(_.get("original"))
-
-        val outputFilename = determineFileName(elem, maybeOriginalShape) match {
-          case Some(fn)=>
-            val strippedFn = removeExtension(fn)
-            strippedFn + "_thumb.jpg"
-          case None=>elem.itemId + "_thumb.jpg"
         }
 
         val resultFuture = maybeSourceFuture.flatMap(src=>{

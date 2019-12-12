@@ -1,14 +1,15 @@
 package streamComponents
 
 import akka.actor.ActorRef
-import akka.http.scaladsl.model.ContentType
+import akka.http.scaladsl.model.{ContentType, Uri}
 import akka.stream.alpakka.s3.MultipartUploadResult
 import akka.stream.alpakka.s3.headers.CannedAcl
 import akka.stream.alpakka.s3.scaladsl.S3
-import akka.stream.scaladsl.{GraphDSL, Keep, RunnableGraph, Source}
-import akka.stream.{Attributes, ClosedShape, FlowShape, Inlet, Materializer, Outlet}
+import akka.stream.scaladsl.{GraphDSL, Keep, RunnableGraph, Sink, Source}
+import akka.stream.{Attributes, ClosedShape, FlowShape, Inlet, KillSwitches, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
 import akka.util.ByteString
+import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import com.gu.vidispineakka.streamcomponents.VSFileContentSource
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSFileState, VSLazyItem, VSShape}
 import org.slf4j.LoggerFactory
@@ -26,6 +27,8 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
   override def shape: FlowShape[VSLazyItem, VSLazyItem] = FlowShape.of(in, out)
 
   def findShape(forItem:VSLazyItem, shapeName:String):Option[VSShape] = forItem.shapes.flatMap(_.get(shapeName))
+
+  private val s3Client = AmazonS3ClientBuilder.defaultClient()
 
   /**
     * tries to get hold of an Akka source for the content of the given file
@@ -108,8 +111,16 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
                       logger.info(s"Determined $filepath as the path to upload")
                       val fixedFileName = fixFileExtension(filepath, shapes.head.files.head)
                       logger.info(s"Filename with fixed extension is $fixedFileName")
-                      val graph = createCopyGraph(src, fixedFileName, mimeType)
-                      RunnableGraph.fromGraph(graph).run()
+                      if(s3Client.doesObjectExist(bucketName, fixedFileName)){
+                        logger.warn(s"File $fixedFileName already exists in $bucketName, not over-writing")
+                        //set up and immediately terminate a stream in order to satisfy "Response entity not subscribed" warning
+                        val ks = src.viaMat(KillSwitches.single)(Keep.right).to(Sink.ignore).run()
+                        ks.shutdown()
+                        Future(MultipartUploadResult(Uri(s"s3://$bucketName/$fixedFileName"),bucketName,fixedFileName,"existing",None))
+                      } else {
+                        val graph = createCopyGraph(src, fixedFileName, mimeType)
+                        RunnableGraph.fromGraph(graph).run()
+                      }
                     case Left(errs) =>
                       logger.error(s"Could not determine mime type from ${shapes.head.mimeType} with ${errs.length} errors: ")
                       errs.foreach(err => logger.error(s"${err.errorHeaderName}: ${err.detail}"))
