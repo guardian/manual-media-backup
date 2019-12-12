@@ -6,6 +6,7 @@ import akka.stream.alpakka.s3.headers.CannedAcl
 import akka.stream.scaladsl.{Flow, GraphDSL, Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, SinkShape}
 import akka.util.ByteString
+import com.amazonaws.services.s3.AmazonS3
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSLazyItem, VSShape}
 import com.softwaremill.sttp.Response
 import org.specs2.mock.Mockito
@@ -35,7 +36,11 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
       val getUploadSinkArgsCheck = mock[String=>Unit]
       val runCopyArgsCheck = mock[(Source[ByteString,Any],Sink[ByteString,Future[MultipartUploadResult]])=>Unit]
 
+      val mockS3Client = mock[AmazonS3]
+      mockS3Client.doesObjectExist(any,any) returns false
+
       val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+        override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult
           * @param outputFilename
@@ -91,8 +96,11 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
 
       val getUploadSinkArgsCheck = mock[String=>Unit]
       val runCopyArgsCheck = mock[(Source[ByteString,Any],Sink[ByteString,Future[MultipartUploadResult]])=>Unit]
+      val mockS3Client = mock[AmazonS3]
+      mockS3Client.doesObjectExist(any,any) returns false
 
       val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+        override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult
           * @param outputFilename
@@ -147,7 +155,11 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
       val getUploadSinkArgsCheck = mock[String=>Unit]
       val runCopyArgsCheck = mock[(Source[ByteString,Any],Sink[ByteString,Future[MultipartUploadResult]])=>Unit]
 
+      val mockS3Client = mock[AmazonS3]
+      mockS3Client.doesObjectExist(any,any) returns false
+
       val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+        override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult
           * @param outputFilename
@@ -208,7 +220,11 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
       val getUploadSinkArgsCheck = mock[String=>Unit]
       val runCopyArgsCheck = mock[(Source[ByteString,Any],Sink[ByteString,Future[MultipartUploadResult]])=>Unit]
 
+      val mockS3Client = mock[AmazonS3]
+      mockS3Client.doesObjectExist(any,any) returns false
+
       val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+        override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult
           * @param outputFilename

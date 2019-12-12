@@ -1,6 +1,7 @@
 package streamComponents
 
 import com.gu.vidispineakka.vidispine.{VSFile, VSLazyItem, VSShape}
+import helpers.StoragePathMap
 
 trait FilenameHelpers {
   private val extensionExtractor = "^(.*)\\.([^\\.]+)$".r

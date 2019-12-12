@@ -117,9 +117,7 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
     dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"vs-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
-      Cmd("RUN", "chown daemon /opt/docker"),
-      Cmd("RUN", "chmod u+w /opt/docker"),
-      Cmd("RUN", "chmod -R a+x /opt/docker"),
+      Cmd("RUN", "chown daemon /opt/docker && chmod u+w /opt/docker && chmod -R a+x /opt/docker"),
       Cmd("USER", "daemon")
     ),
     libraryDependencies ++=Seq(
@@ -127,7 +125,7 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
       "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
       "com.typesafe.akka" %% "akka-http" % "10.1.7",
-      "javax.xml.bind" %% "jaxb-api" % "2.3.1",       //AWS SDK complains about missing this (unlisted optional dependency)
+      "javax.xml.bind" % "jaxb-api" % "2.3.1",       //AWS SDK complains about missing this (unlisted optional dependency)
       "io.circe" %% "circe-core" % circeVersion,
       "io.circe" %% "circe-generic" % circeVersion,
       "io.circe" %% "circe-parser" % circeVersion,

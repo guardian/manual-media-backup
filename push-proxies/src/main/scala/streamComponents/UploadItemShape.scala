@@ -12,12 +12,13 @@ import akka.util.ByteString
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import com.gu.vidispineakka.streamcomponents.VSFileContentSource
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSFileState, VSLazyItem, VSShape}
+import helpers.StoragePathMap
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
 
-class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:CannedAcl, lostFilesCounter:Option[ActorRef]=None)(implicit comm:VSCommunicator, mat:Materializer)
+class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:CannedAcl, lostFilesCounter:Option[ActorRef]=None, maybeStoragePathMap:Option[StoragePathMap]=None)(implicit comm:VSCommunicator, mat:Materializer)
   extends GraphStage[FlowShape[VSLazyItem, VSLazyItem ]] with FilenameHelpers {
 
   import streamComponents.LostFilesCounter._
@@ -28,7 +29,7 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
 
   def findShape(forItem:VSLazyItem, shapeName:String):Option[VSShape] = forItem.shapes.flatMap(_.get(shapeName))
 
-  private val s3Client = AmazonS3ClientBuilder.defaultClient()
+  protected val s3Client = AmazonS3ClientBuilder.defaultClient()
 
   /**
     * tries to get hold of an Akka source for the content of the given file
@@ -38,9 +39,9 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
     * @param logger implicitly provided org.slf4j.Logger
     * @return a Future containing the bytestring Source.  The Future is failed if all of the files error.
     */
-  def getContentSource(forFile:VSFile, otherFiles:Seq[VSFile])(implicit logger:org.slf4j.Logger):Future[Source[ByteString,Any]] =
+  def getContentSource(forFile:VSFile, otherFiles:Seq[VSFile])(implicit logger:org.slf4j.Logger):Future[(Source[ByteString,Any],VSFile)] =
     callSourceFor(forFile).flatMap({
-      case Right(source)=>Future(source)
+      case Right(source)=>Future((source,forFile))
       case Left(err)=>
         logger.warn(s"Could not get source for file ${forFile.vsid}: $err")
         if(otherFiles.nonEmpty){
@@ -102,21 +103,28 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
 
           val potentialFiles = findClosedFiles(shapes.head.files)
           if(potentialFiles.nonEmpty) {
-            getContentSource(shapes.head.files.head, shapes.head.files.tail).flatMap(src =>
+            getContentSource(shapes.head.files.head, shapes.head.files.tail).flatMap(contentSource => {
+              val src = contentSource._1
+              val srcFile = contentSource._2
+
               determineFileName(elem, Some(shapes.head)) match {
-                case Some(filepath) =>
+                case Some(baseFilePath) =>
+                  val filepath = maybeStoragePathMap.flatMap(_.pathPrefixForStorage(srcFile.storage)) match {
+                    case Some(prefix)=>prefix + "/" + baseFilePath
+                    case None=>baseFilePath
+                  }
                   val shapeMimeTypeString = Option(shapes.head.mimeType).flatMap(str => if (str == "") None else Some(str)).getOrElse("application/octet-stream")
                   ContentType.parse(shapeMimeTypeString) match {
                     case Right(mimeType) =>
                       logger.info(s"Determined $filepath as the path to upload")
                       val fixedFileName = fixFileExtension(filepath, shapes.head.files.head)
                       logger.info(s"Filename with fixed extension is $fixedFileName")
-                      if(s3Client.doesObjectExist(bucketName, fixedFileName)){
+                      if (s3Client.doesObjectExist(bucketName, fixedFileName)) {
                         logger.warn(s"File $fixedFileName already exists in $bucketName, not over-writing")
                         //set up and immediately terminate a stream in order to satisfy "Response entity not subscribed" warning
                         val ks = src.viaMat(KillSwitches.single)(Keep.right).to(Sink.ignore).run()
                         ks.shutdown()
-                        Future(MultipartUploadResult(Uri(s"s3://$bucketName/$fixedFileName"),bucketName,fixedFileName,"existing",None))
+                        Future(MultipartUploadResult(Uri(s"s3://$bucketName/$fixedFileName"), bucketName, fixedFileName, "existing", None))
                       } else {
                         val graph = createCopyGraph(src, fixedFileName, mimeType)
                         RunnableGraph.fromGraph(graph).run()
@@ -129,7 +137,7 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
                 case None =>
                   Future.failed(new RuntimeException("Could not determine any filepath to upload for "))
               }
-            ).flatMap(uploadResult => {
+            }).flatMap(uploadResult => {
               logger.info(s"Uploaded to ${uploadResult.location}")
               completedCb.invokeWithFeedback(elem)
             }).recoverWith({

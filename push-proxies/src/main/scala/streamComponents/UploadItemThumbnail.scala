@@ -24,7 +24,7 @@ class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm
 
   override def shape: FlowShape[VSLazyItem, VSLazyItem] = FlowShape.of(in, out)
 
-  private val s3Client = AmazonS3ClientBuilder.defaultClient()
+  protected val s3Client = AmazonS3ClientBuilder.defaultClient()
 
   //included here to make testing easier
   def getUploadSink(outputFilename:String) = S3.multipartUpload(bucketName,outputFilename, contentType=ContentType.parse("image/jpeg").right.get, cannedAcl=cannedAcl)

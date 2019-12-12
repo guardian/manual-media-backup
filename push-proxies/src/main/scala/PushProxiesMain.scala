@@ -1,21 +1,19 @@
-import java.io.{ByteArrayInputStream, InputStreamReader}
+import java.io.{ByteArrayInputStream, File}
 import java.nio.charset.StandardCharsets
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.alpakka.s3.headers.CannedAcl
-import akka.stream.alpakka.s3.scaladsl.S3
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
-import akka.stream.scaladsl.{Framing, GraphDSL, Merge, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{GraphDSL, Merge, RunnableGraph, Sink}
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.amazonaws.services.s3.model.{CannedAccessControlList, ObjectMetadata, PutObjectRequest}
 import com.gu.vidispineakka.streamcomponents.{VSItemGetFullMeta, VSItemSearchSource}
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSLazyItem}
-import com.softwaremill.sttp.Uri
+import helpers.StoragePathMap
 import org.slf4j.LoggerFactory
-import streamComponents.{FilenameHelpers, IsProjectSwitch, LostFilesCounter, UploadItemShape, UploadItemThumbnail}
-
+import streamComponents._
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -50,6 +48,8 @@ object PushProxiesMain extends FilenameHelpers {
     case Some(b)=>b
     case None=>throw new RuntimeException("You must specify PROJECT_BUCKET in the environment")
   }
+
+  val storagePathProperties = sys.env.get("STORAGE_PATH_PROPERTIES")
 
   val vsUrl = sys.env("VIDISPINE_URL")
   val vsUser = sys.env("VIDISPINE_USER")
@@ -96,7 +96,7 @@ object PushProxiesMain extends FilenameHelpers {
     Future.successful( () )
   }
 
-  def buildGraph(counter:Option[ActorRef])(implicit comm:VSCommunicator, system:ActorSystem, mat:Materializer) = {
+  def buildGraph(counter:Option[ActorRef], maybeStoragePathMap:Option[StoragePathMap])(implicit comm:VSCommunicator, system:ActorSystem, mat:Materializer) = {
     val counterSinkFact = Sink.fold[Int, VSLazyItem](0)((ctr,_)=>ctr+1)
 
     GraphDSL.create(counterSinkFact) { implicit builder=> sink=>
@@ -110,8 +110,8 @@ object PushProxiesMain extends FilenameHelpers {
 
       val uploadProxy = builder.add(new UploadItemShape(proxyShapeNames,proxyBucket,CannedAcl.Private))
       val uploadThumb = builder.add(new UploadItemThumbnail(proxyBucket,CannedAcl.Private))
-      val uploadMedia = builder.add(new UploadItemShape(Seq("original"),mediaBucket,CannedAcl.Private,counter))
-      val uploadProject = builder.add(new UploadItemShape(Seq("original"),projectBucket,CannedAcl.Private,counter))
+      val uploadMedia = builder.add(new UploadItemShape(Seq("original"),mediaBucket,CannedAcl.Private,counter, maybeStoragePathMap))
+      val uploadProject = builder.add(new UploadItemShape(Seq("original"),projectBucket,CannedAcl.Private,counter, maybeStoragePathMap))
       val finalMerge = builder.add(new Merge[VSLazyItem](2, eagerComplete = false))
       src ~> projectSwitch
 
@@ -128,6 +128,9 @@ object PushProxiesMain extends FilenameHelpers {
   def main(args:Array[String]) = {
     import akka.pattern.ask
     implicit val timeout:akka.util.Timeout = 60 seconds
+
+    val maybeStoragePathMap = storagePathProperties.map(propsfile=>new StoragePathMap(new File(propsfile)))
+
     //we need to disable the content length limit as we can be dealing with some VERY large files.
     val akkaConfig = ConfigFactory.parseMap(Map("akka.http.client.parsing.max-content-length"->"infinite").asJava)
     implicit val actorSystem = ActorSystem("vs-media-backup", akkaConfig)
@@ -136,7 +139,7 @@ object PushProxiesMain extends FilenameHelpers {
 
     val lostFilesCounter = actorSystem.actorOf(Props(classOf[LostFilesCounter]))
 
-    RunnableGraph.fromGraph(buildGraph(Some(lostFilesCounter))).run().onComplete({
+    RunnableGraph.fromGraph(buildGraph(Some(lostFilesCounter), maybeStoragePathMap)).run().onComplete({
       case Success(ctr)=>
         val finalTs = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("YYYYmmdd-HHMM"))
         logger.info(s"Outputting missing files report to lostfiles-$finalTs.csv")
