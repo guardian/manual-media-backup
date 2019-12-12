@@ -140,8 +140,12 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
           } else {
             logger.error(s"There were no files to upload on item ${elem.itemId}")
             if(lostFilesCounter.isDefined){
-              //notify the counter that we have a lost file
-              lostFilesCounter.get ! RegisterLost(shapes.head.files.head,shapes.head, elem)
+              //notify the counter that we have a lost file, if there are any
+              shapes.headOption.map(topShape=> {
+                topShape.files.headOption.map(topFile=>
+                  lostFilesCounter.get ! RegisterLost(topFile, topShape, elem)
+                )
+              })
             }
             completedCb.invokeWithFeedback(elem)
           }
