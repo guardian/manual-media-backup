@@ -11,7 +11,7 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.amazonaws.services.s3.model.{CannedAccessControlList, ObjectMetadata, PutObjectRequest}
 import com.gu.vidispineakka.streamcomponents.{VSItemGetFullMeta, VSItemSearchSource}
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSLazyItem}
-import helpers.StoragePathMap
+import helpers.CategoryPathMap
 import org.slf4j.LoggerFactory
 import streamComponents._
 import scala.concurrent.Future
@@ -49,7 +49,8 @@ object PushProxiesMain extends FilenameHelpers {
     case None=>throw new RuntimeException("You must specify PROJECT_BUCKET in the environment")
   }
 
-  val storagePathProperties = sys.env.get("STORAGE_PATH_PROPERTIES")
+  val storagePathProperties = sys.env.get("CATEGORY_PATH_PROPERTIES")
+  val maybeStoragePathMap = storagePathProperties.map(propsfile=>new CategoryPathMap(new File(propsfile)))
 
   val vsUrl = sys.env("VIDISPINE_URL")
   val vsUser = sys.env("VIDISPINE_USER")
@@ -71,9 +72,16 @@ object PushProxiesMain extends FilenameHelpers {
     * @return
     */
   def writeMetaCallback(forItem:VSLazyItem, metaDoc:String):Future[Unit] = {
-    val destFileName = determineFileName(forItem, forItem.shapes.flatMap(_.get("original"))) match {
+    val baseFilePath = determineFileName(forItem, forItem.shapes.flatMap(_.get("original"))) match {
       case Some(filePath)=>filePath + ".xml"
       case None=>forItem.itemId + ".xml"
+    }
+
+    val destFileName = maybeStoragePathMap.flatMap(smap=>
+      forItem.getSingle("gnm_asset_category").flatMap(smap.pathPrefixForStorage)
+    ) match {
+      case Some(prefix)=>prefix + "/" + baseFilePath
+      case None=>baseFilePath
     }
 
     val uploadBucket = if(forItem.getSingle("gnm_type").map(_.toLowerCase).contains("projectfile")){
@@ -96,20 +104,20 @@ object PushProxiesMain extends FilenameHelpers {
     Future.successful( () )
   }
 
-  def buildGraph(counter:Option[ActorRef], maybeStoragePathMap:Option[StoragePathMap])(implicit comm:VSCommunicator, system:ActorSystem, mat:Materializer) = {
+  def buildGraph(counter:Option[ActorRef], maybeStoragePathMap:Option[CategoryPathMap])(implicit comm:VSCommunicator, system:ActorSystem, mat:Materializer) = {
     val counterSinkFact = Sink.fold[Int, VSLazyItem](0)((ctr,_)=>ctr+1)
 
     GraphDSL.create(counterSinkFact) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
-      val src = builder.add(new VSItemSearchSource(Seq("gnm_original_filename","representativeThumbnail","gnm_type"),makeVSSearch.toString(),includeShape=true,pageSize=vsPageSize))
+      val src = builder.add(new VSItemSearchSource(Seq("gnm_asset_category","gnm_original_filename","representativeThumbnail","gnm_type"),makeVSSearch.toString(),includeShape=true,pageSize=vsPageSize))
       val projectSwitch = builder.add(new IsProjectSwitch)
 
       val metaGrabberFactory = new VSItemGetFullMeta(writeMetaCallback)
       val mediaMetadataGrabber = builder.add(metaGrabberFactory)
       val projectMetadataGrabber = builder.add(metaGrabberFactory)
 
-      val uploadProxy = builder.add(new UploadItemShape(proxyShapeNames,proxyBucket,CannedAcl.Private))
-      val uploadThumb = builder.add(new UploadItemThumbnail(proxyBucket,CannedAcl.Private))
+      val uploadProxy = builder.add(new UploadItemShape(proxyShapeNames,proxyBucket,CannedAcl.Private,None,maybeStoragePathMap))
+      val uploadThumb = builder.add(new UploadItemThumbnail(proxyBucket,CannedAcl.Private, maybeStoragePathMap))
       val uploadMedia = builder.add(new UploadItemShape(Seq("original"),mediaBucket,CannedAcl.Private,counter, maybeStoragePathMap))
       val uploadProject = builder.add(new UploadItemShape(Seq("original"),projectBucket,CannedAcl.Private,counter, maybeStoragePathMap))
       val finalMerge = builder.add(new Merge[VSLazyItem](2, eagerComplete = false))
@@ -128,8 +136,6 @@ object PushProxiesMain extends FilenameHelpers {
   def main(args:Array[String]) = {
     import akka.pattern.ask
     implicit val timeout:akka.util.Timeout = 60 seconds
-
-    val maybeStoragePathMap = storagePathProperties.map(propsfile=>new StoragePathMap(new File(propsfile)))
 
     //we need to disable the content length limit as we can be dealing with some VERY large files.
     val akkaConfig = ConfigFactory.parseMap(Map("akka.http.client.parsing.max-content-length"->"infinite").asJava)

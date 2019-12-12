@@ -3,7 +3,7 @@ package helpers
 import java.io.{File, FileReader}
 import java.util.Properties
 
-class StoragePathMap(forFile:File) {
+class CategoryPathMap(forFile:File) {
   private def loadFile = {
     val reader = new FileReader(forFile)
     try {

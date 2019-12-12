@@ -39,7 +39,7 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
       val mockS3Client = mock[AmazonS3]
       mockS3Client.doesObjectExist(any,any) returns false
 
-      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private,None) {
         override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult
@@ -99,7 +99,7 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
       val mockS3Client = mock[AmazonS3]
       mockS3Client.doesObjectExist(any,any) returns false
 
-      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private,None) {
         override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult
@@ -158,7 +158,7 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
       val mockS3Client = mock[AmazonS3]
       mockS3Client.doesObjectExist(any,any) returns false
 
-      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private,None) {
         override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult
@@ -223,7 +223,7 @@ class UploadItemThumbnailSpec extends Specification with Mockito {
       val mockS3Client = mock[AmazonS3]
       mockS3Client.doesObjectExist(any,any) returns false
 
-      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private) {
+      val toTest = new UploadItemThumbnail("somebucket",CannedAcl.Private,None) {
         override protected val s3Client = mockS3Client
         /**
           * override the real upload sink with a fake one that copies the content into a convienient string field in MultipartUploadResult

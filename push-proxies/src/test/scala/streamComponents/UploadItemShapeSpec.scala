@@ -8,8 +8,8 @@ import akka.stream.{ActorAttributes, ActorMaterializer, Attributes, Materializer
 import akka.testkit.TestProbe
 import akka.util.ByteString
 import com.amazonaws.services.s3.AmazonS3
-import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSFileState, VSLazyItem, VSShape}
-import helpers.StoragePathMap
+import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSFileState, VSLazyItem, VSMetadataEntry, VSMetadataValue, VSShape}
+import helpers.CategoryPathMap
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 
@@ -308,7 +308,9 @@ class UploadItemShapeSpec extends Specification with Mockito {
       proxyShapeFile.state returns Some(VSFileState.CLOSED)
       val proxyShape = VSShape("VX-22342",1,"lowres","video/mp4",Seq(proxyShapeFile))
       val shapeTable = Map("original"->originalShape, "lowres"->proxyShape)
-      implicit val item = new VSLazyItem("VX-1234",Map(),Some(shapeTable))
+      implicit val item = new VSLazyItem("VX-1234",
+        Map("gnm_asset_category"->VSMetadataEntry("gnm_asset_category",None,None,None,None,Seq(VSMetadataValue("category-name",None,None,None,None)))),
+      Some(shapeTable))
 
       val mockContentSource:Source[ByteString,Any] = Source.single(ByteString("File content would go here"))
       val mockCallSourceFor = mock[VSFile=>Future[Either[String, Source[ByteString, Any]]]]
@@ -319,7 +321,7 @@ class UploadItemShapeSpec extends Specification with Mockito {
       val mockS3Client = mock[AmazonS3]
       mockS3Client.doesObjectExist(any,any) returns false
 
-      val spMap = mock[StoragePathMap]
+      val spMap = mock[CategoryPathMap]
       spMap.pathPrefixForStorage(any) returns Some("path/prefix")
 
       val mockLostFilesCounter = TestProbe()

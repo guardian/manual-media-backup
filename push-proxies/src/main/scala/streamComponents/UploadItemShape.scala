@@ -12,13 +12,13 @@ import akka.util.ByteString
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import com.gu.vidispineakka.streamcomponents.VSFileContentSource
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSFile, VSFileState, VSLazyItem, VSShape}
-import helpers.StoragePathMap
+import helpers.CategoryPathMap
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
 
-class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:CannedAcl, lostFilesCounter:Option[ActorRef]=None, maybeStoragePathMap:Option[StoragePathMap]=None)(implicit comm:VSCommunicator, mat:Materializer)
+class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:CannedAcl, lostFilesCounter:Option[ActorRef]=None, maybeStoragePathMap:Option[CategoryPathMap]=None)(implicit comm:VSCommunicator, mat:Materializer)
   extends GraphStage[FlowShape[VSLazyItem, VSLazyItem ]] with FilenameHelpers {
 
   import streamComponents.LostFilesCounter._
@@ -109,7 +109,10 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
 
               determineFileName(elem, Some(shapes.head)) match {
                 case Some(baseFilePath) =>
-                  val filepath = maybeStoragePathMap.flatMap(_.pathPrefixForStorage(srcFile.storage)) match {
+                  logger.info(s"Category is ${elem.getSingle("gnm_asset_category")}")
+                  val filepath = maybeStoragePathMap.flatMap(smap=>
+                    elem.getSingle("gnm_asset_category").flatMap(smap.pathPrefixForStorage)
+                  ) match {
                     case Some(prefix)=>prefix + "/" + baseFilePath
                     case None=>baseFilePath
                   }

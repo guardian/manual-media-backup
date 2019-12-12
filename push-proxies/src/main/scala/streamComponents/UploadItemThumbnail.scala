@@ -10,13 +10,14 @@ import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, Gra
 import akka.util.ByteString
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.gu.vidispineakka.vidispine.{VSCommunicator, VSLazyItem}
+import helpers.CategoryPathMap
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
-class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm:VSCommunicator, mat:Materializer)
+class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl, maybeStoragePathMap:Option[CategoryPathMap])(implicit comm:VSCommunicator, mat:Materializer)
   extends GraphStage[FlowShape[VSLazyItem, VSLazyItem]] with FilenameHelpers {
 
   private val in:Inlet[VSLazyItem] = Inlet.create("UploadItemThumbnail.in")
@@ -45,11 +46,18 @@ class UploadItemThumbnail(bucketName:String, cannedAcl:CannedAcl) (implicit comm
 
         val maybeOriginalShape = elem.shapes.flatMap(_.get("original"))
 
-        val outputFilename = determineFileName(elem, maybeOriginalShape) match {
+        val baseFilePath = determineFileName(elem, maybeOriginalShape) match {
           case Some(fn)=>
             val strippedFn = removeExtension(fn)
             strippedFn + "_thumb.jpg"
           case None=>elem.itemId + "_thumb.jpg"
+        }
+
+        val outputFilename = maybeStoragePathMap.flatMap(smap=>
+          elem.getSingle("gnm_asset_category").flatMap(smap.pathPrefixForStorage)
+        ) match {
+          case Some(prefix)=>prefix + "/" + baseFilePath
+          case None=>baseFilePath
         }
 
         if(s3Client.doesObjectExist(bucketName, outputFilename)){
