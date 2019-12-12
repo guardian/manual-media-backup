@@ -6,7 +6,7 @@ import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, Us
 import models.{CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
-
+import helpers._
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
