@@ -5,8 +5,8 @@ import java.time.format.DateTimeFormatter
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.alpakka.s3.headers.CannedAcl
-import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
-import akka.stream.scaladsl.{GraphDSL, Merge, RunnableGraph, Sink}
+import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer}
+import akka.stream.scaladsl.{Balance, GraphDSL, Merge, RunnableGraph, Sink}
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.amazonaws.services.s3.model.{CannedAccessControlList, ObjectMetadata, PutObjectRequest}
 import com.gu.vidispineakka.streamcomponents.{VSItemGetFullMeta, VSItemSearchSource}
@@ -14,11 +14,13 @@ import com.gu.vidispineakka.vidispine.{VSCommunicator, VSLazyItem}
 import helpers.CategoryPathMap
 import org.slf4j.LoggerFactory
 import streamComponents._
+
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.softwaremill.sttp._
 import com.typesafe.config.ConfigFactory
+
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 
@@ -48,6 +50,8 @@ object PushProxiesMain extends FilenameHelpers {
     case Some(b)=>b
     case None=>throw new RuntimeException("You must specify PROJECT_BUCKET in the environment")
   }
+
+  val paralellism = sys.env.getOrElse("PARALELLISM","4").toInt
 
   val storagePathProperties = sys.env.get("CATEGORY_PATH_PROPERTIES")
   val maybeStoragePathMap = storagePathProperties.map(propsfile=>new CategoryPathMap(new File(propsfile)))
@@ -104,14 +108,53 @@ object PushProxiesMain extends FilenameHelpers {
     Future.successful( () )
   }
 
+  /**
+    * builds the main, paralelling graph. This builds a parallel pipeline with the result of `buildGraphContents` in
+    * `paralellism` streams
+    * @param counter an optional ActorRef pointing to LostFilesCounter
+    * @param maybeStoragePathMap an optional CategoryPathMap that modifies the output path depending on the category field
+    * @param comm implicitly provided VSCommunicator
+    * @param system implicitly provided ActorSystem
+    * @param mat implicitly provided Materializer
+    * @return a closed Graph
+    */
   def buildGraph(counter:Option[ActorRef], maybeStoragePathMap:Option[CategoryPathMap])(implicit comm:VSCommunicator, system:ActorSystem, mat:Materializer) = {
     val counterSinkFact = Sink.fold[Int, VSLazyItem](0)((ctr,_)=>ctr+1)
+    val perThreadGraph = buildGraphContents(counter, maybeStoragePathMap)
 
     GraphDSL.create(counterSinkFact) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
-      val src = builder.add(new VSItemSearchSource(Seq("gnm_asset_category","gnm_original_filename","representativeThumbnail","gnm_type"),makeVSSearch.toString(),includeShape=true,pageSize=vsPageSize))
-      val projectSwitch = builder.add(new IsProjectSwitch)
 
+      val src = builder.add(new VSItemSearchSource(Seq("gnm_asset_category","gnm_original_filename","representativeThumbnail","gnm_type"),makeVSSearch.toString(),includeShape=true,pageSize=vsPageSize))
+      val splitter = builder.add(Balance[VSLazyItem](paralellism,waitForAllDownstreams=true))
+      val merger = builder.add(Merge[VSLazyItem](paralellism,eagerComplete=false))
+
+      src ~> splitter
+
+      for(i<-0 until paralellism){
+        val subStream = builder.add(perThreadGraph)
+        splitter.out(i) ~> subStream ~> merger.in(i)
+      }
+
+      merger ~> sink
+      ClosedShape
+    }
+  }
+
+  /**
+    * builds a Graph to process a single thread of content
+    * @param counter
+    * @param maybeStoragePathMap
+    * @param comm
+    * @param system
+    * @param mat
+    * @return
+    */
+  private def buildGraphContents(counter:Option[ActorRef], maybeStoragePathMap:Option[CategoryPathMap])(implicit comm:VSCommunicator, system:ActorSystem, mat:Materializer) = {
+    GraphDSL.create() { implicit builder=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+
+      val projectSwitch = builder.add(new IsProjectSwitch)
       val metaGrabberFactory = new VSItemGetFullMeta(writeMetaCallback)
       val mediaMetadataGrabber = builder.add(metaGrabberFactory)
       val projectMetadataGrabber = builder.add(metaGrabberFactory)
@@ -121,15 +164,13 @@ object PushProxiesMain extends FilenameHelpers {
       val uploadMedia = builder.add(new UploadItemShape(Seq("original"),mediaBucket,CannedAcl.Private,counter, maybeStoragePathMap))
       val uploadProject = builder.add(new UploadItemShape(Seq("original"),projectBucket,CannedAcl.Private,counter, maybeStoragePathMap))
       val finalMerge = builder.add(new Merge[VSLazyItem](2, eagerComplete = false))
-      src ~> projectSwitch
 
       //"is a project" branch
       projectSwitch.out(0) ~> projectMetadataGrabber ~> uploadProject ~> finalMerge
       //"not a project" branch
       projectSwitch.out(1) ~> mediaMetadataGrabber ~> uploadProxy ~> uploadThumb ~> uploadMedia ~> finalMerge
 
-      finalMerge ~> sink
-      ClosedShape
+      FlowShape(projectSwitch.in, finalMerge.out)
     }
   }
 
