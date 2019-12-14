@@ -179,7 +179,13 @@ object PushProxiesMain extends FilenameHelpers {
     implicit val timeout:akka.util.Timeout = 60 seconds
 
     //we need to disable the content length limit as we can be dealing with some VERY large files.
-    val akkaConfig = ConfigFactory.parseMap(Map("akka.http.client.parsing.max-content-length"->"infinite").asJava)
+    val akkaConfig = ConfigFactory.parseMap(
+      Map(
+        "akka.http.client.parsing.max-content-length"->"infinite",
+        "akka.http.host-connection-pool.response-entity-subscription-timeout"->"10.seconds",
+        "akka.http.host-connection-pool.max-connections"->"8"
+      ).asJava)
+
     implicit val actorSystem = ActorSystem("vs-media-backup", akkaConfig)
     implicit val mat:Materializer = ActorMaterializer.create(actorSystem)
     implicit val vsComm = new VSCommunicator(uri"$vsUrl",vsUser,vsPasswd)
