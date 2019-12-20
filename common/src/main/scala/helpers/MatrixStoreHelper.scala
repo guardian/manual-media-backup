@@ -185,6 +185,17 @@ object MatrixStoreHelper {
     */
   def metadataFromFilesystem(filepath:String):Try[MxsMetadata] = metadataFromFilesystem(new File(filepath))
 
+  def isNonNull(arr:Array[Byte], charAt:Int=0, maybeLength:Option[Int]=None):Boolean = {
+    val length = maybeLength.getOrElse(arr.length)
+    if(charAt>=length) return false
+
+    if(arr(charAt) != 0) {
+      true
+    } else {
+      isNonNull(arr,charAt+1,Some(length))
+    }
+  }
+
   /**
     * request MD5 checksum of the given object, as calculated by the appliance.
     * as per the MatrixStore documentation, a blank string implies that the digest is still being calculated; in this
@@ -227,7 +238,7 @@ object MatrixStoreHelper {
         case Failure(otherError)=>Failure(otherError)
         case Success(buffer)=>
           val arr = buffer.array()
-          if(arr.isEmpty) {
+          if(! isNonNull(arr)) {
             logger.info(s"Empty string returned for file MD5 on attempt $attempt, assuming still calculating. Will retry...")
             Thread.sleep(1000) //this feels nasty but without resorting to actors i can't think of an elegant way
             //to delay and re-call in a non-blocking way

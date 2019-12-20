@@ -51,7 +51,7 @@ class AddTypeFieldSpec extends Specification with Mockito {
       attribs.stringValues.get("GNM_TYPE") must beSome("media")
     }
 
-    "set the GNM_TYPE tag to 'unknown' no part of the path matches" in new AkkaTestkitSpecs2Support {
+    "set the GNM_TYPE tag to 'unsorted' no part of the path matches" in new AkkaTestkitSpecs2Support {
       implicit val mat:Materializer = ActorMaterializer.create(system)
       val sampleConfig = Map(
         "^/path/to/media".r -> "media",
@@ -83,7 +83,7 @@ class AddTypeFieldSpec extends Specification with Mockito {
       outputElement.maybeObjectMatrixEntry must beSome
       outputElement.maybeObjectMatrixEntry.get.attributes must beSome
       val attribs = outputElement.maybeObjectMatrixEntry.get.attributes.get
-      attribs.stringValues.get("GNM_TYPE") must beSome("unknown")
+      attribs.stringValues.get("GNM_TYPE") must beSome("unsorted")
     }
   }
 

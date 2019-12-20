@@ -25,7 +25,7 @@ class TwoPortCounterSpec extends Specification {
       }
       Merge
 
-      val result = Await.result(RunnableGraph.fromGraph(graph).run(), 10 seconds)
+      val result = Await.result(RunnableGraph.fromGraph(graph).run().future, 10 seconds)
       result mustEqual CounterData(6,4)
     }
   }

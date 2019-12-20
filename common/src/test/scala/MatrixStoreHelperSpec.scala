@@ -1,14 +1,14 @@
 import java.io.File
+import java.nio.ByteBuffer
 
 import com.om.mxs.client.japi.{MxsObject, ObjectTypedAttributeView}
 import helpers.MatrixStoreHelper
 import models.MxsMetadata
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
-
+import org.mockito.ArgumentMatchers._
 import scala.concurrent.Await
 import scala.concurrent.duration._
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class MatrixStoreHelperSpec extends Specification with Mockito {
@@ -45,38 +45,54 @@ class MatrixStoreHelperSpec extends Specification with Mockito {
   "MatrixStoreHelper.getOMFileMD5" should {
     "request the specific MD5 key and return it" in {
       val mockedMetadataView = mock[ObjectTypedAttributeView]
-      mockedMetadataView.readString("__mxs__calc_md5") returns "adff7d2ede6489c4"
-
+      //mockedMetadataView.readString("__mxs__calc_md5") returns "adff7d2ede6489c4"
+      mockedMetadataView.read(anyString,any[ByteBuffer]) answers((args:Array[AnyRef])=>{
+        val buffer = args(1).asInstanceOf[ByteBuffer]
+        buffer.put("adff7d2ede6489c4".getBytes)
+        "adff7d2ede6489c4".length
+      })
       val mockedMxsObject = mock[MxsObject]
       mockedMxsObject.getAttributeView returns mockedMetadataView
-
+      mockedMxsObject.getId returns "some-objectmatrix-id"
       val result = Await.result(MatrixStoreHelper.getOMFileMd5(mockedMxsObject), 30 seconds)
-      there was one(mockedMetadataView).readString("__mxs__calc_md5")
+      there was one(mockedMetadataView).read(org.mockito.ArgumentMatchers.eq("__mxs__calc_md5"),org.mockito.ArgumentMatchers.any[ByteBuffer])
       result must beSuccessfulTry("61646666376432656465363438396334") //the return value of readString is a binary string, which is converted to hex representation/
     }
 
     "pass back an exception as a failed try" in {
       val mockedMetadataView = mock[ObjectTypedAttributeView]
       val fakeException = new RuntimeException("aaaarg!")
-      mockedMetadataView.readString("__mxs__calc_md5") throws fakeException
+      mockedMetadataView.read(anyString,any) throws fakeException
 
       val mockedMxsObject = mock[MxsObject]
       mockedMxsObject.getAttributeView returns mockedMetadataView
 
       val result = Await.result(MatrixStoreHelper.getOMFileMd5(mockedMxsObject), 30 seconds)
-      there was one(mockedMetadataView).readString("__mxs__calc_md5")
+      there was one(mockedMetadataView).read(org.mockito.ArgumentMatchers.eq("__mxs__calc_md5"),org.mockito.ArgumentMatchers.any[ByteBuffer])
       result must beFailedTry(fakeException)
     }
 
     "retry until a result is given" in {
       val mockedMetadataView = mock[ObjectTypedAttributeView]
-      mockedMetadataView.readString("__mxs__calc_md5") returns "" thenReturn "" thenReturn "adff7d2ede6489c4"
+      var ctr=0
+      mockedMetadataView.read(anyString,any[ByteBuffer]) answers((args:Array[AnyRef])=>{
+        val buffer = args(1).asInstanceOf[ByteBuffer]
+        ctr+=1
+        if(ctr<3){
+          buffer.clear()
+          0
+        } else {
+          buffer.put("adff7d2ede6489c4".getBytes)
+          "adff7d2ede6489c4".length
+        }
+      })
+
 
       val mockedMxsObject = mock[MxsObject]
       mockedMxsObject.getAttributeView returns mockedMetadataView
 
       val result = Await.result(MatrixStoreHelper.getOMFileMd5(mockedMxsObject), 30 seconds)
-      there were three(mockedMetadataView).readString("__mxs__calc_md5")
+      there were three(mockedMetadataView).read(org.mockito.ArgumentMatchers.eq("__mxs__calc_md5"),org.mockito.ArgumentMatchers.any[ByteBuffer])
       result must beSuccessfulTry("61646666376432656465363438396334")
     }
   }
