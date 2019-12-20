@@ -52,11 +52,12 @@ object Main {
       opt[String]("pluto-credentials").action((x,c)=>c.copy(plutoCredentialsProperties = Some(x))).text("A .properties file with host and credentials for Pluto, used for metadata extraction")
       opt[String]("path-definitions-file").action((x,c)=>c.copy(pathDefinitionsFile = Some(x))).text("A json file that gives mappings from paths to types")
       opt[String]("report-path").action((x,c)=>c.copy(reportOutputFile = Some(x))).text("Writable path to output a backup report to")
+      opt[String]("exclude-paths-file").action((x,c)=>c.copy(excludePathsFile=Some(x))).text("A Json file that gives an array of filepaths to exclude as regexes")
       opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
     }
   }
 
-  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int, checksumType:String, plutoCommunicator:ActorRef,pathDefinitionsFile:String) = {
+  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int, checksumType:String, plutoCommunicator:ActorRef,pathDefinitionsFile:String,excludeListFile:Option[String]) = {
     val copierFactory = new BatchCopyFile(userInfo,checksumType, chunkSize)
     val commitMetaFactory = new OMCommitMetadata(userInfo)
     val clearBeingWrittenFactory = new ClearBeingWritten
@@ -100,14 +101,15 @@ object Main {
       import akka.stream.scaladsl.GraphDSL.Implicits._
       val src = builder.add(FileListSource(startingPath))
       val dirFilter = builder.add(new FilterOutDirectories)
+      val excludeFilter = builder.add(new ExcludeListSwitch(excludeListFile))
       val pathCharsetConverter = builder.add(new UTF8PathCharset)
-      val splitter = builder.add(Balance[BackupEntry](paralellism))
+      val splitter = builder.add(Balance[BackupEntry](paralellism).async)
       val merger = builder.add(Merge[BackupEntry](paralellism))
 
       val processorFactory = processingGraph
 
-      src ~> dirFilter ~> pathCharsetConverter
-      pathCharsetConverter.out.map(path=>BackupEntry(path,None)).log("streamcomponents.fullbackupgraph") ~> splitter
+      src ~> dirFilter ~> pathCharsetConverter  ~> excludeFilter
+      excludeFilter.out.map(path=>BackupEntry(path,None)).log("streamcomponents.fullbackupgraph") ~> splitter
       for(i <- 0 until paralellism) {
         val processor = builder.add(processorFactory)
         splitter.out(i) ~> processor ~> merger.in(i)
@@ -124,7 +126,7 @@ object Main {
     * @param userInfo UserInfo instance indicating the OM appliance and vault which the backup will be performed to
     * @return a Graph that materializes an instance of CounterData. count1 represents the files that need backup and count2 represents the files that don't.
     */
-  def fullBackupEstimateGraph(startingPath:Path, userInfo:UserInfo) = {
+  def fullBackupEstimateGraph(startingPath:Path, userInfo:UserInfo, excludeListFile:Option[String]) = {
     val sinkFac = new TwoPortCounter[BackupEntry]
     val checkOMFileFactory = new CheckOMFile(userInfo)
     val needsBackupFactory = new NeedsBackupSwitch
@@ -132,11 +134,15 @@ object Main {
     GraphDSL.create(sinkFac) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
       val src = builder.add(FileListSource(startingPath))
+      val dirFilter = builder.add(new FilterOutDirectories)
+      val excludeFilter = builder.add(new ExcludeListSwitch(excludeListFile))
+      val pathCharsetConverter = builder.add(new UTF8PathCharset)
       val existSwitch = builder.add(checkOMFileFactory)
       val needsBackupSwitch = builder.add(needsBackupFactory)
       val needsBackupMerger = builder.add(Merge[BackupEntry](2))
 
-      src.out.map(path=>BackupEntry(path)) ~> existSwitch
+      src ~> dirFilter ~> pathCharsetConverter  ~> excludeFilter
+      excludeFilter.out.map(path=>BackupEntry(path)) ~> existSwitch
       existSwitch.out(0) ~> needsBackupSwitch       // "yes" branch => file does exist so check if it needs backup
       existSwitch.out(1) ~> needsBackupMerger         // "no" branch  => file does not exist so it does need backup
 
@@ -331,35 +337,37 @@ object Main {
                 terminate(2)
               }
 
-              val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo)
-              val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize*1024, options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get)
-//              logger.info("Counting total files for backup...")
-//              val countPromise = RunnableGraph.fromGraph(estimateGraph).run()
-//
-//              countPromise.future.onComplete({
-//                case Success(countData)=>
-//                  logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
-//                case Failure(err)=>
-//                  logger.error(s"Could not count files to back up: ",err)
-//              })
-              logger.info("Starting up copy graph...")
-              val resultFuture = RunnableGraph.fromGraph(actualGraph).run()
+              val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo, options.excludePathsFile)
+              val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize*1024,
+                options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get, options.excludePathsFile)
+              logger.info("Counting total files for backup...")
+              val countPromise = RunnableGraph.fromGraph(estimateGraph).run()
 
-              resultFuture.onComplete({
-                case Success(backupEntrySeq)=>
-                  val writeResult = options.reportOutputFile.map(filepath=>writeBackupEntries(backupEntrySeq, filepath)).getOrElse(Success(()))
-                  writeResult match {
+              countPromise.future.onComplete({
+                case Success(countData)=>
+                  logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
+                  logger.info("Starting up copy graph...")
+                  val resultFuture = RunnableGraph.fromGraph(actualGraph).run()
+
+                  resultFuture.onComplete({
+                    case Success(backupEntrySeq)=>
+                      val writeResult = options.reportOutputFile.map(filepath=>writeBackupEntries(backupEntrySeq, filepath)).getOrElse(Success(()))
+                      writeResult match {
+                        case Failure(err)=>
+                          logger.error(s"Could not output test dump: ", err)
+                          terminate(2)
+                        case Success(_)=>
+                          logger.info("All done")
+                          terminate(0)
+                      }
                     case Failure(err)=>
-                      logger.error(s"Could not output test dump: ", err)
+                      logger.error("Could not perform full backup : ", err)
                       terminate(2)
-                    case Success(_)=>
-                      logger.info("All done")
-                      terminate(0)
-                  }
+                  })
                 case Failure(err)=>
-                  logger.error("Could not perform full backup : ", err)
-                  terminate(2)
+                  logger.error(s"Could not count files to back up: ",err)
               })
+
             } else if(options.listpath.isDefined) {
               handleList(options.listpath.get, userInfo, vault, options.chunkSize, options.checksumType, options.parallelism).andThen({
                 case Success(Right(finalReport)) =>
