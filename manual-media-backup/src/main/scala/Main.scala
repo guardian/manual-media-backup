@@ -61,7 +61,7 @@ object Main {
   def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int, checksumType:String, plutoCommunicator:ActorRef,pathDefinitionsFile:String,excludeListFile:Option[String]) = {
     val copierFactory = new BatchCopyFile(userInfo,checksumType, chunkSize)
     val commitMetaFactory = new OMCommitMetadata(userInfo)
-    val clearBeingWrittenFactory = new ClearBeingWritten
+    val clearBeingWrittenFactory = new ClearBeingWritten(userInfo)
     val getMimeFactory = new GetMimeType
     val checkOMFileFactory = new CheckOMFile(userInfo)
     val createEntryFactory = new CreateOMFileNoCopy(userInfo)
@@ -91,6 +91,7 @@ object Main {
       needsBackupSwitch.out(0) ~> fileCheckMerger                 //"yes" branch => file still needs backup
       needsBackupSwitch.out(1) ~> finalMerger                     //"no" branch => file does not need backup
 
+      //FIXME: check whether we still need omCommitMetadata or not
       fileCheckMerger ~> getMimeType ~> addType ~> gatherMetadata ~> copier ~> clearBeingWritten ~> omCommitMetadata ~> finalMerger
       FlowShape.of(existSwitch.in, finalMerger.out)
     }

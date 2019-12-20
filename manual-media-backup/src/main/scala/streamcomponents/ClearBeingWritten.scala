@@ -2,13 +2,16 @@ package streamcomponents
 
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
+import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import models.BackupEntry
 import org.slf4j.LoggerFactory
+
+import scala.util.{Failure, Success, Try}
 
 /**
   * Removes the "GNM_BEING_WRITTEN" flag from OM metadata in the given BackupEntry
   */
-class ClearBeingWritten extends GraphStage[FlowShape[BackupEntry, BackupEntry]] {
+class ClearBeingWritten(userInfo:UserInfo) extends GraphStage[FlowShape[BackupEntry, BackupEntry]] {
   private final val in:Inlet[BackupEntry] = Inlet.create("ClearBeingWritten.in")
   private final val out:Outlet[BackupEntry] = Outlet.create("ClearBeingWritten.out")
 
@@ -17,6 +20,8 @@ class ClearBeingWritten extends GraphStage[FlowShape[BackupEntry, BackupEntry]] 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger:org.slf4j.Logger = LoggerFactory.getLogger(getClass)
 
+    private var maybeVault:Option[Vault] = None
+
     setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
         val elem = grab(in)
@@ -24,18 +29,43 @@ class ClearBeingWritten extends GraphStage[FlowShape[BackupEntry, BackupEntry]] 
         val maybeCurrentMeta = elem.maybeObjectMatrixEntry.flatMap(_.attributes)
         val maybeUpdatedMeta = maybeCurrentMeta.map(_.withoutValue("GNM_BEING_WRITTEN"))
 
-        val updatedElem = if(elem.maybeObjectMatrixEntry.isDefined){
-          elem.copy(maybeObjectMatrixEntry = Some(elem.maybeObjectMatrixEntry.get.copy(attributes = maybeUpdatedMeta)))
-        } else {
-          elem
+        val updateOrFail = Try {
+          if (elem.maybeObjectMatrixEntry.isDefined) {
+            val obj = maybeVault.get.getObject(elem.maybeObjectMatrixEntry.get.oid)
+            val view = obj.getAttributeView
+            view.delete("GNM_BEING_WRITTEN")
+            elem.copy(maybeObjectMatrixEntry = Some(elem.maybeObjectMatrixEntry.get.copy(attributes = maybeUpdatedMeta)))
+          } else {
+            elem
+          }
         }
 
-        push(out, updatedElem)
+        updateOrFail match {
+          case Success(updatedElem)=>
+            push(out, updatedElem)
+          case Failure(err)=>
+            logger.error(s"Could not get a View to metadata attributes on file with ID ${elem.maybeObjectMatrixEntry.get.oid}: ", err)
+            failStage(err)
+        }
       }
     })
 
     setHandler(out, new AbstractOutHandler {
       override def onPull(): Unit = pull(in)
     })
+
+    override def preStart(): Unit = {
+      try {
+        maybeVault = Some(MatrixStore.openVault(userInfo))
+      } catch {
+        case err:Throwable=>
+          logger.error("Could not connect to vault: ", err)
+          failStage(err)
+      }
+    }
+
+    override def postStop(): Unit = {
+      maybeVault.map(_.dispose())
+    }
   }
 }
