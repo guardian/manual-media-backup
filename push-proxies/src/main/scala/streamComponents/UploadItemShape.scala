@@ -1,5 +1,7 @@
 package streamComponents
 
+import java.net.URLEncoder
+
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.{ContentType, Uri}
 import akka.stream.alpakka.s3.MultipartUploadResult
@@ -127,7 +129,7 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
                         //set up and immediately terminate a stream in order to satisfy "Response entity not subscribed" warning
                         val ks = src.viaMat(KillSwitches.single)(Keep.right).to(Sink.ignore).run()
                         ks.shutdown()
-                        Future(MultipartUploadResult(Uri(s"s3://$bucketName/$fixedFileName"), bucketName, fixedFileName, "existing", None))
+                        Future(MultipartUploadResult(Uri(s"s3://$bucketName/${URLEncoder.encode(fixedFileName,"UTF-8")}"), bucketName, fixedFileName, "existing", None))
                       } else {
                         val graph = createCopyGraph(src, fixedFileName, mimeType)
                         RunnableGraph.fromGraph(graph).run()

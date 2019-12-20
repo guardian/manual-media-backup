@@ -200,7 +200,7 @@ object PushProxiesMain extends FilenameHelpers {
         (lostFilesCounter ? LostFilesCounter.Dump(s"lostfiles-$finalTs.csv")).andThen({
           case _=>
             logger.info(s"Processing completed, migrated $ctr items")
-            actorSystem.terminate()
+            //actorSystem.terminate()
         })
 
       case Failure(err)=>
@@ -209,7 +209,7 @@ object PushProxiesMain extends FilenameHelpers {
         (lostFilesCounter ? LostFilesCounter.Dump(s"lostfiles-$finalTs.csv")).andThen({
           case _ =>
             logger.error(s"Could not run migration: ", err)
-            actorSystem.terminate()
+            //actorSystem.terminate()
         })
     })
   }

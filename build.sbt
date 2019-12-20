@@ -185,7 +185,7 @@ lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(Docker
       "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
       "org.mockito" % "mockito-core" % "2.28.2" % Test,
       "org.scala-lang.modules" %% "scala-xml" % "1.0.5",
-      "com.gu" %% "akka-vidispine-components" % "0.2-SNAPSHOT"
+      "com.gu" %% "akka-vidispine-components" % "0.2"
     )
   )
 
