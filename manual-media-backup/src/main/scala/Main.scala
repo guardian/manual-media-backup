@@ -51,6 +51,7 @@ object Main {
       opt[String]("delete-oid").action((x,c)=>c.copy(oidsToDelete = x.split("\\s*,\\s*").toList)).text("Delete file with the given OID")
       opt[String]("pluto-credentials").action((x,c)=>c.copy(plutoCredentialsProperties = Some(x))).text("A .properties file with host and credentials for Pluto, used for metadata extraction")
       opt[String]("path-definitions-file").action((x,c)=>c.copy(pathDefinitionsFile = Some(x))).text("A json file that gives mappings from paths to types")
+      opt[String]("report-path").action((x,c)=>c.copy(reportOutputFile = Some(x))).text("Writable path to output a backup report to")
       opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
     }
   }
@@ -106,7 +107,7 @@ object Main {
       val processorFactory = processingGraph
 
       src ~> dirFilter ~> pathCharsetConverter
-      pathCharsetConverter.out.take(50).map(path=>BackupEntry(path,None)).log("streamcomponents.fullbackupgraph") ~> splitter
+      pathCharsetConverter.out.map(path=>BackupEntry(path,None)).log("streamcomponents.fullbackupgraph") ~> splitter
       for(i <- 0 until paralellism) {
         val processor = builder.add(processorFactory)
         splitter.out(i) ~> processor ~> merger.in(i)
@@ -284,8 +285,8 @@ object Main {
     * @param entries
     * @return
     */
-  def writeBackupEntries(entries:Seq[BackupEntry]) = Try {
-    val f = new File("/etc/vaults/backup-report.csv")
+  def writeBackupEntries(entries:Seq[BackupEntry], filepath:String) = Try {
+    val f = new File(filepath)
     val stream = new FileOutputStream(f)
 
     entries.foreach(entry=>{
@@ -346,7 +347,8 @@ object Main {
 
               resultFuture.onComplete({
                 case Success(backupEntrySeq)=>
-                  writeBackupEntries(backupEntrySeq) match {
+                  val writeResult = options.reportOutputFile.map(filepath=>writeBackupEntries(backupEntrySeq, filepath)).getOrElse(Success(()))
+                  writeResult match {
                     case Failure(err)=>
                       logger.error(s"Could not output test dump: ", err)
                       terminate(2)

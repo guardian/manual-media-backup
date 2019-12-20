@@ -6,6 +6,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/inspectoid.iml" filepath="$PROJECT_DIR$/.idea/modules/inspectoid.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup-build.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup-build.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup-manualbackup.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup-manualbackup.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/manualbackup.iml" filepath="$PROJECT_DIR$/.idea/modules/manualbackup.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/push-proxies.iml" filepath="$PROJECT_DIR$/.idea/modules/push-proxies.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/showmxschecksum.iml" filepath="$PROJECT_DIR$/.idea/modules/showmxschecksum.iml" />

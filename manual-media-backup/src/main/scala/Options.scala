@@ -10,4 +10,5 @@ case class Options (lookup:Option[String]=None,
                     everything:Boolean=false,
                     oidsToDelete:List[String]=List(),
                     plutoCredentialsProperties:Option[String]=None,
-                    pathDefinitionsFile:Option[String]=None)
+                    pathDefinitionsFile:Option[String]=None,
+                    reportOutputFile:Option[String]=None)

@@ -170,7 +170,7 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
                 lookupAllMetadataForMasters(elem.originalPath, currentMeta)
               case CustomMXSMetadata.TYPE_DELIVERABLE=>
                 lookupAllMetadataForDeliverables(elem.originalPath, currentMeta)
-              case CustomMXSMetadata.TYPE_UNSORTED=>
+              case _=>
                 Future(currentMeta)
             }
           case None=>
