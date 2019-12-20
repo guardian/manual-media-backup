@@ -26,6 +26,7 @@ import scala.util.{Failure, Success}
 object PlutoCommunicator {
   trait AFHMsg
 
+  case object TestConnection extends AFHMsg
   case class Lookup(forPath:Path) extends AFHMsg
   case class StoreInCache(forPath:Path,result:Option[AssetFolderRecord]) extends AFHMsg
 
@@ -42,6 +43,7 @@ object PlutoCommunicator {
   case class LookupDeliverableBundle(forId:Int) extends AFHMsg
   case class CacheDeliverableBundle(forId:Int, result:Option[DeliverableBundleRecord]) extends AFHMsg
 
+  case object ConnectionWorking extends AFHMsg
   case class FoundAssetFolder(result:Option[AssetFolderRecord]) extends AFHMsg
   case class FoundProject(result:Option[ProjectRecord]) extends AFHMsg
   case class FoundCommission(result:Option[CommissionRecord]) extends AFHMsg
@@ -68,6 +70,14 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   protected val ownRef:ActorRef = self
 
   override def receive: Receive = {
+    case TestConnection=>
+      val originalSender = sender()
+      performCommsCheck.onComplete({
+        case Success(_)=>originalSender ! ConnectionWorking
+        case Failure(err)=>
+          logger.error(s"Could not establish communication with pluto: ", err)
+          originalSender ! LookupFailed
+      })
     case StoreInCache(forPath, assetFolder)=>
       assetFolderCache ++= Map(forPath->assetFolder)
       sender() ! akka.actor.Status.Success
@@ -140,8 +150,6 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
           case Success(maybeRecords)=>
             //cache the record, perform the lookup on the cached values and then return it to orginalSender
             ownRef.tell(CacheWorkingGroups(maybeRecords.getOrElse(Seq()), Some(forId)), originalSender)
-          case Success(None)=>
-            originalSender ! FoundWorkingGroup(None)
           case Failure(err)=>
             logger.error(s"Could not look up working groups: ", err)
             originalSender ! LookupFailed
@@ -182,8 +190,6 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
             case Success(maybeRecord)=>
               ownRef ! CacheDeliverableAsset(fileName, maybeRecord)
               originalSender ! FoundDeliverableAsset(maybeRecord)
-            case Success(None)=>
-              originalSender ! FoundDeliverableAsset(None)
             case Failure(err)=>
               logger.error(s"Could not look up deliverables for $fileName: ", err)
               originalSender ! LookupFailed
@@ -281,6 +287,10 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
     })
   }
 
+  def performCommsCheck:Future[Unit] = {
+    val req = HttpRequest(uri=s"$plutoBaseUri/gnm_asset_folder/lookup?path=invalid")
+    callToPluto[AssetFolderRecord](req).map(_=>())  //we are not interested in the result, it should be None, but if we didn't get an error that's good enough
+  }
   /**
     * asks Pluto for information on the given (potential) asset folder path.
     *

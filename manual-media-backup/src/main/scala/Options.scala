@@ -12,4 +12,5 @@ case class Options (lookup:Option[String]=None,
                     plutoCredentialsProperties:Option[String]=None,
                     pathDefinitionsFile:Option[String]=None,
                     reportOutputFile:Option[String]=None,
-                    excludePathsFile:Option[String]=None)
+                    excludePathsFile:Option[String]=None,
+                    testPlutoConnection:Boolean=false)

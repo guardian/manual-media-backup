@@ -5,21 +5,21 @@ import java.util.Properties
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.scaladsl.{Balance, Broadcast, Flow, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape}
-import com.om.mxs.client.SimpleSearchTerm
+import akka.pattern.ask
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, UserInfo, Vault}
+import helpers.PlutoCommunicator.{AFHMsg, LookupFailed, TestConnection}
 import models.{CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
-import helpers._
-import models.{BackupEntry, CopyReport, IncomingListEntry, ObjectMatrixEntry}
 import helpers.{Copier, ListReader, MatrixStoreHelper, PlutoCommunicator}
 import models.{BackupEntry, CopyReport, CustomMXSMetadata, IncomingListEntry, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents._
 
+import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 
 object Main {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -53,6 +53,7 @@ object Main {
       opt[String]("path-definitions-file").action((x,c)=>c.copy(pathDefinitionsFile = Some(x))).text("A json file that gives mappings from paths to types")
       opt[String]("report-path").action((x,c)=>c.copy(reportOutputFile = Some(x))).text("Writable path to output a backup report to")
       opt[String]("exclude-paths-file").action((x,c)=>c.copy(excludePathsFile=Some(x))).text("A Json file that gives an array of filepaths to exclude as regexes")
+      opt[Boolean]("test-pluto-connection").action((x,c)=>c.copy(testPlutoConnection = true))
       opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
     }
   }
@@ -305,6 +306,7 @@ object Main {
     stream.close()
   }
 
+  implicit val timeout:akka.util.Timeout = 30 seconds
   def main(args:Array[String]):Unit = {
     buildOptionParser.parse(args, Options()) match {
       case Some(options)=>
@@ -331,6 +333,17 @@ object Main {
                   terminate(2)
                   throw new RuntimeException("This code should not be reachable")
               }
+
+              //blocking here is NOT a sin, because we need to wait for this to complete anyway before other threads kick in
+              Await.result((plutoCommunicator ? TestConnection).mapTo[AFHMsg], 30 seconds) match {
+                case LookupFailed=>
+                  logger.error(s"Could not communicate with pluto, see earlier errors")
+                  terminate(3)
+                  throw new RuntimeException("This code should not be reachable")
+                case _=>
+                  logger.info(s"Pluto connection verified")
+              }
+
               val startPath = new File(options.copyFromLocal.get)
               if(!startPath.exists()){
                 logger.error(s"Provided starting path ${startPath.toString} does not exist.")
