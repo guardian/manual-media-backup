@@ -1,10 +1,8 @@
-import akka.Done
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, Materializer}
 import com.om.mxs.client.japi.{MatrixStore, UserInfo}
-import helpers.MetadataHelper
 import org.slf4j.LoggerFactory
-
+import helpers._
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
