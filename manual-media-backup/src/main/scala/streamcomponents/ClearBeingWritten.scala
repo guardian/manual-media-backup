@@ -27,26 +27,10 @@ class ClearBeingWritten(userInfo:UserInfo) extends GraphStage[FlowShape[BackupEn
         val elem = grab(in)
 
         val maybeCurrentMeta = elem.maybeObjectMatrixEntry.flatMap(_.attributes)
-        val maybeUpdatedMeta = maybeCurrentMeta.map(_.withoutValue("GNM_BEING_WRITTEN"))
+        val maybeUpdatedMeta = maybeCurrentMeta.map(_.withValue("GNM_BEING_WRITTEN",false))
 
-        val updateOrFail = Try {
-          if (elem.maybeObjectMatrixEntry.isDefined) {
-            val obj = maybeVault.get.getObject(elem.maybeObjectMatrixEntry.get.oid)
-            val view = obj.getAttributeView
-            view.delete("GNM_BEING_WRITTEN")
-            elem.copy(maybeObjectMatrixEntry = Some(elem.maybeObjectMatrixEntry.get.copy(attributes = maybeUpdatedMeta)))
-          } else {
-            elem
-          }
-        }
-
-        updateOrFail match {
-          case Success(updatedElem)=>
-            push(out, updatedElem)
-          case Failure(err)=>
-            logger.error(s"Could not get a View to metadata attributes on file with ID ${elem.maybeObjectMatrixEntry.get.oid}: ", err)
-            failStage(err)
-        }
+        val updatedElem = elem.copy(maybeObjectMatrixEntry = Some(elem.maybeObjectMatrixEntry.get.copy(attributes = maybeUpdatedMeta)))
+        push(out, updatedElem)
       }
     })
 

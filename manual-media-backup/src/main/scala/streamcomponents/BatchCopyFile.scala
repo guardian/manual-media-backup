@@ -28,32 +28,36 @@ class BatchCopyFile (userInfo:UserInfo, checksumType: String, chunkSize:Int, max
     * @param logger implicitly provided Logger instance
     * @return a Future containing the appliance checksum.  The Future fails on error, use .onComplete or .recover to detect this
     */
-  def makeCopy(copyGraph:Graph[ClosedShape.type, Future[Option[String]]], mxsObject: MxsObject, attempt:Int=1)(implicit logger:org.slf4j.Logger):Future[String] = {
+  def makeCopy(copyGraph:Graph[ClosedShape.type, Future[Option[String]]], mxsObject: MxsObject, checksumType:String, attempt:Int=1)(implicit logger:org.slf4j.Logger):Future[String] = {
     if(attempt>maxTries) return Future.failed(new RuntimeException(s"Gave up after ${attempt-1} tries"))
 
     val checksumFut = RunnableGraph.fromGraph(copyGraph).run().flatMap(maybeCopiedChecksum=>{
-      MatrixStoreHelper.getOMFileMd5(mxsObject).map({
-        case Success(applianceChecksum)=>(maybeCopiedChecksum, applianceChecksum)
-        case Failure(err)=>throw err
-      })
-    })
-
-    checksumFut.flatMap(checksumTuple=>{
-      checksumTuple._1 match {
-        case Some(copiedChecksum)=>
-          val applianceChecksum = checksumTuple._2
-          if(copiedChecksum!=applianceChecksum){
-            logger.error(s"Copied checksum did not match appliance; appliance gave $applianceChecksum and copy gave $copiedChecksum. Assuming that the file is corrupted.")
-            makeCopy(copyGraph, mxsObject, attempt+1)
-          } else {
-            logger.info(s"Checksums matched")
-            Future(applianceChecksum)
-          }
-        case None=>
-          logger.warn("Can't validate checksum as no checksum was requested")
-          Future(checksumTuple._2)
+      if(checksumType=="none"){
+        Future(None)
+      } else {
+        MatrixStoreHelper.getOMFileMd5(mxsObject).map({
+          case Success(applianceChecksum) => Some((maybeCopiedChecksum, applianceChecksum))
+          case Failure(err) => throw err
+        })
       }
     })
+
+    checksumFut.flatMap({
+      case Some((Some(copiedChecksum), applianceChecksum)) =>
+        if (copiedChecksum != applianceChecksum) {
+          logger.error(s"Copied checksum did not match appliance; appliance gave $applianceChecksum and copy gave $copiedChecksum. Assuming that the file is corrupted.")
+          makeCopy(copyGraph, mxsObject, checksumType, attempt + 1)
+        } else {
+          logger.info(s"Checksums matched")
+          Future(applianceChecksum)
+        }
+      case Some((None, applianceChecksum)) =>
+        logger.warn("Can't validate checksum as no checksum was requested")
+        Future(applianceChecksum)
+      case None =>
+        logger.warn("Can't validate checksum as no checksum was requested")
+        Future("")
+      })
   }
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
@@ -80,8 +84,9 @@ class BatchCopyFile (userInfo:UserInfo, checksumType: String, chunkSize:Int, max
             failStage(err)
           case Some(Success(mxsObject))=>
             val copyGraph = Copier.createCopyGraph(fileToBackUp, chunkSize*1024, checksumType, mxsObject)
-            makeCopy(copyGraph, mxsObject).onComplete({
+            makeCopy(copyGraph, mxsObject, checksumType).onComplete({
               case Success(applianceChecksum)=> //if we get here either the checksums matched or no checksumming was requested
+                elem.maybeObjectMatrixEntry.get.attributes
                 val updated = elem.copy(applianceChecksum=Some(applianceChecksum), status = BackupStatus.BACKED_UP)
                 completedCb.invoke(updated)
               case Failure(err)=>

@@ -103,6 +103,7 @@ object Main {
       import akka.stream.scaladsl.GraphDSL.Implicits._
       val src = builder.add(FileListSource(startingPath))
       val dirFilter = builder.add(new FilterOutDirectories)
+      val macFilter = builder.add(new FilterOutMacStuff)
       val excludeFilter = builder.add(new ExcludeListSwitch(excludeListFile))
       val pathCharsetConverter = builder.add(new UTF8PathCharset)
       val splitter = builder.add(Balance[BackupEntry](paralellism).async)
@@ -110,7 +111,7 @@ object Main {
 
       val processorFactory = processingGraph
 
-      src ~> dirFilter ~> pathCharsetConverter  ~> excludeFilter
+      src ~> dirFilter ~> pathCharsetConverter ~> macFilter ~> excludeFilter
       excludeFilter.out.map(path=>BackupEntry(path,None)).log("streamcomponents.fullbackupgraph") ~> splitter
       for(i <- 0 until paralellism) {
         val processor = builder.add(processorFactory)
@@ -137,13 +138,14 @@ object Main {
       import akka.stream.scaladsl.GraphDSL.Implicits._
       val src = builder.add(FileListSource(startingPath))
       val dirFilter = builder.add(new FilterOutDirectories)
+      val macFilter = builder.add(new FilterOutMacStuff)
       val excludeFilter = builder.add(new ExcludeListSwitch(excludeListFile))
       val pathCharsetConverter = builder.add(new UTF8PathCharset)
       val existSwitch = builder.add(checkOMFileFactory)
       val needsBackupSwitch = builder.add(needsBackupFactory)
       val needsBackupMerger = builder.add(Merge[BackupEntry](2))
 
-      src ~> dirFilter ~> pathCharsetConverter  ~> excludeFilter
+      src ~> dirFilter ~> pathCharsetConverter ~> macFilter ~> excludeFilter
       excludeFilter.out.map(path=>BackupEntry(path)) ~> existSwitch
       existSwitch.out(0) ~> needsBackupSwitch       // "yes" branch => file does exist so check if it needs backup
       existSwitch.out(1) ~> needsBackupMerger         // "no" branch  => file does not exist so it does need backup
