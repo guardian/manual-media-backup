@@ -38,7 +38,7 @@ object MatrixStoreHelper {
     * @return a Try, containing either a sequence of zero or more results as [[ObjectMatrixEntry]] records or an error
     */
   def findByFilename(vault:Vault, fileName:String):Try[Seq[ObjectMatrixEntry]] = Try {
-    val searchTerm = SearchTerm.createSimpleTerm("MXFS_PATH",fileName) //FIXME: check the metadata field namee
+    val searchTerm = SearchTerm.createSimpleTerm("MXFS_FILENAME",fileName)
     val iterator = vault.searchObjectsIterator(searchTerm, 1).asScala
 
     var finalSeq:Seq[ObjectMatrixEntry] = Seq()
