@@ -23,13 +23,14 @@ object MetadataHelper {
     */
   def getAttributeMetadata(obj:MxsObject)(implicit mat:Materializer, ec:ExecutionContext) = {
     //val sink = Sink.fold[Seq[(String,AnyRef)],(String,AnyRef)](Seq())((acc,elem)=>acc++Seq(elem))
-    val sink = Sink.fold[MxsMetadata,(String,Any)](MxsMetadata(Map(),Map(),Map(),Map()))((acc,elem)=>{
+    val sink = Sink.fold[MxsMetadata,(String,Any)](MxsMetadata.empty())((acc,elem)=>{
       elem._2 match {
         case null=>acc
         case boolValue: Boolean => acc.copy(boolValues = acc.boolValues ++ Map(elem._1->boolValue))
         case intValue:Int => acc.copy(intValues = acc.intValues ++ Map(elem._1 -> intValue))
         case longValue:Long => acc.copy(longValues = acc.longValues ++ Map(elem._1 -> longValue))
         case byteBuffer:ByteBuffer => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> Hex.encodeHexString(byteBuffer.array())))
+        case floatValue:Float => acc.copy(floatValues = acc.floatValues ++ Map(elem._1 -> floatValue))
         case stringValue:String => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> stringValue))
         case _=>
           try {

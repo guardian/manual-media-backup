@@ -5,7 +5,7 @@ import java.time.{Instant, LocalDateTime, ZoneOffset, ZonedDateTime}
 import com.om.mxs.client.japi.Attribute
 import org.slf4j.LoggerFactory
 
-case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,Boolean], longValues:Map[String,Long], intValues:Map[String,Int]) {
+case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,Boolean], longValues:Map[String,Long], intValues:Map[String,Int], floatValues:Map[String,Float]) {
   private val logger = LoggerFactory.getLogger(getClass)
 
   /**
@@ -49,6 +49,7 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
       case stringValue:String=>this.copy(stringValues = this.stringValues ++ Map(key->stringValue))
       case intValue:Int=>this.copy(intValues = this.intValues ++ Map(key->intValue))
       case longValue:Long=>this.copy(longValues = this.longValues ++ Map(key->longValue))
+      case floatValue:Float=>this.copy(floatValues = this.floatValues ++ Map(key->floatValue))
       case timeValue:ZonedDateTime=>this.copy(longValues = this.longValues ++ Map(key->timeValue.toInstant.toEpochMilli))
       case timeValue:LocalDateTime=>this.copy(longValues = this.longValues ++ Map(key->timeValue.toInstant(ZoneOffset.UTC).toEpochMilli))
       case instant:Instant=>this.copy(longValues = this.longValues ++ Map(key->instant.toEpochMilli))
@@ -64,7 +65,8 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
       boolValues = this.boolValues - key,
       stringValues = this.stringValues - key,
       intValues = this.intValues - key,
-      longValues = this.longValues - key
+      longValues = this.longValues - key,
+      floatValues = this.floatValues - key
     )
   }
 
@@ -74,6 +76,7 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
       val maybeBool = boolValues.get(fieldName)
       val maybeLong = longValues.get(fieldName)
       val maybeInt = intValues.get(fieldName)
+      val maybeFloat = floatValues.get(fieldName)
 
       val v = if(maybeString.isDefined){
         maybeString.get
@@ -85,8 +88,10 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
         }
       } else if(maybeLong.isDefined){
         maybeLong.get.toString
-      } else if(maybeInt.isDefined){
+      } else if(maybeInt.isDefined) {
         maybeInt.get.toString
+      } else if(maybeFloat.isDefined) {
+        maybeFloat.get.toString
       } else {
         "(none)"
       }
@@ -99,7 +104,7 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
 }
 
 object MxsMetadata {
-  def empty():MxsMetadata = new MxsMetadata(Map(),Map(),Map(),Map())
-  def apply(stringValues: Map[String, String], boolValues: Map[String, Boolean], longValues: Map[String, Long], intValues: Map[String, Int]): MxsMetadata = new MxsMetadata(stringValues, boolValues, longValues, intValues)
+  def empty():MxsMetadata = new MxsMetadata(Map(),Map(),Map(),Map(),Map())
+  def apply(stringValues: Map[String, String], boolValues: Map[String, Boolean], longValues: Map[String, Long], intValues: Map[String, Int], floatValues:Map[String,Float]): MxsMetadata = new MxsMetadata(stringValues, boolValues, longValues, intValues, floatValues)
 
 }

@@ -10,7 +10,7 @@ import java.time.{Instant, ZoneId, ZonedDateTime}
 import akka.stream.{ClosedShape, Materializer, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
 import com.om.mxs.client.internal.TaggedIOException
-import com.om.mxs.client.japi.{MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
+import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
 import models.{MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{OMLookupMetadata, OMSearchSource}
@@ -38,8 +38,9 @@ object MatrixStoreHelper {
     * @return a Try, containing either a sequence of zero or more results as [[ObjectMatrixEntry]] records or an error
     */
   def findByFilename(vault:Vault, fileName:String):Try[Seq[ObjectMatrixEntry]] = Try {
-    val searchTerm = SearchTerm.createSimpleTerm("MXFS_FILENAME",fileName)
-    val iterator = vault.searchObjectsIterator(searchTerm, 1).asScala
+    //val searchTerm = SearchTerm.createSimpleTerm("MXFS_FILENAME",fileName)
+    val searchTerm = new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"$fileName"""" )
+    val iterator = vault.searchObjectsIterator(searchTerm, 5).asScala
 
     var finalSeq:Seq[ObjectMatrixEntry] = Seq()
     while(iterator.hasNext){

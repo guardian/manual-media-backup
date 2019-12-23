@@ -43,6 +43,7 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
       override def onPush(): Unit = {
         val elem = grab(in)
 
+        logger.debug(s"Looking for ${elem.originalPath.toString}...")
         val metadataUpdate = callFindByFilename(vault.get, elem.originalPath.toString)
           .flatMap(results=> {
             val trySeq = results.map(result => Try {
@@ -59,6 +60,7 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
 
         metadataUpdate match {
           case Success(results)=>
+            logger.debug(s"Got ${results.length} results including ${results.headOption}")
             if(results.length>1){
               logger.warn(s"Got ${results.length} results for ${elem.originalPath}, using the first")
             }
