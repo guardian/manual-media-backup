@@ -176,7 +176,8 @@ object MatrixStoreHelper {
         "MXFS_CREATIONMONTH"->maybeCtime.map(_.getMonthValue).getOrElse(0),
         "MXFS_CREATIONYEAR"->maybeCtime.map(_.getYear).getOrElse(0),
         "MXFS_CATEGORY"->categoryForMimetype(mimeType)
-      )
+      ),
+      floatValues = Map()
     )
   }
 
