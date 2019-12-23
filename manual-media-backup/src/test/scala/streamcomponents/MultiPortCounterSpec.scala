@@ -7,10 +7,10 @@ import org.specs2.mutable.Specification
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-class TwoPortCounterSpec extends Specification {
+class MultiPortCounterSpec extends Specification {
   "TwoPortCounter" should {
     "Count incoming elements on both ports and materialize the final value" in new AkkaTestkitSpecs2Support {
-      val sinkFact = new TwoPortCounter[Int]
+      val sinkFact = new MultiPortCounter[Int](2)
 
       implicit val mat:Materializer = ActorMaterializer.create(system)
       val graph = GraphDSL.create(sinkFact) { implicit builder=> sink=>
@@ -26,7 +26,7 @@ class TwoPortCounterSpec extends Specification {
       Merge
 
       val result = Await.result(RunnableGraph.fromGraph(graph).run().future, 10 seconds)
-      result mustEqual CounterData(6,4)
+      result mustEqual CounterData(Map(0->6,1->4))
     }
   }
 }

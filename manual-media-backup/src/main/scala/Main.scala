@@ -8,8 +8,6 @@ import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, Sou
 import akka.pattern.ask
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, UserInfo, Vault}
 import helpers.PlutoCommunicator.{AFHMsg, LookupFailed, TestConnection}
-import models.{CopyReport, IncomingListEntry, ObjectMatrixEntry}
-import org.slf4j.LoggerFactory
 import streamcomponents.{FilesFilter, ListCopyFile, ListRestoreFile, OMLookupMetadata, OMMetaToIncomingList, OMSearchSource, ProgressMeterAndReport, ValidateMD5}
 import helpers.{Copier, ListReader, MatrixStoreHelper, PlutoCommunicator}
 import models.{BackupEntry, CopyReport, CustomMXSMetadata, IncomingListEntry, ObjectMatrixEntry}
@@ -55,6 +53,7 @@ object Main {
       opt[String]("exclude-paths-file").action((x,c)=>c.copy(excludePathsFile=Some(x))).text("A Json file that gives an array of filepaths to exclude as regexes")
       opt[Boolean]("test-pluto-connection").action((x,c)=>c.copy(testPlutoConnection = true))
       opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
+      opt[Boolean]('e',"only-estimate").action((x,c)=>c.copy(onlyEstimate = true)).text("Don't perform backup, just output what needs backing up to `$HOME/estimate.json`")
     }
   }
 
@@ -130,7 +129,7 @@ object Main {
     * @return a Graph that materializes an instance of CounterData. count1 represents the files that need backup and count2 represents the files that don't.
     */
   def fullBackupEstimateGraph(startingPath:Path, userInfo:UserInfo, excludeListFile:Option[String]) = {
-    val sinkFac = new TwoPortCounter[BackupEntry]
+    val sinkFac = new MultiPortCounter[BackupEntry](2)
     val checkOMFileFactory = new CheckOMFile(userInfo)
     val needsBackupFactory = new NeedsBackupSwitch
 

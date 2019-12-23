@@ -15,6 +15,8 @@
     <logger name="Main$" level="INFO"/>
     <logger name="Copier$" level="DEBUG"/>
     <logger name="streamcomponents" level="INFO"/>
+    <logger name="streamcomponents.ExcludeListSwitch" level="ERROR"/>
+
     <logger name="helpers.PlutoCommunicator" level="INFO"/>
 
     <root level="WARN">
