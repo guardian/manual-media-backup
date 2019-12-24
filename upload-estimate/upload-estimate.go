@@ -20,9 +20,9 @@ type JsonFormat struct {
 }
 
 type IndexRecord struct {
-	NeedBackup int    `json:"needBackup"`
-	NoBackup   int    `json:"noBackup"`
-	Timestamp  string `json:"timestamp"`
+	NeedBackup int       `json:"needBackup"`
+	NoBackup   int       `json:"noBackup"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 /**
@@ -34,7 +34,7 @@ func MakeIndexRecord(fromData *JsonFormat) (IndexRecord, string) {
 	return IndexRecord{
 		NeedBackup: fromData.NeedBackup,
 		NoBackup:   fromData.NoBackup,
-		Timestamp:  time.Now().Format(time.RFC3339),
+		Timestamp:  time.Now(),
 	}, strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
@@ -90,8 +90,10 @@ func main() {
 	elasticUrlPtr := flag.String("elasticsearch", "http://localhost:9200", "URL to the Elasticsearch cluster")
 	indexNamePtr := flag.String("index", "backup-estimate", "Name of the index to save data to")
 
+	flag.Parse()
 	esClient := connectToES(elasticUrlPtr, fileNamePtr)
 
+	log.Printf("filename is %s", *fileNamePtr)
 	content, loadErr := LoadFile(fileNamePtr)
 	if loadErr != nil {
 		os.Exit(1)
