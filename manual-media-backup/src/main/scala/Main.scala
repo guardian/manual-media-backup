@@ -308,6 +308,28 @@ object Main {
     stream.close()
   }
 
+  def writeBackupEstimate(counterData: CounterData) = {
+    import io.circe.generic.auto._
+    import io.circe.syntax._
+
+    val content = Map(
+      "needBackup"->counterData.count1,
+      "noBackup"->counterData.count2
+    )
+    val jsonString = content.asJson.noSpaces
+    val outputFile = new File(s"${sys.env.getOrElse("HOME","/tmp")}/backup-estimate.json")
+    val s = new FileOutputStream(outputFile)
+    try {
+      s.write(jsonString.getBytes("UTF-8"))
+      Success(())
+    } catch {
+      case err:Throwable=>
+        Failure(err)
+    } finally {
+      s.close()
+    }
+  }
+
   implicit val timeout:akka.util.Timeout = 30 seconds
   def main(args:Array[String]):Unit = {
     buildOptionParser.parse(args, Options()) match {
@@ -352,37 +374,43 @@ object Main {
                 terminate(2)
               }
 
-              val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo, options.excludePathsFile)
-              val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize*1024,
-                options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get, options.excludePathsFile)
-              logger.info("Counting total files for backup...")
-              val countPromise = RunnableGraph.fromGraph(estimateGraph).run()
-
-              countPromise.future.onComplete({
-                case Success(countData)=>
-                  logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
-                  logger.info("Starting up copy graph...")
-                  val resultFuture = RunnableGraph.fromGraph(actualGraph).run()
-
-                  resultFuture.onComplete({
-                    case Success(backupEntrySeq)=>
-                      val writeResult = options.reportOutputFile.map(filepath=>writeBackupEntries(backupEntrySeq, filepath)).getOrElse(Success(()))
-                      writeResult match {
-                        case Failure(err)=>
-                          logger.error(s"Could not output test dump: ", err)
-                          terminate(2)
-                        case Success(_)=>
-                          logger.info("All done")
-                          terminate(0)
-                      }
-                    case Failure(err)=>
-                      logger.error("Could not perform full backup : ", err)
-                      terminate(2)
-                  })
-                case Failure(err)=>
-                  logger.error(s"Could not count files to back up: ",err)
-              })
-
+              if(options.onlyEstimate){
+                logger.info("Counting total files for backup...")
+                val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo, options.excludePathsFile)
+                val resultFuture = RunnableGraph.fromGraph(estimateGraph).run().future
+                resultFuture.onComplete({
+                  case Success(countData)=>
+                    logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
+                    writeBackupEstimate(countData) match {
+                      case Success(_)=>logger.info(s"Wrote backup estimate json")
+                      case Failure(err)=>logger.error(s"Could not write estimate json: ", err)
+                    }
+                    terminate(0)
+                  case Failure(err)=>
+                    logger.error("Could not run backup estimate: ", err)
+                    terminate(1)
+                })
+              } else {
+                logger.info("Starting up copy graph...")
+                val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize*1024,
+                  options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get, options.excludePathsFile)
+                val resultFuture = RunnableGraph.fromGraph(actualGraph).run()
+                resultFuture.onComplete({
+                  case Success(backupEntrySeq)=>
+                    val writeResult = options.reportOutputFile.map(filepath=>writeBackupEntries(backupEntrySeq, filepath)).getOrElse(Success(()))
+                    writeResult match {
+                      case Failure(err)=>
+                        logger.error(s"Could not output test dump: ", err)
+                        terminate(2)
+                      case Success(_)=>
+                        logger.info("All done")
+                        terminate(0)
+                    }
+                  case Failure(err)=>
+                    logger.error("Could not perform full backup : ", err)
+                    terminate(2)
+                })
+              }
             } else if(options.listpath.isDefined) {
               handleList(options.listpath.get, userInfo, vault, options.chunkSize, options.checksumType, options.parallelism).andThen({
                 case Success(Right(finalReport)) =>

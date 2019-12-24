@@ -28,7 +28,7 @@ class NeedsBackupSwitchSpec extends Specification with Mockito {
 
       val mockedOMEntry = mock[ObjectMatrixEntry]
       mockedOMEntry.fileAttribues returns Some(FileAttributes("","filename","parent",false,false,true,false,backupTime,backupTime,backupTime,123456L))
-      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map()))
+      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map(),Map()))
       val incomingEntry = BackupEntry(mockedSourcePath, Some(mockedOMEntry))
 
       val sink = Sink.seq[BackupEntry]
@@ -91,7 +91,7 @@ class NeedsBackupSwitchSpec extends Specification with Mockito {
       val backupTime = ZonedDateTime.of(2019,3,3,4,5,6,0,ZoneId.systemDefault())
 
       val mockedOMEntry = mock[ObjectMatrixEntry]
-      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map()))
+      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map(),Map()))
       mockedOMEntry.fileAttribues returns Some(FileAttributes("","filename","parent",false,false,true,false,backupTime,backupTime,backupTime,123456L))
       val incomingEntry = BackupEntry(mockedSourcePath, Some(mockedOMEntry))
 
@@ -123,7 +123,7 @@ class NeedsBackupSwitchSpec extends Specification with Mockito {
       val backupTime = ZonedDateTime.of(2019,2,3,4,5,6,0,ZoneId.systemDefault())
 
       val mockedOMEntry = mock[ObjectMatrixEntry]
-      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map()))
+      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map(),Map()))
       mockedOMEntry.fileAttribues returns Some(FileAttributes("","filename","parent",false,false,true,false,backupTime,backupTime,backupTime,123456L))
       val incomingEntry = BackupEntry(mockedSourcePath, Some(mockedOMEntry))
 
@@ -155,7 +155,7 @@ class NeedsBackupSwitchSpec extends Specification with Mockito {
       val backupTime = ZonedDateTime.of(2019,2,3,4,5,6,0,ZoneId.systemDefault())
 
       val mockedOMEntry = mock[ObjectMatrixEntry]
-      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map()))
+      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map(),Map()))
       mockedOMEntry.fileAttribues returns Some(FileAttributes("","filename","parent",false,false,true,false,backupTime,backupTime,backupTime,123456L))
       val incomingEntry = BackupEntry(mockedSourcePath, Some(mockedOMEntry))
 

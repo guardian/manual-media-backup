@@ -65,6 +65,9 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
   .dependsOn(common)
     .settings(
       version := sys.props.getOrElse("build.number","DEV"),
+      mappings in Universal ++= Seq(
+        (baseDirectory.value / "../upload-estimate/upload-estimate") -> "utils/upload-estimate"
+      ),
       dockerPermissionStrategy := DockerPermissionStrategy.Run,
       daemonUserUid in Docker := None,
       daemonUser in Docker := "daemon",
@@ -82,6 +85,7 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       ),
       dockerBaseImage := "openjdk:8-jdk-slim",
       dockerCommands ++= Seq(
+        Cmd("COPY", "/opt/docker/utils/upload-estimate", "/opt/docker/utils/upload-estimate"),
         Cmd("USER","root"), //fix the permissions in the built docker image
 //        Cmd("RUN", "chown daemon /opt/docker"),
 //        Cmd("RUN", "chmod u+w /opt/docker"),
