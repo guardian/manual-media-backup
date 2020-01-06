@@ -57,7 +57,9 @@ object Main {
     }
   }
 
-  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int, checksumType:String, plutoCommunicator:ActorRef,pathDefinitionsFile:String,excludeListFile:Option[String]) = {
+  def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int,
+                      checksumType:String, plutoCommunicator:ActorRef,
+                      pathDefinitionsFile:String,excludeListFile:Option[String]) = {
     val copierFactory = new BatchCopyFile(userInfo,checksumType, chunkSize)
     val commitMetaFactory = new OMCommitMetadata(userInfo)
     val clearBeingWrittenFactory = new ClearBeingWritten(userInfo)
@@ -358,16 +360,6 @@ object Main {
                   throw new RuntimeException("This code should not be reachable")
               }
 
-              //blocking here is NOT a sin, because we need to wait for this to complete anyway before other threads kick in
-              Await.result((plutoCommunicator ? TestConnection).mapTo[AFHMsg], 30 seconds) match {
-                case LookupFailed=>
-                  logger.error(s"Could not communicate with pluto, see earlier errors")
-                  terminate(3)
-                  throw new RuntimeException("This code should not be reachable")
-                case _=>
-                  logger.info(s"Pluto connection verified")
-              }
-
               val startPath = new File(options.copyFromLocal.get)
               if(!startPath.exists()){
                 logger.error(s"Provided starting path ${startPath.toString} does not exist.")
@@ -391,6 +383,16 @@ object Main {
                     terminate(1)
                 })
               } else {
+                logger.info("Verifying pluto connection...")
+                //blocking here is NOT a sin, because we need to wait for this to complete anyway before other threads kick in
+                Await.result((plutoCommunicator ? TestConnection).mapTo[AFHMsg], 30 seconds) match {
+                  case LookupFailed=>
+                    logger.error(s"Could not communicate with pluto, see earlier errors")
+                    terminate(3)
+                    throw new RuntimeException("This code should not be reachable")
+                  case _=>
+                    logger.info(s"Pluto connection verified")
+                }
                 logger.info("Starting up copy graph...")
                 val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize*1024,
                   options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get, options.excludePathsFile)

@@ -29,6 +29,9 @@ type IndexRecord struct {
 takes data from the source and outputs an IndexRecord and a document ID (as a string)
 arguments:
   - fromData: A pointer to a JsonFormat object containing the data to use
+returns:
+  - IndexRecord containing the parsed data and a timestamp
+  - string containing a document ID derived from the timestamp
 */
 func MakeIndexRecord(fromData *JsonFormat) (IndexRecord, string) {
 	return IndexRecord{
@@ -38,6 +41,10 @@ func MakeIndexRecord(fromData *JsonFormat) (IndexRecord, string) {
 	}, strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
+/**
+return the default filename as expected from manual-media-backup
+
+ */
 func GetDefaultFilename() string {
 	var basePath = os.Getenv("HOME")
 	if basePath == "" {
@@ -46,7 +53,10 @@ func GetDefaultFilename() string {
 	return basePath + "/backup-estimate.json"
 }
 
-func connectToES(elasticUrlPtr *string, indexNamePtr *string) *elasticsearch.Client {
+/**
+establish a connection to ElasticSearch. Terminates if no connection can be established
+ */
+func connectToES(elasticUrlPtr *string) *elasticsearch.Client {
 	cfg := elasticsearch.Config{
 		Addresses: []string{
 			*elasticUrlPtr,
@@ -61,6 +71,14 @@ func connectToES(elasticUrlPtr *string, indexNamePtr *string) *elasticsearch.Cli
 	return client
 }
 
+/**
+Loads a json file and parses it as a single JsonFormat object
+arguments:
+ - fileNamePtr pointer to string of the file to open
+returns:
+ - a pointer to a JsonFormat object on success or nil on failure
+ - nil on success or an error object on failure
+ */
 func LoadFile(fileNamePtr *string) (*JsonFormat, error) {
 	var content JsonFormat
 	f, openErr := os.Open(*fileNamePtr)
@@ -91,7 +109,7 @@ func main() {
 	indexNamePtr := flag.String("index", "backup-estimate", "Name of the index to save data to")
 
 	flag.Parse()
-	esClient := connectToES(elasticUrlPtr, fileNamePtr)
+	esClient := connectToES(elasticUrlPtr)
 
 	log.Printf("filename is %s", *fileNamePtr)
 	content, loadErr := LoadFile(fileNamePtr)

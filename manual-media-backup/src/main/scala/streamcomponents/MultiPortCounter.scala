@@ -20,8 +20,8 @@ class MultiPortCounterShape[T](ins:immutable.Seq[Inlet[T]]) extends Shape {
 }
 
 case class CounterData(counts:Map[Int,Int]) {
-  def count1 = counts(0)
-  def count2 = counts(1)
+  def count1 = counts.getOrElse(0,0)
+  def count2 = counts.getOrElse(1,0)
 
   def update(channel:Int,value:Int=1) = {
     val updatedCounter = this.counts.get(channel) match {
