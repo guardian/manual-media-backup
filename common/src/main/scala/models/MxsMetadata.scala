@@ -17,7 +17,7 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
     val intsToWrite = if(filterUnwritable) intValues - "MXFS_ARCHMONTH" - "MXFS_ARCHYEAR" - "MXFS_ARCHYEAR" - "MXFS_ARCHDAY" else intValues
 
     stringValues.map(entry=>
-      Option(entry._2).map(realValue=>Attribute.createTextAttribute(entry._1,realValue,true))
+      Option(entry._2).map(realValue=>new Attribute(entry._1,realValue,true))
     ).toSeq.collect({case Some(attrib)=>attrib}) ++
     boolValues.map(entry=>new Attribute(entry._1,entry._2,true)) ++
       longsToWrite.map(entry=>new Attribute(entry._1, entry._2, true)) ++
