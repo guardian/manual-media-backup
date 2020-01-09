@@ -16,6 +16,8 @@
     <logger name="Copier$" level="DEBUG"/>
     <logger name="streamcomponents" level="INFO"/>
     <logger name="streamcomponents.ExcludeListSwitch" level="ERROR"/>
+    <logger name="streamcomponents.OMCommitMetadata" level="INFO"/>
+    <logger name="streamcomponents.GatherMetadata" level="DEBUG"/>
 <!--    <logger name="streamcomponents.CheckOMFile" level="DEBUG"/>-->
 
     <logger name="helpers.PlutoCommunicator" level="INFO"/>

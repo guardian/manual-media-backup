@@ -38,11 +38,17 @@ object MatrixStoreHelper {
     * @return a Try, containing either a sequence of zero or more results as [[ObjectMatrixEntry]] records or an error
     */
   def findByFilename(vault:Vault, fileName:String):Try[Seq[ObjectMatrixEntry]] = Try {
-    //val searchTerm = SearchTerm.createSimpleTerm("MXFS_FILENAME",fileName)
+    var finalSeq:Seq[ObjectMatrixEntry] = Seq()
+//  seems that the Attribute(Contstants.CONTENT, ...) construct below catches this too
+//    val basicSearchTerm = SearchTerm.createSimpleTerm("MXFS_FILENAME",fileName)
+//    val basicIterator = vault.searchObjectsIterator(basicSearchTerm, 5).asScala
+//    while(basicIterator.hasNext){
+//      finalSeq ++= Seq(ObjectMatrixEntry(basicIterator.next(), None, None))
+//    }
+
     val searchTerm = new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"$fileName"""" )
     val iterator = vault.searchObjectsIterator(searchTerm, 5).asScala
 
-    var finalSeq:Seq[ObjectMatrixEntry] = Seq()
     while(iterator.hasNext){
       finalSeq ++= Seq(ObjectMatrixEntry(iterator.next(), None, None))
     }

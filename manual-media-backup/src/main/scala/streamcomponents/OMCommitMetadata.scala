@@ -33,6 +33,9 @@ class OMCommitMetadata(userInfo:UserInfo) extends GraphStage[FlowShape[BackupEnt
       val writeTries = toWrite.map(attr=>(attr, Try { attribView.writeAttribute(attr) }))
       val writeFailures = writeTries.collect({case (failedAttr, Failure(err))=>(failedAttr, err)})
       val writeSuccesses = writeTries.collect({case(_, Success(x))=>x})
+      toWrite.foreach(attrib=>{
+        logger.debug(s"\tWriting ${attrib.getKey} = ${attrib.getValue} (${attrib.getValue.getClass.toGenericString}")
+      })
       if(writeFailures.nonEmpty) {
         if(attempt<10){
           logger.error(s"Could not write attributes to file: ${writeSuccesses.length} succeeded and ${writeFailures.length} failed")
@@ -65,14 +68,6 @@ class OMCommitMetadata(userInfo:UserInfo) extends GraphStage[FlowShape[BackupEnt
                     case Right(count)=>
                       logger.info(s"Successfully wrote $count attributes")
                   }
-//                    val writeTries = attribs.toAttributes(filterUnwritable=true).map(attr=>(attr, Try { attribView.writeAttribute(attr) }))
-//                    val writeFailures = writeTries.collect({case (failedAttr, Failure(err))=>(failedAttr, err)})
-//                    val writeSuccesses = writeTries.collect({case(_, Success(x))=>x})
-//                    if(writeFailures.nonEmpty){
-//                      logger.error(s"Could not write attributes to file: ${writeSuccesses.length} succeeded and ${writeFailures.length} failed")
-//                      writeFailures.foreach(err=>logger.error(s"\tFailed to write: ${err._1.getKey}: ${err._1.getValue.toString} of type ${Option(err._1.getValue).map(_.getClass.getCanonicalName)}"))
-//                      throw writeFailures.head._2
-//                    }
 
                 case None=>
                   logger.error(s"Incoming entry for ${omEntry.oid} had no metadata to write")

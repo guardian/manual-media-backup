@@ -16,6 +16,7 @@ import scala.util.{Failure, Success}
 
 class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[BackupEntry, BackupEntry]] {
   import helpers.PlutoCommunicator._
+  private val logger = LoggerFactory.getLogger(getClass)
 
   implicit val timeout:akka.util.Timeout = 60 seconds
   private final val in:Inlet[BackupEntry] = Inlet.create("GatherMetadata.in")
@@ -62,7 +63,8 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
             Future(existingMxsMeta.copy(projectId = Some(forProjectId), projectName = project.gnm_project_headline))
         })
       case FoundProject(None) =>
-        Future(existingMxsMeta.copy(projectId = None))
+        logger.warn(s"No project found for ID $forProjectId (got from asset folder db)")
+        Future(existingMxsMeta.copy(projectId = Some(forProjectId)))
     })
   }
 
@@ -77,8 +79,10 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
     assetFolderFut.flatMap({
       case LookupFailed=>Future.failed(new RuntimeException("Lookup failed, see previous logs"))
       case FoundAssetFolder(Some(assetFolder))=>
+        logger.info(s"Got asset folder ${assetFolder.path} for ${assetFolder.project} for $basePath")
         lookupProjectAndCommission(assetFolder.project, existingMxsMeta)
       case FoundAssetFolder(None)=>
+        logger.info(s"Got no asset folder for $basePath")
         Future(existingMxsMeta)
     })
   }
@@ -182,6 +186,15 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
             val omEntry = elem.maybeObjectMatrixEntry.get
             val updatedEntry = omEntry.copy(attributes = Some(newmeta.toAttributes(omEntry.attributes.getOrElse(MxsMetadata.empty()))))
             val updatedBackupEntry = elem.copy(maybeObjectMatrixEntry = Some(updatedEntry))
+
+            if(logger.isDebugEnabled) {
+              updatedEntry.attributes match {
+                case None =>
+                  logger.debug(s"No new attributes for ${updatedEntry.oid}")
+                case Some(attrs) =>
+                  attrs.toAttributes().foreach(attr => logger.debug(s"\tGathered attributes ${attr.getKey} = ${attr.getValue} (${attr.getValue.getClass.toGenericString})"))
+              }
+            }
             completedCb.invoke(updatedBackupEntry)
           case Failure(err)=>
             logger.error(s"Could not look up metadata for ${elem.originalPath}: ", err)

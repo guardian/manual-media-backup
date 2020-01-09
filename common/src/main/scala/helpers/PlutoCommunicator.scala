@@ -277,6 +277,17 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
                                                                         //which is picked up in onComplete in the call
         case 400 =>
           contentBody.map(body=>throw new RuntimeException(s"Pluto returned bad data error: $body"))
+        case 301 =>
+          logger.warn(s"Received unexpected redirect from pluto to ${response.getHeader("Location")}")
+          val h = response.getHeader("Location")
+          if(h.isPresent){
+            val newUri = h.get()
+            logger.info(s"Redirecting to ${newUri.value()}")
+            val updatedReq = req.copy(uri=Uri(newUri.value()))
+            callToPluto(updatedReq, attempt+1)
+          } else {
+            throw new RuntimeException("Unexpected redirect without location")
+          }
         case 500|502|503|504 =>
           contentBody.flatMap(body=> {
             logger.error(s"Pluto returned a server error: $body. Retrying...")
@@ -312,7 +323,12 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   def performProjectLookup(forId:String) = {
     import LocalDateTimeEncoder._
     val req = HttpRequest(uri=s"$plutoBaseUri/project/api/$forId")
-    callToPluto[ProjectRecord](req)
+    val result = callToPluto[ProjectRecord](req)
+    result.onComplete({
+      case Success(maybeRecord)=>logger.info(s"performProjectLookup got $maybeRecord for $forId")
+      case Failure(err)=>logger.error(s"performProjectLookup failed for $forId: ", err)
+    })
+    result
   }
 
   def performWorkingGroupLookup() = {

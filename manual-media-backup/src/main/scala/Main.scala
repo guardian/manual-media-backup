@@ -4,7 +4,7 @@ import java.util.Properties
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.scaladsl.{Balance, Broadcast, Flow, GraphDSL, Merge, RunnableGraph, Sink, Source}
-import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape}
+import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer, SourceShape, UniformFanOutShape}
 import akka.pattern.ask
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, SearchTerm, UserInfo, Vault}
 import helpers.PlutoCommunicator.{AFHMsg, LookupFailed, TestConnection}
@@ -53,13 +53,14 @@ object Main {
       opt[String]("exclude-paths-file").action((x,c)=>c.copy(excludePathsFile=Some(x))).text("A Json file that gives an array of filepaths to exclude as regexes")
       opt[Boolean]("test-pluto-connection").action((x,c)=>c.copy(testPlutoConnection = true))
       opt[Boolean]("everything").action((x,c)=>c.copy(everything=true)).text("Backup everything at the given path")
+      opt[Boolean]("force-overwrite").action((x,c)=>c.copy(forceOverwrite=true)).text("Force overwrite of items, don't check if they need backup")
       opt[Boolean]('e',"only-estimate").action((x,c)=>c.copy(onlyEstimate = true)).text("Don't perform backup, just output what needs backing up to `$HOME/estimate.json`")
     }
   }
 
   def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int,
                       checksumType:String, plutoCommunicator:ActorRef,
-                      pathDefinitionsFile:String,excludeListFile:Option[String]) = {
+                      pathDefinitionsFile:String,excludeListFile:Option[String], forceOverwrite:Boolean) = {
     val copierFactory = new BatchCopyFile(userInfo,checksumType, chunkSize)
     val commitMetaFactory = new OMCommitMetadata(userInfo)
     val clearBeingWrittenFactory = new ClearBeingWritten(userInfo)
@@ -70,31 +71,53 @@ object Main {
     val addTypeFactory = new AddTypeField(pathDefinitionsFile)
     val gatherMetadataFactory = new GatherMetadata(plutoCommunicator)
 
-    val processingGraph = GraphDSL.create() { implicit builder=>
+    //component graph to check if an item needs backup.
+    //has two outlet ports, one for items that do need backing up and one for items that don't
+    val itemCheckGraph = GraphDSL.create() { implicit builder=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
       val existSwitch = builder.add(checkOMFileFactory)
       val createEntry = builder.add(createEntryFactory)
-      val getMimeType = builder.add(getMimeFactory)
+
       val needsBackupSwitch = builder.add(needsBackupFactory)
       val fileCheckMerger = builder.add(Merge[BackupEntry](2))
-
-      val gatherMetadata = builder.add(gatherMetadataFactory)
-      val addType = builder.add(addTypeFactory)
-      val copier = builder.add(copierFactory)
-      val omCommitMetadata = builder.add(commitMetaFactory)
-      val clearBeingWritten = builder.add(clearBeingWrittenFactory)
-      val finalMerger = builder.add(Merge[BackupEntry](2))
 
       existSwitch.out(0) ~> needsBackupSwitch                     //"yes" branch => given file exists on nearline
       existSwitch.out(1) ~> createEntry ~> fileCheckMerger        //"no"  branch => given file does not exist on nearline
 
       needsBackupSwitch.out(0) ~> fileCheckMerger                 //"yes" branch => file still needs backup
-      needsBackupSwitch.out(1) ~> finalMerger                     //"no" branch => file does not need backup
+                                                                  // "no" branch => file does not need backup
+
+      UniformFanOutShape(existSwitch.in, fileCheckMerger.out, needsBackupSwitch.out(1))
+    }
+
+    //simplified version to overwrite an existing entry or create new if it does not exist
+    val itemOverwriteStartGraph = GraphDSL.create() {implicit builder=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+
+      val existSwitch = builder.add(checkOMFileFactory)
+      val createEntry = builder.add(createEntryFactory)
+      val fileCheckMerger = builder.add(Merge[BackupEntry](2))
+
+      existSwitch.out(0) ~> fileCheckMerger
+      existSwitch.out(1) ~> createEntry ~> fileCheckMerger
+      FlowShape(existSwitch.in, fileCheckMerger.out)
+    }
+
+    val processingGraph = GraphDSL.create() { implicit builder=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+
+      val getMimeType = builder.add(getMimeFactory)
+      val gatherMetadata = builder.add(gatherMetadataFactory)
+      val addType = builder.add(addTypeFactory)
+      val copier = builder.add(copierFactory)
+      val omCommitMetadata = builder.add(commitMetaFactory)
+      val clearBeingWritten = builder.add(clearBeingWrittenFactory)
+      //val finalMerger = builder.add(Merge[BackupEntry](2))
 
       //FIXME: check whether we still need omCommitMetadata or not
-      fileCheckMerger ~> getMimeType ~> addType ~> gatherMetadata ~> copier ~> clearBeingWritten ~> omCommitMetadata ~> finalMerger
-      FlowShape.of(existSwitch.in, finalMerger.out)
+      getMimeType ~> addType ~> gatherMetadata ~> copier ~> clearBeingWritten ~> omCommitMetadata// ~> finalMerger
+      FlowShape.of(getMimeType.in, omCommitMetadata.out)
     }
 
     //placeholder, do something better with end result when we know what that is
@@ -108,15 +131,25 @@ object Main {
       val excludeFilter = builder.add(new ExcludeListSwitch(excludeListFile))
       val pathCharsetConverter = builder.add(new UTF8PathCharset)
       val splitter = builder.add(Balance[BackupEntry](paralellism).async)
-      val merger = builder.add(Merge[BackupEntry](paralellism))
+      val mergePortsCount = if(forceOverwrite) paralellism else paralellism*2
+      val merger = builder.add(Merge[BackupEntry](mergePortsCount))
 
       val processorFactory = processingGraph
+      val checkerFactory = itemCheckGraph
 
       src ~> dirFilter ~> pathCharsetConverter ~> macFilter ~> excludeFilter
       excludeFilter.out.map(path=>BackupEntry(path,None)).log("streamcomponents.fullbackupgraph") ~> splitter
       for(i <- 0 until paralellism) {
-        val processor = builder.add(processorFactory)
-        splitter.out(i) ~> processor ~> merger.in(i)
+        if(forceOverwrite) {
+          val getItem = builder.add(itemOverwriteStartGraph)
+          val processor = builder.add(processorFactory)
+          splitter.out(i) ~> getItem ~> processor ~> merger.in(i)
+        } else {
+          val checker = builder.add(checkerFactory)
+          val processor = builder.add(processorFactory)
+          splitter.out(i) ~> checker ~> processor ~> merger.in(i*2)
+          checker.out(1) ~> merger.in((i*2)+1)
+        }
       }
 
       merger ~> sink
@@ -395,7 +428,7 @@ object Main {
                 }
                 logger.info("Starting up copy graph...")
                 val actualGraph = fullBackupGraph(startPath.toPath,options.parallelism,userInfo, options.chunkSize*1024,
-                  options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get, options.excludePathsFile)
+                  options.checksumType, plutoCommunicator, options.pathDefinitionsFile.get, options.excludePathsFile, options.forceOverwrite)
                 val resultFuture = RunnableGraph.fromGraph(actualGraph).run()
                 resultFuture.onComplete({
                   case Success(backupEntrySeq)=>
