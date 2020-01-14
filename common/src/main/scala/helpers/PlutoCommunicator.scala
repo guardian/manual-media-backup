@@ -5,20 +5,16 @@ import java.nio.file.Path
 import java.util.UUID
 
 import akka.actor.{Actor, ActorRef, ActorSystem}
-import akka.http.javadsl.model.headers.BasicHttpCredentials
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{headers, _}
 import akka.http.scaladsl.model.headers.{Authorization, BasicHttpCredentials}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
-import io.circe.parser
 import io.circe.syntax._
-import io.circe.generic.auto._
-import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord}
+import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord, WorkingGroupRecordDecoder}
 import org.slf4j.LoggerFactory
 
-import scala.collection.parallel.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -299,6 +295,7 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   }
 
   def performCommsCheck:Future[Unit] = {
+    import io.circe.generic.auto._
     val req = HttpRequest(uri=s"$plutoBaseUri/gnm_asset_folder/lookup?path=invalid")
     callToPluto[AssetFolderRecord](req).map(_=>())  //we are not interested in the result, it should be None, but if we didn't get an error that's good enough
   }
@@ -310,17 +307,20 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
     *         .recover() or .onComplete)
     */
   def performAssetFolderLookup(forPath:Path):Future[Option[AssetFolderRecord]] = {
+    import io.circe.generic.auto._
     val req = HttpRequest(uri=s"$plutoBaseUri/gnm_asset_folder/lookup?path=${URLEncoder.encode(forPath.toString, "UTF-8")}")
     callToPluto[AssetFolderRecord](req)
   }
 
   def performCommissionLookup(forId:String) = {
+    import io.circe.generic.auto._
     import LocalDateTimeEncoder._
     val req = HttpRequest(uri=s"$plutoBaseUri/commission/api/$forId")
     callToPluto[CommissionRecord](req)
   }
 
   def performProjectLookup(forId:String) = {
+    import io.circe.generic.auto._
     import LocalDateTimeEncoder._
     val req = HttpRequest(uri=s"$plutoBaseUri/project/api/$forId")
     val result = callToPluto[ProjectRecord](req)
@@ -332,23 +332,27 @@ class PlutoCommunicator(plutoBaseUri:String, plutoUser:String, plutoPass:String)
   }
 
   def performWorkingGroupLookup() = {
+    import WorkingGroupRecordDecoder._
     val req = HttpRequest(uri=s"$plutoBaseUri/commission/api/groups/")
     callToPluto[Seq[WorkingGroupRecord]](req)
   }
 
   def performMasterLookup(forFileName:String) = {
+    import io.circe.generic.auto._
     import LocalDateTimeEncoder._
     val req = HttpRequest(uri=s"$plutoBaseUri/master/api/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
     callToPluto[Seq[MasterRecord]](req).map(_.getOrElse(Seq()))
   }
 
   def performDeliverableLookup(forFileName:String) = {
+    import io.circe.generic.auto._
     import LocalDateTimeEncoder._
     val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
     callToPluto[DeliverableAssetRecord](req)
   }
 
   def performDelvierableBundleLookup(forId:Int) = {
+    import io.circe.generic.auto._
     import LocalDateTimeEncoder._
     val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/$forId")
     callToPluto[DeliverableBundleRecord](req)
