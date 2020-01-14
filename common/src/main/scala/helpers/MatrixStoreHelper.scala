@@ -11,7 +11,7 @@ import akka.stream.{ClosedShape, Materializer, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
 import com.om.mxs.client.internal.TaggedIOException
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
-import models.{MxsMetadata, ObjectMatrixEntry}
+import models.{FileAttributes, MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{OMLookupMetadata, OMSearchSource}
 import org.apache.commons.codec.binary.Hex
@@ -29,6 +29,49 @@ object MatrixStoreHelper {
 
   def deleteFile(vault:Vault, oid:String) = Try { vault.getObject(oid).delete() }
 
+  private def fileAttributesFromFastSearch(oid:String,attribMap:Map[String,String]):Option[FileAttributes] = {
+    def stringEpochToZonedDateTime(from:String):Option[ZonedDateTime] = Try {
+      ZonedDateTime.ofInstant(Instant.ofEpochSecond(from.toLong), ZoneId.systemDefault())
+    }.toOption
+
+    val maybeCreateTime = attribMap.get("__mxs__creationTime").flatMap(stringEpochToZonedDateTime)
+    val maybeModTime = attribMap.get("__mxs__modifiedTime").flatMap(stringEpochToZonedDateTime)
+    val maybeAccessTime = attribMap.get("__mxs__accessedTime").flatMap(stringEpochToZonedDateTime)
+    val maybeSize = attribMap.get("__mxs__length").map(_.toLong)
+
+    if(maybeCreateTime.isEmpty || maybeModTime.isEmpty || maybeAccessTime.isEmpty || maybeSize.isEmpty){
+      logger.warn(s"Could not get file attributes from $attribMap, missing either ctime, mtime, atime or size")
+      None
+    } else {
+      Some(new FileAttributes(
+        oid,
+        attribMap.getOrElse("MXFS_PATH", ""),
+        "",
+        false,
+        false,
+        true,
+        false,
+        maybeCreateTime.get,
+        maybeModTime.get,
+        maybeAccessTime.get,
+        maybeSize.get
+      ))
+    }
+  }
+  private def parseOutFastSearchResults(resultString:String) = {
+    logger.debug(s"parseOutResults: got $resultString")
+    val parts = resultString.split("\n")
+
+    val kvs = parts.tail
+      .map(_.split("="))
+      .foldLeft(Map[String,String]()) ((acc,elem)=>acc ++ Map(elem.head -> elem.tail.mkString("=")))
+    logger.debug(s"got $kvs")
+    val mxsMeta = MxsMetadata(kvs,Map(),Map(),Map(),Map())
+
+    logger.debug(s"got $mxsMeta")
+    ObjectMatrixEntry(parts.head,attributes = Some(mxsMeta), fileAttribues = fileAttributesFromFastSearch(parts.head, kvs))
+  }
+
   /**
     * locate files for the given filename, as stored in the metadata. This assumes that one or at most two records will
     * be returned and should therefore be more efficient than using the streaming interface. If many records are expected,
@@ -37,20 +80,21 @@ object MatrixStoreHelper {
     * @param fileName file name to search for
     * @return a Try, containing either a sequence of zero or more results as [[ObjectMatrixEntry]] records or an error
     */
-  def findByFilename(vault:Vault, fileName:String):Try[Seq[ObjectMatrixEntry]] = Try {
+  def findByFilename(vault:Vault, fileName:String, includeFields:Seq[String]):Try[Seq[ObjectMatrixEntry]] = Try {
     var finalSeq:Seq[ObjectMatrixEntry] = Seq()
-//  seems that the Attribute(Contstants.CONTENT, ...) construct below catches this too
-//    val basicSearchTerm = SearchTerm.createSimpleTerm("MXFS_FILENAME",fileName)
-//    val basicIterator = vault.searchObjectsIterator(basicSearchTerm, 5).asScala
-//    while(basicIterator.hasNext){
-//      finalSeq ++= Seq(ObjectMatrixEntry(basicIterator.next(), None, None))
-//    }
 
-    val searchTerm = new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"$fileName"""" )
+    val baseQueryString = s"""MXFS_FILENAME:"$fileName""""
+    val updatedIncludeFields = includeFields ++ Seq("__mxs__creationTime","__mxs__modifiedTime","__mxs__accessedTime","__mxs__length")
+    val queryString = baseQueryString + s"\nkeywords: ${updatedIncludeFields.mkString(",")}"
+
+    val searchTerm = new Attribute(Constants.CONTENT,queryString)
+
     val iterator = vault.searchObjectsIterator(searchTerm, 5).asScala
 
     while(iterator.hasNext){
-      finalSeq ++= Seq(ObjectMatrixEntry(iterator.next(), None, None))
+      val nextEntry = iterator.next()
+
+      finalSeq :+ parseOutFastSearchResults(nextEntry)
     }
     finalSeq
   }

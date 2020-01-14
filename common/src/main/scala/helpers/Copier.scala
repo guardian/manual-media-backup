@@ -165,7 +165,7 @@ object Copier {
 
   def copyFromLocal(userInfo: UserInfo, vault: Vault, destFileName: Option[String], localFile: String, chunkSize:Int, checksumType:String)(implicit ec:ExecutionContext, mat:Materializer) = {
     logger.debug("in copyFromLocal")
-    val check = Try { destFileName.flatMap(actualFileame=>MatrixStoreHelper.findByFilename(vault, actualFileame).map(_.headOption).get) }
+    val check = Try { destFileName.flatMap(actualFileame=>MatrixStoreHelper.findByFilename(vault, actualFileame, Seq()).map(_.headOption).get) }
 
     check match {
       case Failure(err)=>
@@ -249,7 +249,7 @@ object Copier {
 
   def lookupFileName(userInfo:UserInfo, vault:Vault, fileName: String, copyTo:Option[String])(implicit ec:ExecutionContext, mat:Materializer) = {
     implicit val vaultImpl = vault
-    val result = MatrixStoreHelper.findByFilename(vault, fileName).map(_.map(_.getMetadata)).map(futureResults=>{
+    val result = MatrixStoreHelper.findByFilename(vault, fileName, Seq()).map(_.map(_.getMetadata)).map(futureResults=>{
 
       Future.sequence(futureResults).map(results=> {
         println(s"Found ${results.length} files: ")
