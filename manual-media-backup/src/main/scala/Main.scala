@@ -377,20 +377,9 @@ object Main {
             val vault = MatrixStore.openVault(userInfo)
 
             if(options.everything){
-              if(options.copyFromLocal.isEmpty){
+              if(options.copyFromLocal.isEmpty) {
                 logger.error("Can't perform backup when a starting path is not supplied. Use --copy-from-local to specify a starting path")
                 terminate(1)
-              }
-              if(options.plutoCredentialsProperties.isEmpty){
-                logger.error("You must provide a pluto credentials property file for this operation.")
-                terminate(1)
-              }
-              val plutoCommunicator:ActorRef = getPlutoCommunicator(options.plutoCredentialsProperties.get) match {
-                case Success(comm)=>comm
-                case Failure(err)=>
-                  logger.error(s"Could not set up pluto communicator: ", err)
-                  terminate(2)
-                  throw new RuntimeException("This code should not be reachable")
               }
 
               val startPath = new File(options.copyFromLocal.get)
@@ -417,6 +406,17 @@ object Main {
                 })
               } else {
                 logger.info("Verifying pluto connection...")
+                if(options.plutoCredentialsProperties.isEmpty){
+                  logger.error("You must provide a pluto credentials property file for this operation.")
+                  terminate(1)
+                }
+                val plutoCommunicator:ActorRef = getPlutoCommunicator(options.plutoCredentialsProperties.get) match {
+                  case Success(comm)=>comm
+                  case Failure(err)=>
+                    logger.error(s"Could not set up pluto communicator: ", err)
+                    terminate(2)
+                    throw new RuntimeException("This code should not be reachable")
+                }
                 //blocking here is NOT a sin, because we need to wait for this to complete anyway before other threads kick in
                 Await.result((plutoCommunicator ? TestConnection).mapTo[AFHMsg], 30 seconds) match {
                   case LookupFailed=>
