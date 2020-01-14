@@ -49,18 +49,6 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
         val elem = grab(in)
 
         logger.debug(s"Looking for ${elem.originalPath.toString}...")
-//        val metadataUpdate = callFindByFilename(vault.get, elem.originalPath.toString)
-//          .flatMap(results=> {
-//            val trySeq = results.map(result => Try {
-//              result.getMetadataSync(vault.get)
-//            })
-//            val failures = trySeq.collect({case Failure(err)=>err})
-//            if(failures.nonEmpty){
-//              Failure(failures.head)
-//            } else {
-//              Success(trySeq.collect({case Success(m)=>m}))
-//            }
-//          })
         callFindByFilename(vault.get, elem.originalPath.toString) match {
           case Success(results)=>
             logger.debug(s"Got ${results.length} results including ${results.headOption}")

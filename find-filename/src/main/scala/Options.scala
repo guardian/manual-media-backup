@@ -1,0 +1,1 @@
+case class Options (vaultFile:String="", searchPath:String="")

@@ -61,6 +61,13 @@ lazy val `common` = (project in file("common"))
       unmanagedJars in Compile += file("lib/mxsjapi.jar"),
     )
 
+lazy val `findfilename` = (project in file("find-filename"))
+  .dependsOn(common)
+  .settings(
+    unmanagedJars in Compile += file("lib/mxsjapi.jar"),
+    unmanagedJars in Compile += file("lib/mxsjapi.jar"),
+  )
+
 lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins(DockerPlugin,AshScriptPlugin)
   .dependsOn(common)
     .settings(

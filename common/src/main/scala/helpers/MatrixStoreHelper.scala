@@ -31,7 +31,7 @@ object MatrixStoreHelper {
 
   private def fileAttributesFromFastSearch(oid:String,attribMap:Map[String,String]):Option[FileAttributes] = {
     def stringEpochToZonedDateTime(from:String):Option[ZonedDateTime] = Try {
-      ZonedDateTime.ofInstant(Instant.ofEpochSecond(from.toLong), ZoneId.systemDefault())
+      ZonedDateTime.ofInstant(Instant.ofEpochMilli(from.toLong), ZoneId.systemDefault())
     }.toOption
 
     val maybeCreateTime = attribMap.get("__mxs__creationTime").flatMap(stringEpochToZonedDateTime)
@@ -58,6 +58,7 @@ object MatrixStoreHelper {
       ))
     }
   }
+
   private def parseOutFastSearchResults(resultString:String) = {
     logger.debug(s"parseOutResults: got $resultString")
     val parts = resultString.split("\n")
@@ -87,14 +88,14 @@ object MatrixStoreHelper {
     val updatedIncludeFields = includeFields ++ Seq("__mxs__creationTime","__mxs__modifiedTime","__mxs__accessedTime","__mxs__length")
     val queryString = baseQueryString + s"\nkeywords: ${updatedIncludeFields.mkString(",")}"
 
+    logger.debug(s"querystring is \'$queryString\'")
     val searchTerm = new Attribute(Constants.CONTENT,queryString)
 
     val iterator = vault.searchObjectsIterator(searchTerm, 5).asScala
 
     while(iterator.hasNext){
       val nextEntry = iterator.next()
-
-      finalSeq :+ parseOutFastSearchResults(nextEntry)
+      finalSeq = finalSeq :+ parseOutFastSearchResults(nextEntry)
     }
     finalSeq
   }
