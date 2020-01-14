@@ -23,13 +23,14 @@ object MetadataHelper {
     */
   def getAttributeMetadata(obj:MxsObject)(implicit mat:Materializer, ec:ExecutionContext) = {
     //val sink = Sink.fold[Seq[(String,AnyRef)],(String,AnyRef)](Seq())((acc,elem)=>acc++Seq(elem))
-    val sink = Sink.fold[MxsMetadata,(String,Any)](MxsMetadata(Map(),Map(),Map(),Map()))((acc,elem)=>{
+    val sink = Sink.fold[MxsMetadata,(String,Any)](MxsMetadata.empty())((acc,elem)=>{
       elem._2 match {
         case null=>acc
         case boolValue: Boolean => acc.copy(boolValues = acc.boolValues ++ Map(elem._1->boolValue))
         case intValue:Int => acc.copy(intValues = acc.intValues ++ Map(elem._1 -> intValue))
         case longValue:Long => acc.copy(longValues = acc.longValues ++ Map(elem._1 -> longValue))
         case byteBuffer:ByteBuffer => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> Hex.encodeHexString(byteBuffer.array())))
+        case floatValue:java.lang.Float => acc.copy(floatValues = acc.floatValues ++ Map(elem._1 -> floatValue.toFloat))
         case stringValue:String => acc.copy(stringValues = acc.stringValues ++ Map(elem._1 -> stringValue))
         case _=>
           try {
@@ -51,6 +52,24 @@ object MetadataHelper {
       case None=>
         Future(MxsMetadata.empty)
     }
+  }
+
+  def getAttributeMetadataSync(obj:MxsObject) = {
+    val view = obj.getAttributeView
+
+    view.iterator.asScala.foldLeft(MxsMetadata.empty){ (acc, elem)=>{
+      val v = elem.getValue.asInstanceOf[Any]
+      v match {
+        case boolValue: Boolean => acc.copy(boolValues = acc.boolValues ++ Map(elem.getKey->boolValue))
+        case intValue:Int => acc.copy(intValues = acc.intValues ++ Map(elem.getKey -> intValue))
+        case longValue:Long => acc.copy(longValues = acc.longValues ++ Map(elem.getKey -> longValue))
+        case byteBuffer:ByteBuffer => acc.copy(stringValues = acc.stringValues ++ Map(elem.getKey -> Hex.encodeHexString(byteBuffer.array())))
+        case stringValue:String => acc.copy(stringValues = acc.stringValues ++ Map(elem.getKey -> stringValue))
+        case _=>
+          logger.warn(s"Could not get metadata value for ${elem.getKey} on ${obj.getId}, type ${elem.getValue.getClass.toString} not recognised")
+          acc
+      }
+    }}
   }
 
   /**

@@ -10,7 +10,7 @@ import java.time.{Instant, ZoneId, ZonedDateTime}
 import akka.stream.{ClosedShape, Materializer, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
 import com.om.mxs.client.internal.TaggedIOException
-import com.om.mxs.client.japi.{MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
+import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
 import models.{MxsMetadata, ObjectMatrixEntry}
 import org.slf4j.LoggerFactory
 import streamcomponents.{OMLookupMetadata, OMSearchSource}
@@ -38,10 +38,17 @@ object MatrixStoreHelper {
     * @return a Try, containing either a sequence of zero or more results as [[ObjectMatrixEntry]] records or an error
     */
   def findByFilename(vault:Vault, fileName:String):Try[Seq[ObjectMatrixEntry]] = Try {
-    val searchTerm = SearchTerm.createSimpleTerm("MXFS_PATH",fileName) //FIXME: check the metadata field namee
-    val iterator = vault.searchObjectsIterator(searchTerm, 1).asScala
-
     var finalSeq:Seq[ObjectMatrixEntry] = Seq()
+//  seems that the Attribute(Contstants.CONTENT, ...) construct below catches this too
+//    val basicSearchTerm = SearchTerm.createSimpleTerm("MXFS_FILENAME",fileName)
+//    val basicIterator = vault.searchObjectsIterator(basicSearchTerm, 5).asScala
+//    while(basicIterator.hasNext){
+//      finalSeq ++= Seq(ObjectMatrixEntry(basicIterator.next(), None, None))
+//    }
+
+    val searchTerm = new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"$fileName"""" )
+    val iterator = vault.searchObjectsIterator(searchTerm, 5).asScala
+
     while(iterator.hasNext){
       finalSeq ++= Seq(ObjectMatrixEntry(iterator.next(), None, None))
     }
@@ -139,9 +146,9 @@ object MatrixStoreHelper {
     * @param file java.io.File object to check
     * @return either an MxsMetadata object or an error
     */
-  def metadataFromFilesystem(file:File):Try[MxsMetadata] = Try {
+  def metadataFromFilesystem(file:File, maybeOverrideMimetype:Option[String]=None):Try[MxsMetadata] = Try {
     val path = file.getAbsoluteFile.toPath
-    val mimeType = Option(Files.probeContentType(file.toPath))
+    val mimeType = if(maybeOverrideMimetype.isDefined) maybeOverrideMimetype else Option(Files.probeContentType(file.toPath))
 
     val fsAttrs = Files.readAttributes(path,"*",LinkOption.NOFOLLOW_LINKS).asScala
 
@@ -175,7 +182,8 @@ object MatrixStoreHelper {
         "MXFS_CREATIONMONTH"->maybeCtime.map(_.getMonthValue).getOrElse(0),
         "MXFS_CREATIONYEAR"->maybeCtime.map(_.getYear).getOrElse(0),
         "MXFS_CATEGORY"->categoryForMimetype(mimeType)
-      )
+      ),
+      floatValues = Map()
     )
   }
 
@@ -184,6 +192,17 @@ object MatrixStoreHelper {
     * @return either an MxsMetadata object or an error
     */
   def metadataFromFilesystem(filepath:String):Try[MxsMetadata] = metadataFromFilesystem(new File(filepath))
+
+  def isNonNull(arr:Array[Byte], charAt:Int=0, maybeLength:Option[Int]=None):Boolean = {
+    val length = maybeLength.getOrElse(arr.length)
+    if(charAt>=length) return false
+
+    if(arr(charAt) != 0) {
+      true
+    } else {
+      isNonNull(arr,charAt+1,Some(length))
+    }
+  }
 
   /**
     * request MD5 checksum of the given object, as calculated by the appliance.
@@ -227,7 +246,7 @@ object MatrixStoreHelper {
         case Failure(otherError)=>Failure(otherError)
         case Success(buffer)=>
           val arr = buffer.array()
-          if(arr.isEmpty) {
+          if(! isNonNull(arr)) {
             logger.info(s"Empty string returned for file MD5 on attempt $attempt, assuming still calculating. Will retry...")
             Thread.sleep(1000) //this feels nasty but without resorting to actors i can't think of an elegant way
             //to delay and re-call in a non-blocking way

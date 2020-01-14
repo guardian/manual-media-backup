@@ -42,7 +42,7 @@ lazy val `common` = (project in file("common"))
       publish in Docker := {},
       libraryDependencies ++= Seq(
         "com.typesafe.akka" %% "akka-stream" % akkaVersion,
-        "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
+        "com.typesafe.akka" %% "akka-testkit" % akkaVersion %Test,
         "com.typesafe.akka" %% "akka-http" % "10.1.7",
         "io.circe" %% "circe-core" % circeVersion,
         "io.circe" %% "circe-generic" % circeVersion,
@@ -65,6 +65,9 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
   .dependsOn(common)
     .settings(
       version := sys.props.getOrElse("build.number","DEV"),
+      mappings in Universal ++= Seq(
+        (baseDirectory.value / "../upload-estimate/upload-estimate") -> "utils/upload-estimate"
+      ),
       dockerPermissionStrategy := DockerPermissionStrategy.Run,
       daemonUserUid in Docker := None,
       daemonUser in Docker := "daemon",
@@ -73,12 +76,21 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       packageName := "manual-media-backup",
       dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
       dockerBaseImage := "openjdk:14-jdk-alpine",
+      libraryDependencies ++= Seq(
+        "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
+        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+        "org.specs2" %% "specs2-core" % "4.5.1" % Test,
+        "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
+        "org.mockito" % "mockito-core" % "2.28.2" % Test
+      ),
+      dockerBaseImage := "openjdk:8-jdk-slim",
       dockerCommands ++= Seq(
+        Cmd("COPY", "/opt/docker/utils/upload-estimate", "/opt/docker/utils/upload-estimate"),
         Cmd("USER","root"), //fix the permissions in the built docker image
-        Cmd("RUN", "chown daemon /opt/docker"),
-        Cmd("RUN", "chmod u+w /opt/docker"),
-        Cmd("RUN", "chmod -R a+x /opt/docker"),
-        Cmd("USER", "daemon")
+//        Cmd("RUN", "chown daemon /opt/docker"),
+//        Cmd("RUN", "chmod u+w /opt/docker"),
+//        Cmd("RUN", "chmod -R a+x /opt/docker"),
+        //Cmd("USER", "daemon")
       )
     )
 

@@ -5,20 +5,23 @@ import java.time.{Instant, LocalDateTime, ZoneOffset, ZonedDateTime}
 import com.om.mxs.client.japi.Attribute
 import org.slf4j.LoggerFactory
 
-case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,Boolean], longValues:Map[String,Long], intValues:Map[String,Int]) {
+case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,Boolean], longValues:Map[String,Long], intValues:Map[String,Int], floatValues:Map[String,Float]) {
   private val logger = LoggerFactory.getLogger(getClass)
 
   /**
     * converts the data to a Seq[com.om.mxs.client.japi.Attribute], suitable for passing to ObjectMatrix API calls
     * @return sequence of Attributes.
     */
-  def toAttributes:Seq[Attribute] = {
+  def toAttributes(filterUnwritable:Boolean=false):Seq[Attribute] = {
+    val longsToWrite = if(filterUnwritable) longValues - "MXFS_ARCHIVE_TIME" else longValues
+    val intsToWrite = if(filterUnwritable) intValues - "MXFS_ARCHMONTH" - "MXFS_ARCHYEAR" - "MXFS_ARCHYEAR" - "MXFS_ARCHDAY" else intValues
+
     stringValues.map(entry=>
-      Option(entry._2).map(realValue=>Attribute.createTextAttribute(entry._1,realValue,true))
+      Option(entry._2).map(realValue=>new Attribute(entry._1,realValue,true))
     ).toSeq.collect({case Some(attrib)=>attrib}) ++
     boolValues.map(entry=>new Attribute(entry._1,entry._2,true)) ++
-    longValues.map(entry=>new Attribute(entry._1, entry._2, true)) ++
-    intValues.map(entry=>new Attribute(entry._1, entry._2, true))
+      longsToWrite.map(entry=>new Attribute(entry._1, entry._2, true)) ++
+      intsToWrite.map(entry=>new Attribute(entry._1, entry._2, true))
   }
 
   /**
@@ -46,13 +49,25 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
       case stringValue:String=>this.copy(stringValues = this.stringValues ++ Map(key->stringValue))
       case intValue:Int=>this.copy(intValues = this.intValues ++ Map(key->intValue))
       case longValue:Long=>this.copy(longValues = this.longValues ++ Map(key->longValue))
+      case floatValue:Float=>this.copy(floatValues = this.floatValues ++ Map(key->floatValue))
       case timeValue:ZonedDateTime=>this.copy(longValues = this.longValues ++ Map(key->timeValue.toInstant.toEpochMilli))
       case timeValue:LocalDateTime=>this.copy(longValues = this.longValues ++ Map(key->timeValue.toInstant(ZoneOffset.UTC).toEpochMilli))
       case instant:Instant=>this.copy(longValues = this.longValues ++ Map(key->instant.toEpochMilli))
       case _=>
-        logger.warn(s"Could not set key $key to value $value (type ${value.getClass.toGenericString}), type not recognised")
+        val maybeTypeString = Option(value).map(_.getClass.toGenericString)
+        logger.warn(s"Could not set key $key to value $value (type $maybeTypeString), type not recognised")
         this
     }
+  }
+
+  def withoutValue(key:String):MxsMetadata = {
+    this.copy(
+      boolValues = this.boolValues - key,
+      stringValues = this.stringValues - key,
+      intValues = this.intValues - key,
+      longValues = this.longValues - key,
+      floatValues = this.floatValues - key
+    )
   }
 
   def dumpString(fieldNames:Seq[String]) = {
@@ -61,6 +76,7 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
       val maybeBool = boolValues.get(fieldName)
       val maybeLong = longValues.get(fieldName)
       val maybeInt = intValues.get(fieldName)
+      val maybeFloat = floatValues.get(fieldName)
 
       val v = if(maybeString.isDefined){
         maybeString.get
@@ -72,8 +88,10 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
         }
       } else if(maybeLong.isDefined){
         maybeLong.get.toString
-      } else if(maybeInt.isDefined){
+      } else if(maybeInt.isDefined) {
         maybeInt.get.toString
+      } else if(maybeFloat.isDefined) {
+        maybeFloat.get.toString
       } else {
         "(none)"
       }
@@ -86,7 +104,7 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
 }
 
 object MxsMetadata {
-  def empty():MxsMetadata = new MxsMetadata(Map(),Map(),Map(),Map())
-  def apply(stringValues: Map[String, String], boolValues: Map[String, Boolean], longValues: Map[String, Long], intValues: Map[String, Int]): MxsMetadata = new MxsMetadata(stringValues, boolValues, longValues, intValues)
+  def empty():MxsMetadata = new MxsMetadata(Map(),Map(),Map(),Map(),Map())
+  def apply(stringValues: Map[String, String], boolValues: Map[String, Boolean], longValues: Map[String, Long], intValues: Map[String, Int], floatValues:Map[String,Float]): MxsMetadata = new MxsMetadata(stringValues, boolValues, longValues, intValues, floatValues)
 
 }
