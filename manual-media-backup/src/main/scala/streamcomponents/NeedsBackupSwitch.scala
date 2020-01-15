@@ -28,11 +28,13 @@ class NeedsBackupSwitch extends GraphStage[UniformFanOutShape[BackupEntry, Backu
         elem.maybeObjectMatrixEntry.flatMap(_.fileAttribues) match {
           case Some(omAttributes)=>try {
             val f = elem.originalPath.toFile
-            if(f.lastModified()==0L){
-              throw new RuntimeException("File does not exist or an IO error occurred")
+            val fileLastModified: ZonedDateTime = if(f.lastModified()==0L){
+              logger.warn(s"${elem.originalPath} has an invalid modification time, setting it to NOW")
+              ZonedDateTime.now()
+            } else {
+              ZonedDateTime.ofInstant(Instant.ofEpochMilli(f.lastModified()), ZoneId.systemDefault())
             }
 
-            val fileLastModified: ZonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(f.lastModified()), ZoneId.systemDefault())
             val omLastModified = omAttributes.mtime
 
             val maybeBeingWritten:Option[Boolean] = elem.maybeObjectMatrixEntry.flatMap(_.attributes).flatMap(_.boolValues.get("GNM_BEING_WRITTEN"))
