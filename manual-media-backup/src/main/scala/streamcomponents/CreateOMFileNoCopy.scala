@@ -48,8 +48,14 @@ class CreateOMFileNoCopy(userInfo:UserInfo) extends GraphStage[FlowShape[BackupE
                 callCreateObjectWithMetadata(Some(srcFile.getAbsolutePath),srcFile,updatedMeta)
             }) match {
               case Failure(err)=>
-                logger.error("Could not create object: ", err)
-                failStage(err)
+                err match {
+                  case fileio:java.nio.file.NoSuchFileException=>
+                    logger.warn(s"File ${elem.originalPath} appears to not exist any more")
+                    pull(in)
+                  case _=>
+                    logger.error("Could not create object: ", err)
+                    failStage(err)
+                }
               case Success((mxsObject,metadata))=>
                 logger.info(s"Created new object")
                 val entry = ObjectMatrixEntry(mxsObject.getId,Some(metadata),None)
