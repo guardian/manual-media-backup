@@ -9,17 +9,25 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
   private val logger = LoggerFactory.getLogger(getClass)
 
   /**
+    * builds a new Map that does not contain any fields starting with __mxs
+    * @param from map to start from
+    * @tparam T data type of the map values
+    * @return a new Map that does not contain any keys with __mxs
+    */
+  protected def removeInternalFields[T](from:Map[String,T]) = from.foldLeft(Map[String,T]())((acc,elem)=>if(elem._1.startsWith("__mxs")) acc else acc + elem)
+  /**
     * converts the data to a Seq[com.om.mxs.client.japi.Attribute], suitable for passing to ObjectMatrix API calls
     * @return sequence of Attributes.
     */
   def toAttributes(filterUnwritable:Boolean=false):Seq[Attribute] = {
-    val longsToWrite = if(filterUnwritable) longValues - "MXFS_ARCHIVE_TIME" else longValues
-    val intsToWrite = if(filterUnwritable) intValues - "MXFS_ARCHMONTH" - "MXFS_ARCHYEAR" - "MXFS_ARCHYEAR" - "MXFS_ARCHDAY" else intValues
+    val longsToWrite = if(filterUnwritable) removeInternalFields(longValues) - "MXFS_ARCHIVE_TIME" else longValues
+    val intsToWrite = if(filterUnwritable) removeInternalFields(intValues) - "MXFS_ARCHMONTH" - "MXFS_ARCHYEAR" - "MXFS_ARCHYEAR" - "MXFS_ARCHDAY" else intValues
+    val stringsToWrite = if(filterUnwritable) removeInternalFields(stringValues) else stringValues
 
-    stringValues.map(entry=>
+    stringsToWrite.map(entry=>
       Option(entry._2).map(realValue=>new Attribute(entry._1,realValue,true))
     ).toSeq.collect({case Some(attrib)=>attrib}) ++
-    boolValues.map(entry=>new Attribute(entry._1,entry._2,true)) ++
+      boolValues.map(entry=>new Attribute(entry._1,entry._2,true)) ++
       longsToWrite.map(entry=>new Attribute(entry._1, entry._2, true)) ++
       intsToWrite.map(entry=>new Attribute(entry._1, entry._2, true))
   }
