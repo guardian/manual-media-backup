@@ -1,15 +1,22 @@
 package streamcomponents
 
 import java.io.File
+import java.nio.charset.{Charset, StandardCharsets}
 import java.nio.file.Path
-import java.nio.charset.Charset
-import java.nio.charset.StandardCharsets
 
-import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
+import akka.stream.scaladsl.{Flow, GraphDSL}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
+import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import org.slf4j.LoggerFactory
 
 import scala.util.{Success, Try}
+
+object UTF8PathCharset {
+  def apply() = GraphDSL.create() {implicit builder=>
+    val f = builder.add(new UTF8PathCharset)
+    FlowShape(f.in,f.out)
+  }
+}
 
 class UTF8PathCharset extends GraphStage[FlowShape[Path,Path]]{
   private final val in:Inlet[Path] = Inlet.create("UTF8PathCharset.in")

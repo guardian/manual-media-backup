@@ -20,7 +20,7 @@ object BackupEstimateGroup {
 }
 
 /**
-  * actor implementation to manage a cache of filename->metadata mappings
+  * actor implementation to manage a cache of filename->metadata mappings, so it's nice and threadsafe
   */
 class BackupEstimateGroup extends Actor {
   private val logger = LoggerFactory.getLogger(getClass)
