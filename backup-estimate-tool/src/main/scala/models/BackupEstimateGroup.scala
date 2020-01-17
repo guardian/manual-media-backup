@@ -11,7 +11,7 @@ object BackupEstimateGroup {
   trait BEMsg
 
   case class AddToGroup(entry: BackupEstimateEntry) extends BEMsg
-  case class FindEntryFor(fileName:String, mTime:ZonedDateTime)
+  case class FindEntryFor(fileName:String)
   case object QueryContent extends BEMsg
 
   case class ContentReturn(content:Map[Int,Map[Int,Map[Int,Seq[BackupEstimateEntry]]]]) extends BEMsg
@@ -19,27 +19,22 @@ object BackupEstimateGroup {
   case object NotFoundEntry extends BEMsg
 }
 
+/**
+  * actor implementation to manage a cache of filename->metadata mappings
+  */
 class BackupEstimateGroup extends Actor {
   private val logger = LoggerFactory.getLogger(getClass)
   import BackupEstimateGroup._
 
   type MutMap[A,B] = scala.collection.mutable.Map[A,B]
 
-  protected var timeMap:MutMap[Int,MutMap[Int, MutMap[Int, Seq[BackupEstimateEntry]]]] = mutable.Map()
+  protected var fileNameMap:MutMap[String,Seq[BackupEstimateEntry]] = mutable.HashMap()
 
   override def receive: Receive = {
     //add an entry to our datastore
     case AddToGroup(entry)=>
       try {
-        val year = entry.mTime.getYear
-        val existingYear = timeMap.getOrElse(year, mutable.Map())
-        val month = entry.mTime.getMonth.getValue
-        val existingMonth = existingYear.getOrElse(month, mutable.Map())
-        val day = entry.mTime.getDayOfMonth
-        val existingDay = existingMonth.getOrElse(day, Seq())
-
-        val updatedDay = existingDay :+ entry
-        existingMonth(day) = updatedDay
+        fileNameMap(entry.filePath) = fileNameMap.getOrElse(entry.filePath, Seq()) :+ entry
         sender() ! akka.actor.Status.Success
       } catch {
         case err:Throwable=>
@@ -48,13 +43,8 @@ class BackupEstimateGroup extends Actor {
       }
 
     //search the data for a given entry
-    case FindEntryFor(filePath:String, mTime:ZonedDateTime)=>
-      val year = mTime.getYear
-      val month = mTime.getMonth.getValue
-      val day = mTime.getDayOfMonth
-
-      val allResultsForDay = timeMap.get(year).flatMap(_.get(month).flatMap(_.get(day)))
-      val results = allResultsForDay.map(_.filter(_.filePath==filePath)).getOrElse(Seq())
+    case FindEntryFor(filePath:String)=>
+      val results = fileNameMap.getOrElse(filePath, Seq())
 
       if(results.nonEmpty){
         sender() ! FoundEntry(results)
