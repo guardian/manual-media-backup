@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 import scala.collection.JavaConverters._
 import scala.util.{Failure, Success}
 
-class OMFastSearchSource(userInfo:UserInfo, searchTerms:Array[SearchTerm], includeFields:Array[String], atOnce:Int=10) extends GraphStage[SourceShape[ObjectMatrixEntry]] {
+class OMFastSearchSource(userInfo:UserInfo, searchTerms:Array[SearchTerm], includeFields:Array[String], contentSearchBareTerm:Boolean=false, atOnce:Int=10) extends GraphStage[SourceShape[ObjectMatrixEntry]] {
   private final val out:Outlet[ObjectMatrixEntry] = Outlet.create("OMFastSEearchSource.out")
 
   override def shape: SourceShape[ObjectMatrixEntry] = SourceShape.of(out)
@@ -64,7 +64,11 @@ class OMFastSearchSource(userInfo:UserInfo, searchTerms:Array[SearchTerm], inclu
         logger.info(s"Establishing connection to ${userInfo.getVault} on ${userInfo.getAddresses} as ${userInfo.getUser}")
         vault = Some(MatrixStore.openVault(userInfo))
 
-        val finalTerm = SearchTerm.createANDTerm(searchTerms ++ includeFields.map(field=>SearchTerm.createSimpleTerm("__mxs__rtn_attr", field)))
+        val finalTerm = if(contentSearchBareTerm) {
+          searchTerms.head
+        } else {
+          SearchTerm.createANDTerm(searchTerms ++ includeFields.map(field=>SearchTerm.createSimpleTerm("__mxs__rtn_attr", field)))
+        }
         iterator = vault.map(_.searchObjectsIterator(finalTerm, atOnce).asScala)
         logger.info("Connection established")
 

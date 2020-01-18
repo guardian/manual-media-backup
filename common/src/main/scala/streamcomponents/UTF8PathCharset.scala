@@ -9,7 +9,7 @@ import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, Gra
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import org.slf4j.LoggerFactory
 
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 object UTF8PathCharset {
   def apply() = GraphDSL.create() {implicit builder=>
@@ -55,6 +55,9 @@ class UTF8PathCharset extends GraphStage[FlowShape[Path,Path]]{
               logger.debug(s"Fixed path $pathString to $converted")
               push(out, new File(pathString).toPath)
             }
+          case Failure(err)=>
+            logger.error(s"Could not perform UTF8 conversion on $pathString: ", err)
+            failStage(err)
         }
       }
     })

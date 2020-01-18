@@ -354,15 +354,10 @@ object Main {
     val jsonString = content.asJson.noSpaces
     val outputFile = new File(s"${sys.env.getOrElse("HOME","/tmp")}/backup-estimate.json")
     val s = new FileOutputStream(outputFile)
-    try {
-      s.write(jsonString.getBytes("UTF-8"))
-      Success(())
-    } catch {
-      case err:Throwable=>
-        Failure(err)
-    } finally {
-      s.close()
-    }
+
+    val result = Try { s.write(jsonString.getBytes("UTF-8")) }
+    s.close()
+    result
   }
 
   implicit val timeout:akka.util.Timeout = 30 seconds

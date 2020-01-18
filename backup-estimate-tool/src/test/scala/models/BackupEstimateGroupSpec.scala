@@ -20,7 +20,7 @@ class BackupEstimateGroupSpec extends mutable.Specification {
       val testData = BackupEstimateEntry("path/to/something",12345L, ZonedDateTime.of(2020,1,2,3,4,5,0,ZoneId.systemDefault()))
       val result = Await.result(toTest ? BackupEstimateGroup.AddToGroup(testData), 1 second)
 
-      result mustEqual akka.actor.Status.Success
+      result mustEqual ()
     }
 
   }

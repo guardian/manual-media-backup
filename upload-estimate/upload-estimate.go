@@ -17,6 +17,7 @@ import (
 type JsonFormat struct {
 	NeedBackup int `json:"needBackup"`
 	NoBackup   int `json:"noBackup"`
+
 }
 
 type IndexRecord struct {

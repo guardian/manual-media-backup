@@ -12,8 +12,9 @@ object BackupEstimateGroup {
 
   case class AddToGroup(entry: BackupEstimateEntry) extends BEMsg
   case class FindEntryFor(fileName:String)
-  case object QueryContent extends BEMsg
+  case object QuerySize extends BEMsg
 
+  case class SizeReturn(count:Int) extends BEMsg
   case class ContentReturn(content:Map[Int,Map[Int,Map[Int,Seq[BackupEstimateEntry]]]]) extends BEMsg
   case class FoundEntry(entries:Seq[BackupEstimateEntry]) extends BEMsg
   case object NotFoundEntry extends BEMsg
@@ -35,7 +36,7 @@ class BackupEstimateGroup extends Actor {
     case AddToGroup(entry)=>
       try {
         fileNameMap(entry.filePath) = fileNameMap.getOrElse(entry.filePath, Seq()) :+ entry
-        sender() ! akka.actor.Status.Success
+        sender() ! akka.actor.Status.Success( () )
       } catch {
         case err:Throwable=>
           logger.error("Could not update map group: ", err)
@@ -51,5 +52,9 @@ class BackupEstimateGroup extends Actor {
       } else {
         sender() ! NotFoundEntry
       }
+
+    //query how many items are present
+    case QuerySize=>
+      sender() ! SizeReturn(fileNameMap.count(_=>true))
   }
 }
