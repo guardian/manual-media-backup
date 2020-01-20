@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
 
 lazy val `root` = (project in file("."))
     .dependsOn(common)
-    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid, `push-proxies`)
+    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid, `push-proxies`, `backup-estimate-tool`)
 
 lazy val `common` = (project in file("common"))
     .settings(
@@ -60,6 +60,46 @@ lazy val `common` = (project in file("common"))
       unmanagedJars in Compile += file("lib/mxsjapi.jar"),
       unmanagedJars in Compile += file("lib/mxsjapi.jar"),
     )
+
+lazy val `findfilename` = (project in file("find-filename"))
+  .dependsOn(common)
+  .settings(
+    unmanagedJars in Compile += file("lib/mxsjapi.jar"),
+    unmanagedJars in Compile += file("lib/mxsjapi.jar"),
+  )
+
+lazy val `backup-estimate-tool` = (project in file("backup-estimate-tool")).enablePlugins(DockerPlugin, AshScriptPlugin)
+  .dependsOn(common)
+  .settings(
+    version := sys.props.getOrElse("build.number","DEV"),
+    mappings in Universal ++= Seq(
+      (baseDirectory.value / "../upload-estimate/upload-estimate") -> "utils/upload-estimate"
+    ),
+    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    daemonUserUid in Docker := None,
+    daemonUser in Docker := "daemon",
+    dockerUsername  := sys.props.get("docker.username"),
+    packageName in Docker := "guardianmultimedia/manual-media-backup",
+    packageName := "manual-media-backup",
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"backup-estimate-tool",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerBaseImage := "openjdk:14-jdk-alpine",
+    libraryDependencies ++= Seq(
+      "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+      "org.specs2" %% "specs2-core" % "4.5.1" % Test,
+      "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
+      "org.mockito" % "mockito-core" % "2.28.2" % Test
+    ),
+    dockerBaseImage := "openjdk:8-jdk-slim",
+    dockerCommands ++= Seq(
+      Cmd("COPY", "/opt/docker/utils/upload-estimate", "/opt/docker/utils/upload-estimate"),
+      Cmd("USER","root"), //fix the permissions in the built docker image
+      //        Cmd("RUN", "chown daemon /opt/docker"),
+      //        Cmd("RUN", "chmod u+w /opt/docker"),
+      //        Cmd("RUN", "chmod -R a+x /opt/docker"),
+      //Cmd("USER", "daemon")
+    )
+  )
 
 lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins(DockerPlugin,AshScriptPlugin)
   .dependsOn(common)

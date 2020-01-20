@@ -31,35 +31,35 @@ object UserInfoBuilder {
   private val commentRE = "^#".r
   private val splitterRE = "^([^=]+)=(.*)$".r
 
-  def fromFile(filePath:String) = {
-    val src = Source.fromFile(filePath)
-    var builder:UserInfoBuilder = UserInfoBuilder()
+  def fromFile(filePath:String) =
+    Try { Source.fromFile(filePath) }.flatMap(src=> {
+      var builder: UserInfoBuilder = UserInfoBuilder()
 
-    try {
-      for (line <- src.getLines()) {
-        line match {
-          case commentRE(_) =>
-          case splitterRE(key, value) =>
-            logger.debug(s"Got key '$key' with value '$value'")
-            key match {
-              case "cluster" => builder = builder.withCluster(value)
-              case "user" => builder = builder.withUser(value)
-              case "password" => builder = builder.withPassword(value)
-              case "vault" => builder = builder.withVault(value)
-              case "addresses" => builder = builder.withAddresses(value)
-              case "vaultName" => builder = builder.withVaultName(value)
-              case "protocol" => builder = builder.withProtocol(value)
-              case "cluster password" => builder = builder.withClusterPassword(value)
-            }
-          case _=>
-            logger.warn(s"Couldn't interpret line $line")
+      try {
+        for (line <- src.getLines()) {
+          line match {
+            case commentRE(_) =>
+            case splitterRE(key, value) =>
+              logger.debug(s"Got key '$key' with value '$value'")
+              key match {
+                case "cluster" => builder = builder.withCluster(value)
+                case "user" => builder = builder.withUser(value)
+                case "password" => builder = builder.withPassword(value)
+                case "vault" => builder = builder.withVault(value)
+                case "addresses" => builder = builder.withAddresses(value)
+                case "vaultName" => builder = builder.withVaultName(value)
+                case "protocol" => builder = builder.withProtocol(value)
+                case "cluster password" => builder = builder.withClusterPassword(value)
+              }
+            case _ =>
+              logger.warn(s"Couldn't interpret line $line")
+          }
         }
+        builder.getUserInfo
+      } catch {
+        case err: Throwable => Failure(err)
+      } finally {
+        src.close()
       }
-      builder.getUserInfo
-    } catch {
-      case err:Throwable=>Failure(err)
-    } finally {
-      src.close()
-    }
-  }
+    })
 }

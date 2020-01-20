@@ -144,37 +144,5 @@ class NeedsBackupSwitchSpec extends Specification with Mockito {
       result.head mustEqual incomingEntry
     }
 
-    "Fail if the lastModiifiedTime for the filesystem returns as 0" in new AkkaTestkitSpecs2Support {
-      implicit val mat:Materializer = ActorMaterializer.create(system)
-
-      val mockedSourceFile = mock[File]
-      mockedSourceFile.lastModified() returns 0L
-      val mockedSourcePath = mock[Path]
-      mockedSourcePath.toFile returns mockedSourceFile
-
-      val backupTime = ZonedDateTime.of(2019,2,3,4,5,6,0,ZoneId.systemDefault())
-
-      val mockedOMEntry = mock[ObjectMatrixEntry]
-      mockedOMEntry.attributes returns Some(MxsMetadata(Map(),Map("GNM_BEING_WRITTEN"->false),Map(),Map(),Map()))
-      mockedOMEntry.fileAttribues returns Some(FileAttributes("","filename","parent",false,false,true,false,backupTime,backupTime,backupTime,123456L))
-      val incomingEntry = BackupEntry(mockedSourcePath, Some(mockedOMEntry))
-
-      val sink = Sink.seq[BackupEntry]
-      val graph = GraphDSL.create(sink) { implicit builder=> sink=>
-        val src = Source.single(incomingEntry)
-        val switch = builder.add(new NeedsBackupSwitch)
-        val ignoreSink = Sink.ignore
-
-        src ~> switch
-        switch.out(0) ~> ignoreSink
-        switch.out(1) ~> sink
-        ClosedShape
-      }
-
-      def theTest {
-        Await.result(RunnableGraph.fromGraph(graph).run(), 3 seconds)
-      }
-      theTest must throwA[RuntimeException]("File does not exist or an IO error occurred")
-    }
   }
 }

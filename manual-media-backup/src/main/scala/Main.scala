@@ -157,42 +157,6 @@ object Main {
     }
   }
 
-  /**
-    * builds a graph that counts how many files need to be backed up in a fill backup
-    * @param startingPath java.nio.Path indicating the path which needs to be recursively backed up
-    * @param userInfo UserInfo instance indicating the OM appliance and vault which the backup will be performed to
-    * @return a Graph that materializes an instance of CounterData. count1 represents the files that need backup and count2 represents the files that don't.
-    */
-  def fullBackupEstimateGraph(startingPath:Path, userInfo:UserInfo, excludeListFile:Option[String]) = {
-    val sinkFac = new MultiPortCounter[BackupEntry](2)
-    val checkOMFileFactory = new CheckOMFile(userInfo)
-    val needsBackupFactory = new NeedsBackupSwitch
-
-    GraphDSL.create(sinkFac) { implicit builder=> sink=>
-      import akka.stream.scaladsl.GraphDSL.Implicits._
-      val src = builder.add(FileListSource(startingPath))
-      val dirFilter = builder.add(new FilterOutDirectories)
-      val macFilter = builder.add(new FilterOutMacStuff)
-      val excludeFilter = builder.add(new ExcludeListSwitch(excludeListFile))
-      val pathCharsetConverter = builder.add(new UTF8PathCharset)
-      val existSwitch = builder.add(checkOMFileFactory)
-      val needsBackupSwitch = builder.add(needsBackupFactory)
-      val needsBackupMerger = builder.add(Merge[BackupEntry](2))
-
-      src ~> dirFilter ~> pathCharsetConverter ~> macFilter ~> excludeFilter
-      excludeFilter.out.map(path=>BackupEntry(path)) ~> existSwitch
-      existSwitch.out(0) ~> needsBackupSwitch       // "yes" branch => file does exist so check if it needs backup
-      existSwitch.out(1) ~> needsBackupMerger         // "no" branch  => file does not exist so it does need backup
-
-      needsBackupSwitch.out(0) ~> needsBackupMerger
-
-      needsBackupMerger.out ~> sink.inlets(0)       //input 0 => needs backup
-      needsBackupSwitch.out(1) ~> sink.inlets(1)    //input 1 => does not need backup
-
-      ClosedShape
-    }
-  }
-
   def copyToRemoteGraph(fileFilterFactory:FilesFilter, copierFactory:ListCopyFile[Nothing]) = GraphDSL.create() { implicit builder=>
     import akka.stream.scaladsl.GraphDSL.Implicits._
     val checkfile = builder.add(fileFilterFactory)
@@ -343,28 +307,6 @@ object Main {
     stream.close()
   }
 
-  def writeBackupEstimate(counterData: CounterData) = {
-    import io.circe.generic.auto._
-    import io.circe.syntax._
-
-    val content = Map(
-      "needBackup"->counterData.count1,
-      "noBackup"->counterData.count2
-    )
-    val jsonString = content.asJson.noSpaces
-    val outputFile = new File(s"${sys.env.getOrElse("HOME","/tmp")}/backup-estimate.json")
-    val s = new FileOutputStream(outputFile)
-    try {
-      s.write(jsonString.getBytes("UTF-8"))
-      Success(())
-    } catch {
-      case err:Throwable=>
-        Failure(err)
-    } finally {
-      s.close()
-    }
-  }
-
   implicit val timeout:akka.util.Timeout = 30 seconds
   def main(args:Array[String]):Unit = {
     buildOptionParser.parse(args, Options()) match {
@@ -377,20 +319,9 @@ object Main {
             val vault = MatrixStore.openVault(userInfo)
 
             if(options.everything){
-              if(options.copyFromLocal.isEmpty){
+              if(options.copyFromLocal.isEmpty) {
                 logger.error("Can't perform backup when a starting path is not supplied. Use --copy-from-local to specify a starting path")
                 terminate(1)
-              }
-              if(options.plutoCredentialsProperties.isEmpty){
-                logger.error("You must provide a pluto credentials property file for this operation.")
-                terminate(1)
-              }
-              val plutoCommunicator:ActorRef = getPlutoCommunicator(options.plutoCredentialsProperties.get) match {
-                case Success(comm)=>comm
-                case Failure(err)=>
-                  logger.error(s"Could not set up pluto communicator: ", err)
-                  terminate(2)
-                  throw new RuntimeException("This code should not be reachable")
               }
 
               val startPath = new File(options.copyFromLocal.get)
@@ -400,23 +331,21 @@ object Main {
               }
 
               if(options.onlyEstimate){
-                logger.info("Counting total files for backup...")
-                val estimateGraph = fullBackupEstimateGraph(startPath.toPath, userInfo, options.excludePathsFile)
-                val resultFuture = RunnableGraph.fromGraph(estimateGraph).run().future
-                resultFuture.onComplete({
-                  case Success(countData)=>
-                    logger.info(s"Full backup estimate: ${countData.count1} files need backing up and ${countData.count2} files don't need backing up")
-                    writeBackupEstimate(countData) match {
-                      case Success(_)=>logger.info(s"Wrote backup estimate json")
-                      case Failure(err)=>logger.error(s"Could not write estimate json: ", err)
-                    }
-                    terminate(0)
-                  case Failure(err)=>
-                    logger.error("Could not run backup estimate: ", err)
-                    terminate(1)
-                })
+                logger.error("This option is deprecated, please run backup-estimate-tool instead")
+                terminate(2)
               } else {
                 logger.info("Verifying pluto connection...")
+                if(options.plutoCredentialsProperties.isEmpty){
+                  logger.error("You must provide a pluto credentials property file for this operation.")
+                  terminate(1)
+                }
+                val plutoCommunicator:ActorRef = getPlutoCommunicator(options.plutoCredentialsProperties.get) match {
+                  case Success(comm)=>comm
+                  case Failure(err)=>
+                    logger.error(s"Could not set up pluto communicator: ", err)
+                    terminate(2)
+                    throw new RuntimeException("This code should not be reachable")
+                }
                 //blocking here is NOT a sin, because we need to wait for this to complete anyway before other threads kick in
                 Await.result((plutoCommunicator ? TestConnection).mapTo[AFHMsg], 30 seconds) match {
                   case LookupFailed=>
