@@ -1,4 +1,4 @@
-import java.io.File
+import java.io.{File, FileOutputStream}
 import java.nio.file.Path
 import java.time.{Instant, ZoneId, ZonedDateTime}
 
@@ -13,7 +13,7 @@ import streamcomponents.{BackupEstimateGroupSink, ExcludeListSwitch, FileListSou
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 import scala.concurrent.duration._
 
 object Main {
@@ -24,7 +24,6 @@ object Main {
 
   val estimateActor = system.actorOf(Props(classOf[BackupEstimateGroup]))
 
-
   def buildOptionParser = new scopt.OptionParser[Options]("backup-estimate-tool") {
     head("backup-estimate-tool","1.x")
 
@@ -33,6 +32,24 @@ object Main {
     opt[String]("report-path").action((x,c)=>c.copy(reportOutputFile = Some(x))).text("Writable path to output a backup report to")
     opt[String]("exclude-paths-file").action((x,c)=>c.copy(excludePathsFile=Some(x))).text("A Json file that gives an array of filepaths to exclude as regexes")
     opt[Int]("matching-parallelism").action((x,c)=>c.copy(matchParallel = x)).text("How many parallel processes to run when cross-referencing matches")
+  }
+
+  /**
+    * write out determined data as a JSON file
+    * @param counterData
+    * @return
+    */
+  def writeBackupEstimate(counterData: FinalEstimate) = {
+    import io.circe.generic.auto._
+    import io.circe.syntax._
+
+    val jsonString = counterData.asJson.noSpaces
+    val outputFile = new File(s"${sys.env.getOrElse("HOME","/tmp")}/backup-estimate.json")
+    val s = new FileOutputStream(outputFile)
+
+    val result = Try { s.write(jsonString.getBytes("UTF-8")) }
+    s.close()
+    result
   }
 
   /**
@@ -182,6 +199,10 @@ object Main {
                   case Success(finalEstimate) =>
                     logger.info(s"Final estimate results: ${finalEstimate.needsBackupSize} b comprising of ${finalEstimate.needsBackupCount} files need backing up")
                     logger.info(s"${finalEstimate.noBackupSize} b conmprising of ${finalEstimate.noBackupCount} files do not need backing up")
+                    writeBackupEstimate(finalEstimate) match {
+                      case Success(_)=>logger.info(s"Wrote backup estimate json")
+                      case Failure(err)=>logger.error(s"Could not write estimate json: ", err)
+                    }
                     system.terminate()
                   case Failure(err) =>
                     logger.error(s"Backup estimate process failed: ", err)

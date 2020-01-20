@@ -15,14 +15,17 @@ import (
 )
 
 type JsonFormat struct {
-	NeedBackup int `json:"needBackup"`
-	NoBackup   int `json:"noBackup"`
-
+	NeedBackup int `json:"needsBackupCount"`
+	NeedBackupSize int64 `json:"needsBackupSize"`
+	NoBackup   int `json:"noBackupCount"`
+	NoBackupSize int64 `json:"noBackupSize"`
 }
 
 type IndexRecord struct {
-	NeedBackup int       `json:"needBackup"`
-	NoBackup   int       `json:"noBackup"`
+	NeedBackup int       `json:"needsBackupCount"`
+	NoBackup   int       `json:"noBackupCount"`
+	NeedBackupSize int64 `json:"needsBackupSize"`
+	NoBackupSize int64 `json:"noBackupSize"`
 	Timestamp  time.Time `json:"timestamp"`
 }
 
@@ -38,6 +41,8 @@ func MakeIndexRecord(fromData *JsonFormat) (IndexRecord, string) {
 	return IndexRecord{
 		NeedBackup: fromData.NeedBackup,
 		NoBackup:   fromData.NoBackup,
+		NeedBackupSize: fromData.NeedBackupSize,
+		NoBackupSize: fromData.NoBackupSize,
 		Timestamp:  time.Now(),
 	}, strconv.FormatInt(time.Now().UnixNano(), 10)
 }
