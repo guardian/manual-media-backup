@@ -9,7 +9,7 @@ import com.om.mxs.client.japi.{Constants, SearchTerm, UserInfo}
 import models.BackupEstimateGroup.{BEMsg, FoundEntry, NotFoundEntry, SizeReturn}
 import models.{BackupEstimateEntry, BackupEstimateGroup, EstimateCounter, FinalEstimate}
 import org.slf4j.LoggerFactory
-import streamcomponents.{BackupEstimateGroupSink, FileListSource, OMFastSearchSource, UTF8PathCharset}
+import streamcomponents.{BackupEstimateGroupSink, ExcludeListSwitch, FileListSource, FilterOutDirectories, FilterOutMacStuff, OMFastSearchSource, UTF8PathCharset}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -30,6 +30,9 @@ object Main {
 
     opt[String]("vault-file").action((x,c)=>c.copy(vaultFile = x)).text(".vault file from MatrixStoreAdmin describing the vault to target")
     opt[String]("local-path").action((x,c)=>c.copy(localPath = x)).text("local path to scan")
+    opt[String]("report-path").action((x,c)=>c.copy(reportOutputFile = Some(x))).text("Writable path to output a backup report to")
+    opt[String]("exclude-paths-file").action((x,c)=>c.copy(excludePathsFile=Some(x))).text("A Json file that gives an array of filepaths to exclude as regexes")
+    opt[Int]("matching-parallelism").action((x,c)=>c.copy(matchParallel = x)).text("How many parallel processes to run when cross-referencing matches")
   }
 
   /**
@@ -37,9 +40,12 @@ object Main {
     * @param startAt path to start from
     * @return
     */
-  def getFileSystemContent(startAt:Path) = {
+  def getFileSystemContent(startAt:Path, excludeListFile:Option[String]) = {
     FileListSource(startAt)
+      .via(new FilterOutDirectories)
       .via(UTF8PathCharset())
+      .via(new FilterOutMacStuff)
+      .via(new ExcludeListSwitch(excludeListFile))
       .map(_.toFile).async
       .filter(_.exists())
       .map(file=>BackupEstimateEntry(file.getAbsolutePath,
@@ -58,7 +64,7 @@ object Main {
     * @return a Future that resolves when the stream has completed
     */
   def getObjectMatrixContent(userInfo:UserInfo) = {
-    //if MXFS_FILENAME is first in the list we don't get it :(
+    //we don't seem to get whatever field is first in the list :(
     val searchTerm = SearchTerm.createSimpleTerm(Constants.CONTENT, "*\nkeywords: __mxs__id,__mxs__location,MXFS_FILENAME,DPSP_SIZE,MXFS_MODIFICATION_TIME\n")
     val interestingFields = Array("MXFS_FILENAME","DPSP_SIZE","MXFS_MODIFICATION_TIME")
     val sinkFact = Sink.ignore
@@ -94,35 +100,41 @@ object Main {
     import akka.pattern.ask
     implicit val timeout:akka.util.Timeout = 5 seconds
 
-    logger.info(s"Starting crossmatch process...")
-    Source.fromIterator(()=>checkList.toIterator)
-      .mapAsyncUnordered(10)(entry=>(estimateActor ? BackupEstimateGroup.FindEntryFor(entry.filePath)).mapTo[BEMsg].map({
-        case FoundEntry(entries)=>
-          if(entries.length>1){
-            logger.warn(s"Found ${entries.length} entries for ${entry.filePath}")
-          }
-          val potentialBackups = entries.filter(_.mTime==entry.mTime).filter(_.size==entry.size)
-          if(potentialBackups.nonEmpty){
-            logger.debug(s"Entry $entry matched ${potentialBackups.head} and ${potentialBackups.tail.length} others")
-            EstimateCounter(None,Some(entry.size))
-          } else {
-            logger.debug(s"Entry $entry matched nothing")
-            EstimateCounter(Some(entry.size),None)
-          }
-        case NotFoundEntry=>
-          EstimateCounter(Some(entry.size),None)
-      }))
-      .toMat(Sink.fold[FinalEstimate, EstimateCounter](FinalEstimate.empty)((acc,elem)=>{
-        if(elem.needsBackupSize.isDefined){
-          acc.copy(needsBackupCount = acc.needsBackupCount+1,needsBackupSize = acc.needsBackupSize+elem.needsBackupSize.get)
-        } else if(elem.noBackupSize.isDefined){
-          acc.copy(noBackupCount = acc.noBackupCount+1,noBackupSize = acc.noBackupSize+elem.noBackupSize.get)
-        }else {
-          logger.error(s"Got element with nothing defined for needs backup *and* no backup, this should not happen")
-          throw new RuntimeException("Unexpected element in counter, see logs")
-        }
-      }))(Keep.right)
-      .run()
+    (estimateActor ? BackupEstimateGroup.DumpContent).flatMap({
+      case contentImg:Map[String,Seq[BackupEstimateEntry]] => //the framework drops the surrounding "success" message
+        logger.info(s"Starting crossmatch process...")
+        Source.fromIterator(() => checkList.toIterator)
+          .mapAsyncUnordered(10)(entry=>Future {
+            contentImg.get(entry.filePath) match {
+              case None=>
+                logger.info(s"Entry $entry had no matches")
+                EstimateCounter(Some(entry.size),None)
+              case Some(potentialBackups)=>
+                val matches = potentialBackups.filter(_.size==entry.size)
+                if(matches.nonEmpty){
+                  logger.debug(s"Entry $entry matched ${matches.head} and ${matches.tail.length} others")
+                  EstimateCounter(None, Some(entry.size))
+                } else {
+                  logger.debug(s"Entry $entry matched nothing out of $potentialBackups")
+                  EstimateCounter(Some(entry.size), None)
+                }
+            }
+          })
+          .toMat(Sink.fold[FinalEstimate, EstimateCounter](FinalEstimate.empty)((acc, elem) => {
+            if (elem.needsBackupSize.isDefined) {
+              acc.copy(needsBackupCount = acc.needsBackupCount + 1, needsBackupSize = acc.needsBackupSize + elem.needsBackupSize.get)
+            } else if (elem.noBackupSize.isDefined) {
+              acc.copy(noBackupCount = acc.noBackupCount + 1, noBackupSize = acc.noBackupSize + elem.noBackupSize.get)
+            } else {
+              logger.error(s"Got element with nothing defined for needs backup *and* no backup, this should not happen")
+              throw new RuntimeException("Unexpected element in counter, see logs")
+            }
+          }))(Keep.right)
+          .run()
+      case wrongMsg @ _=>
+        logger.error(s"Got an unexpected message from BackupEstimateGroup: $wrongMsg")
+        Future.failed(new RuntimeException("Got an unexpected message from BackupEstimateGroup"))
+    })
   }
 
   def main(args: Array[String]): Unit = {
@@ -144,32 +156,40 @@ object Main {
             })
           case Success(userInfo)=>
             logger.info(s"Starting file scan from ${opts.localPath}....")
-            val fileScanFuture = getFileSystemContent(new File(opts.localPath).toPath)
-
-            logger.info(s"Starting remote scan from ${opts.vaultFile}...")
-            val vaultScanFuture = getObjectMatrixContent(userInfo)
-
-            Future.sequence(Seq(fileScanFuture, vaultScanFuture))
-            .flatMap(results=>{
-              (estimateActor ? BackupEstimateGroup.QuerySize).mapTo[SizeReturn].flatMap(sizeRtn=>{
-                //remote content is held in the actor at estimateActor. This is to quickly access it via maps.
-                val localContentSeq = results.head.asInstanceOf[Seq[BackupEstimateEntry]]
-                logger.info(s"Completed remote and local file scans. Got ${localContentSeq.length} local entries and $sizeRtn remote entries")
-
-                performCrossMatch(localContentSeq)
+            val startPathFile = new File(opts.localPath)
+            if(!startPathFile.exists()){
+              logger.error(s"Could not find the starting path $startPathFile")
+              system.terminate().andThen({
+                case _=>sys.exit(3)
               })
-            })
-            .onComplete({
-              case Success(finalEstimate)=>
-                logger.info(s"Final estimate results: ${finalEstimate.needsBackupSize} b comprising of ${finalEstimate.needsBackupCount} files need backing up")
-                logger.info(s"${finalEstimate.noBackupSize} b conmprising of ${finalEstimate.noBackupCount} files do not need backing up")
-                system.terminate()
-              case Failure(err)=>
-                logger.error(s"Backup estimate process failed: ", err)
-                system.terminate().andThen({
-                  case _=>sys.exit(1)
+            } else {
+              val fileScanFuture = getFileSystemContent(startPathFile.toPath, opts.excludePathsFile)
+
+              logger.info(s"Starting remote scan from ${opts.vaultFile}...")
+              val vaultScanFuture = getObjectMatrixContent(userInfo)
+
+              Future.sequence(Seq(fileScanFuture, vaultScanFuture))
+                .flatMap(results => {
+                  (estimateActor ? BackupEstimateGroup.QuerySize).mapTo[SizeReturn].flatMap(sizeRtn => {
+                    //remote content is held in the actor at estimateActor. This is to quickly access it via maps.
+                    val localContentSeq = results.head.asInstanceOf[Seq[BackupEstimateEntry]]
+                    logger.info(s"Completed remote and local file scans. Got ${localContentSeq.length} local entries and $sizeRtn remote entries")
+
+                    performCrossMatch(localContentSeq)
+                  })
                 })
-            })
+                .onComplete({
+                  case Success(finalEstimate) =>
+                    logger.info(s"Final estimate results: ${finalEstimate.needsBackupSize} b comprising of ${finalEstimate.needsBackupCount} files need backing up")
+                    logger.info(s"${finalEstimate.noBackupSize} b conmprising of ${finalEstimate.noBackupCount} files do not need backing up")
+                    system.terminate()
+                  case Failure(err) =>
+                    logger.error(s"Backup estimate process failed: ", err)
+                    system.terminate().andThen({
+                      case _ => sys.exit(1)
+                    })
+                })
+            }
         }
     }
   }

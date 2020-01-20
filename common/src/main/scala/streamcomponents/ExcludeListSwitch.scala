@@ -2,8 +2,8 @@ package streamcomponents
 
 import java.nio.file.Path
 
-import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
+import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import org.slf4j.LoggerFactory
 
 /**

@@ -57,4 +57,21 @@ class BackupEstimateGroupSpec extends mutable.Specification {
       result mustEqual BackupEstimateGroup.NotFoundEntry
     }
   }
+
+  "BackupEstimateGroup ? DumpContent" should {
+    "return an immutable copy of the content" in new AkkaTestkitSpecs2Support {
+      val toTest = system.actorOf(Props(classOf[BackupEstimateGroup]))
+
+      val testData = BackupEstimateEntry("path/to/something",12345L, ZonedDateTime.of(2020,1,2,3,4,5,0,ZoneId.systemDefault()))
+      Await.ready(toTest ? BackupEstimateGroup.AddToGroup(testData), 1 second)
+      val testData2 = BackupEstimateEntry("path/to/something_else",12345L, ZonedDateTime.of(2020,1,2,3,4,5,0,ZoneId.systemDefault()))
+      Await.ready(toTest ? BackupEstimateGroup.AddToGroup(testData2), 1 second)
+      val testData3 = BackupEstimateEntry("path/to/something_more",12345L, ZonedDateTime.of(2020,1,2,3,4,5,0,ZoneId.systemDefault()))
+      Await.ready(toTest ? BackupEstimateGroup.AddToGroup(testData3), 1 second)
+
+      val result = Await.result((toTest ? BackupEstimateGroup.DumpContent), 1 second)
+      result must beAnInstanceOf[Map[String, Seq[BackupEstimateEntry]]]
+      1 mustEqual 1
+    }
+  }
 }

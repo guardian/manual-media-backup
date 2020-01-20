@@ -16,7 +16,7 @@
     <logger name="Copier$" level="DEBUG"/>
     <logger name="streamcomponents" level="INFO"/>
     <logger name="streamcomponents.ExcludeListSwitch" level="ERROR"/>
-    <logger name="streamcomponents.OMFastSearchSource" level="DEBUG"/>
+    <logger name="streamcomponents.OMFastSearchSource" level="INFO"/>
 
     <logger name="helpers.PlutoCommunicator" level="INFO"/>
 

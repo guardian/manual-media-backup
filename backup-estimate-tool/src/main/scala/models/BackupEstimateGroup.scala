@@ -13,6 +13,7 @@ object BackupEstimateGroup {
   case class AddToGroup(entry: BackupEstimateEntry) extends BEMsg
   case class FindEntryFor(fileName:String)
   case object QuerySize extends BEMsg
+  case object DumpContent extends BEMsg
 
   case class SizeReturn(count:Int) extends BEMsg
   case class ContentReturn(content:Map[Int,Map[Int,Map[Int,Seq[BackupEstimateEntry]]]]) extends BEMsg
@@ -53,6 +54,9 @@ class BackupEstimateGroup extends Actor {
         sender() ! NotFoundEntry
       }
 
+      //return an immutable map of the content
+    case DumpContent=>
+      sender() ! akka.actor.Status.Success(fileNameMap.toMap)
     //query how many items are present
     case QuerySize=>
       sender() ! SizeReturn(fileNameMap.count(_=>true))
