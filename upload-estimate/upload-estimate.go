@@ -15,18 +15,18 @@ import (
 )
 
 type JsonFormat struct {
-	NeedBackup int `json:"needsBackupCount"`
+	NeedBackup     int   `json:"needsBackupCount"`
 	NeedBackupSize int64 `json:"needsBackupSize"`
-	NoBackup   int `json:"noBackupCount"`
-	NoBackupSize int64 `json:"noBackupSize"`
+	NoBackup       int   `json:"noBackupCount"`
+	NoBackupSize   int64 `json:"noBackupSize"`
 }
 
 type IndexRecord struct {
-	NeedBackup int       `json:"needsBackupCount"`
-	NoBackup   int       `json:"noBackupCount"`
-	NeedBackupSize int64 `json:"needsBackupSize"`
-	NoBackupSize int64 `json:"noBackupSize"`
-	Timestamp  time.Time `json:"timestamp"`
+	NeedBackup     int       `json:"needsBackupCount"`
+	NoBackup       int       `json:"noBackupCount"`
+	NeedBackupSize int64     `json:"needsBackupSize"`
+	NoBackupSize   int64     `json:"noBackupSize"`
+	Timestamp      time.Time `json:"timestamp"`
 }
 
 /**
@@ -39,18 +39,18 @@ returns:
 */
 func MakeIndexRecord(fromData *JsonFormat) (IndexRecord, string) {
 	return IndexRecord{
-		NeedBackup: fromData.NeedBackup,
-		NoBackup:   fromData.NoBackup,
+		NeedBackup:     fromData.NeedBackup,
+		NoBackup:       fromData.NoBackup,
 		NeedBackupSize: fromData.NeedBackupSize,
-		NoBackupSize: fromData.NoBackupSize,
-		Timestamp:  time.Now(),
+		NoBackupSize:   fromData.NoBackupSize,
+		Timestamp:      time.Now(),
 	}, strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
 /**
 return the default filename as expected from manual-media-backup
 
- */
+*/
 func GetDefaultFilename() string {
 	var basePath = os.Getenv("HOME")
 	if basePath == "" {
@@ -61,7 +61,7 @@ func GetDefaultFilename() string {
 
 /**
 establish a connection to ElasticSearch. Terminates if no connection can be established
- */
+*/
 func connectToES(elasticUrlPtr *string) *elasticsearch.Client {
 	cfg := elasticsearch.Config{
 		Addresses: []string{
@@ -84,7 +84,7 @@ arguments:
 returns:
  - a pointer to a JsonFormat object on success or nil on failure
  - nil on success or an error object on failure
- */
+*/
 func LoadFile(fileNamePtr *string) (*JsonFormat, error) {
 	var content JsonFormat
 	f, openErr := os.Open(*fileNamePtr)
