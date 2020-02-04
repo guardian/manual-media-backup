@@ -273,3 +273,36 @@ lazy val `showmxschecksum` = (project in file("show-mxs-checksum")).enablePlugin
       "org.mockito" % "mockito-core" % "2.28.2" % Test,
     )
   )
+
+lazy val `checksum-validation-tool` = (project in file("checksum-validation-tool")).enablePlugins(DockerPlugin, AshScriptPlugin)
+  .dependsOn(common)
+  .settings(
+    version := sys.props.getOrElse("build.number","DEV"),
+    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    daemonUserUid in Docker := None,
+    daemonUser in Docker := "daemon",
+    dockerUsername  := sys.props.get("docker.username"),
+    packageName in Docker := "guardianmultimedia/checksum-validation-tool",
+    packageName := "checksum-validation-tool",
+    dockerBaseImage := "openjdk:14-jdk-alpine",
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"checksum-validation-tool",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerCommands ++= Seq(
+      Cmd("USER","root"), //fix the permissions in the built docker image
+      Cmd("RUN", "chown daemon /opt/docker"),
+      Cmd("RUN", "chmod u+w /opt/docker"),
+      Cmd("RUN", "chmod -R a+x /opt/docker"),
+      Cmd("USER", "daemon")
+    ),
+    libraryDependencies ++=Seq(
+      "com.typesafe.akka" %% "akka-stream" % akkaVersion,
+      "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
+      "com.typesafe.akka" %% "akka-http" % "10.1.7",
+      "commons-codec" % "commons-codec" % "1.12",
+      "commons-io" % "commons-io" % "2.6",
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "org.specs2" %% "specs2-core" % "4.5.1" % Test,
+      "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
+      "org.mockito" % "mockito-core" % "2.28.2" % Test,
+    )
+  )

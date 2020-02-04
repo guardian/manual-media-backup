@@ -21,7 +21,7 @@ import scala.concurrent.{Await, Future}
 
 object Main {
   private val logger = LoggerFactory.getLogger(getClass)
-  private implicit val actorSystem = ActorSystem("objectmatrix-test")
+  private implicit val actorSystem = ActorSystem("manual-media-backup")
   private implicit val mat:Materializer = ActorMaterializer.create(actorSystem)
 
   /**
