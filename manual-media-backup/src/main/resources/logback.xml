@@ -19,6 +19,7 @@
     <logger name="streamcomponents.OMCommitMetadata" level="DEBUG"/>
     <logger name="streamcomponents.CheckOMFile" level="DEBUG"/>
     <logger name="streamcomponents.GatherMetadata" level="ERROR"/>
+    <logger name="helpers.MatrixStoreHelper" level="DEBUG"/>
 <!--    <logger name="streamcomponents.CheckOMFile" level="DEBUG"/>-->
 
     <logger name="helpers.PlutoCommunicator" level="INFO"/>
