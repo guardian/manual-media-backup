@@ -19,7 +19,6 @@
           <root url="jar://$MODULE_DIR$/../../common/lib/mxsjapi.jar!/" />
           <root url="jar://$MODULE_DIR$/../../common/lib/oncrpc.jar!/" />
           <root url="jar://$MODULE_DIR$/../../lib/mxsjapi.jar!/" />
-          <root url="jar://$MODULE_DIR$/../../lib/oncrpc.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

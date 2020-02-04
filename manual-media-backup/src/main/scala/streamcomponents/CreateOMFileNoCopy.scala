@@ -45,6 +45,7 @@ class CreateOMFileNoCopy(userInfo:UserInfo) extends GraphStage[FlowShape[BackupE
                   .withString("MXFS_PATH",srcFile.getAbsolutePath)
                   .withString("MXFS_FILENAME", srcFile.getName)
                   .withString("MXFS_FILENAME_UPPER", srcFile.getName.toUpperCase)
+                logger.debug(s"Creating new objectmatrix file for ${srcFile.toString}")
                 callCreateObjectWithMetadata(Some(srcFile.getAbsolutePath),srcFile,updatedMeta)
             }) match {
               case Failure(err)=>
@@ -57,7 +58,7 @@ class CreateOMFileNoCopy(userInfo:UserInfo) extends GraphStage[FlowShape[BackupE
                     failStage(err)
                 }
               case Success((mxsObject,metadata))=>
-                logger.info(s"Created new object")
+                logger.info(s"Created new object with the ID ${mxsObject.getId}")
                 val entry = ObjectMatrixEntry(mxsObject.getId,Some(metadata),None)
                 val updated = elem.copy(maybeObjectMatrixEntry = Some(entry))
                 push(out, updated)

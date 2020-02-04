@@ -16,7 +16,8 @@
     <logger name="Copier$" level="DEBUG"/>
     <logger name="streamcomponents" level="INFO"/>
     <logger name="streamcomponents.ExcludeListSwitch" level="ERROR"/>
-    <logger name="streamcomponents.OMCommitMetadata" level="ERROR"/>
+    <logger name="streamcomponents.OMCommitMetadata" level="DEBUG"/>
+    <logger name="streamcomponents.CheckOMFile" level="DEBUG"/>
     <logger name="streamcomponents.GatherMetadata" level="ERROR"/>
 <!--    <logger name="streamcomponents.CheckOMFile" level="DEBUG"/>-->
 

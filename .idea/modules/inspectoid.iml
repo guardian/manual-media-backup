@@ -13,6 +13,17 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="common" exported="" />
+    <orderEntry type="module-library">
+      <library name="sbt: unmanaged-jars">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/../../common/lib/mxsjapi.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../common/lib/oncrpc.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../lib/mxsjapi.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-stream_2.12:2.5.23:jar" level="project" />
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-protobuf_2.12:2.5.23:jar" level="project" />
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-actor_2.12:2.5.23:jar" level="project" />
@@ -45,16 +56,5 @@
     <orderEntry type="library" name="sbt: com.chuusai:shapeless_2.12:2.3.3:jar" level="project" />
     <orderEntry type="library" name="sbt: ch.qos.logback:logback-core:1.2.3:jar" level="project" />
     <orderEntry type="library" name="sbt: ch.qos.logback:logback-classic:1.2.3:jar" level="project" />
-    <orderEntry type="module-library">
-      <library name="sbt: unmanaged-jars">
-        <CLASSES>
-          <root url="jar://$MODULE_DIR$/../../common/lib/mxsjapi.jar!/" />
-          <root url="jar://$MODULE_DIR$/../../common/lib/oncrpc.jar!/" />
-          <root url="jar://$MODULE_DIR$/../../lib/mxsjapi.jar!/" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-      </library>
-    </orderEntry>
   </component>
 </module>

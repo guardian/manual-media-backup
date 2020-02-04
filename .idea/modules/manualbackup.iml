@@ -15,6 +15,17 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="common" exported="" />
+    <orderEntry type="module-library">
+      <library name="sbt: unmanaged-jars">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/../../common/lib/mxsjapi.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../common/lib/oncrpc.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../lib/mxsjapi.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="library" scope="TEST" name="sbt: com.typesafe.akka:akka-testkit_2.12:2.5.23:jar" level="project" />
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-stream_2.12:2.5.23:jar" level="project" />
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-protobuf_2.12:2.5.23:jar" level="project" />
@@ -63,16 +74,5 @@
     <orderEntry type="library" scope="TEST" name="sbt: org.specs2:specs2-fp_2.12:4.5.1:jar" level="project" />
     <orderEntry type="library" scope="TEST" name="sbt: org.specs2:specs2-matcher_2.12:4.5.1:jar" level="project" />
     <orderEntry type="library" scope="TEST" name="sbt: org.specs2:specs2-mock_2.12:4.5.1:jar" level="project" />
-    <orderEntry type="module-library">
-      <library name="sbt: unmanaged-jars">
-        <CLASSES>
-          <root url="jar://$MODULE_DIR$/../../common/lib/mxsjapi.jar!/" />
-          <root url="jar://$MODULE_DIR$/../../common/lib/oncrpc.jar!/" />
-          <root url="jar://$MODULE_DIR$/../../lib/mxsjapi.jar!/" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-      </library>
-    </orderEntry>
   </component>
 </module>
