@@ -196,7 +196,7 @@ object Main {
 
 
       val search = if(searchTerm.length>0){
-        new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"$searchTerm"""" )
+        new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"${MatrixStoreHelper.santiseFileNameForQuery(searchTerm)}"""" )
       } else {
         new Attribute(Constants.CONTENT, s"*")
       }

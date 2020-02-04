@@ -96,4 +96,21 @@ class MatrixStoreHelperSpec extends Specification with Mockito {
       result must beSuccessfulTry("61646666376432656465363438396334")
     }
   }
+
+  "MatrixStoreHelper.santiseFileNameForQuery" should {
+    "pass through a string with no special chars unchanged" in {
+      val result = MatrixStoreHelper.santiseFileNameForQuery("somesimplenormalfilename.ext")
+      result mustEqual "somesimplenormalfilename.ext"
+    }
+
+    "escape doublequotes" in {
+      val result = MatrixStoreHelper.santiseFileNameForQuery("""file name with \" character""")
+      result mustEqual("""file name with \\\" character""")
+    }
+
+    "escape some other nasties" in {
+      val result = MatrixStoreHelper.santiseFileNameForQuery("path/to/some/extrémely &!|{} wrong filename!!!")
+      result mustEqual "path/to/some/extrémely \\&\\!\\|\\{\\} wrong filename\\!\\!\\!"
+    }
+  }
 }
