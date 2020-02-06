@@ -58,6 +58,7 @@ class CheckOMFile(userInfo:UserInfo) extends GraphStage[UniformFanOutShape[Backu
             if(results.isEmpty) {
               push(no, elem)
             } else {
+              logger.info(s"Got ObjectMatrix file with OID ${results.head.oid}")
               val updatedElem = elem.copy(maybeObjectMatrixEntry = Some(results.head))
               push(yes, updatedElem)
             }

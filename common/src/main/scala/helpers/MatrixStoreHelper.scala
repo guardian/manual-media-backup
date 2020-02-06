@@ -73,6 +73,15 @@ object MatrixStoreHelper {
     ObjectMatrixEntry(parts.head,attributes = Some(mxsMeta), fileAttribues = fileAttributesFromFastSearch(parts.head, kvs))
   }
 
+  //all these characters are illegal in data fields for content search as they are reserved, and need to be escaped via a
+  //backslash prefix.
+  //it looks even worse, because we have to prefix them with a backslash _here_ so that they are not translated in the regex, and in fact need
+  //double-escaping here to escape the escape ::rolleyes::
+  private lazy val sanitiserRegex = """([+&\\|\\(\\)\\{\\}\\[\\]\\^\\!"\\\\~\\*\\?:\\-])""".r
+  def santiseFileNameForQuery(fileName:String):String = {
+    sanitiserRegex.replaceAllIn(fileName,"\\\\$1")
+  }
+
   /**
     * locate files for the given filename, as stored in the metadata. This assumes that one or at most two records will
     * be returned and should therefore be more efficient than using the streaming interface. If many records are expected,
@@ -84,7 +93,7 @@ object MatrixStoreHelper {
   def findByFilename(vault:Vault, fileName:String, includeFields:Seq[String]):Try[Seq[ObjectMatrixEntry]] = Try {
     var finalSeq:Seq[ObjectMatrixEntry] = Seq()
 
-    val baseQueryString = s"""MXFS_FILENAME:"$fileName""""
+    val baseQueryString = s"""MXFS_FILENAME:"${santiseFileNameForQuery(fileName)}""""
     val updatedIncludeFields = includeFields ++ Seq("__mxs__creationTime","__mxs__modifiedTime","__mxs__accessedTime","__mxs__length")
     val queryString = baseQueryString + s"\nkeywords: ${updatedIncludeFields.mkString(",")}"
 

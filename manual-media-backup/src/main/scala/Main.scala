@@ -61,6 +61,7 @@ object Main {
   def fullBackupGraph(startingPath:Path,paralellism:Int, userInfo:UserInfo, chunkSize:Int,
                       checksumType:String, plutoCommunicator:ActorRef,
                       pathDefinitionsFile:String,excludeListFile:Option[String], forceOverwrite:Boolean) = {
+    import akka.stream.scaladsl.GraphDSL.Implicits._
     val copierFactory = new BatchCopyFile(userInfo,checksumType, chunkSize)
     val commitMetaFactory = new OMCommitMetadata(userInfo)
     val clearBeingWrittenFactory = new ClearBeingWritten(userInfo)
@@ -74,8 +75,6 @@ object Main {
     //component graph to check if an item needs backup.
     //has two outlet ports, one for items that do need backing up and one for items that don't
     val itemCheckGraph = GraphDSL.create() { implicit builder=>
-      import akka.stream.scaladsl.GraphDSL.Implicits._
-
       val existSwitch = builder.add(checkOMFileFactory)
       val createEntry = builder.add(createEntryFactory)
 
@@ -93,8 +92,6 @@ object Main {
 
     //simplified version to overwrite an existing entry or create new if it does not exist
     val itemOverwriteStartGraph = GraphDSL.create() {implicit builder=>
-      import akka.stream.scaladsl.GraphDSL.Implicits._
-
       val existSwitch = builder.add(checkOMFileFactory)
       val createEntry = builder.add(createEntryFactory)
       val fileCheckMerger = builder.add(Merge[BackupEntry](2))
@@ -105,8 +102,6 @@ object Main {
     }
 
     val processingGraph = GraphDSL.create() { implicit builder=>
-      import akka.stream.scaladsl.GraphDSL.Implicits._
-
       val getMimeType = builder.add(getMimeFactory)
       val gatherMetadata = builder.add(gatherMetadataFactory)
       val addType = builder.add(addTypeFactory)
@@ -124,7 +119,6 @@ object Main {
     val finalSinkFact = Sink.seq[BackupEntry]
 
     GraphDSL.create(finalSinkFact) {implicit builder=> sink=>
-      import akka.stream.scaladsl.GraphDSL.Implicits._
       val src = builder.add(FileListSource(startingPath))
       val dirFilter = builder.add(new FilterOutDirectories)
       val macFilter = builder.add(new FilterOutMacStuff)
@@ -202,7 +196,7 @@ object Main {
 
 
       val search = if(searchTerm.length>0){
-        new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"$searchTerm"""" )
+        new Attribute(Constants.CONTENT, s"""MXFS_FILENAME:"${MatrixStoreHelper.santiseFileNameForQuery(searchTerm)}"""" )
       } else {
         new Attribute(Constants.CONTENT, s"*")
       }
