@@ -23,14 +23,26 @@ class ValidateMD5[T](vault:Vault, errorOnValidationFailure:Boolean=false) extend
   override def shape: FlowShape[CopyReport[T], CopyReport[T]] = FlowShape.of(in, out)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    private val logger = LoggerFactory.getLogger(getClass)
+    private val logger:org.slf4j.Logger = LoggerFactory.getLogger(getClass)
+
+    val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out,report))
+    val failedCb = createAsyncCallback[Throwable](err=>fail(out, err))
+
+    private var canComplete = true
+    private var upstreamCompleted = false
 
     setHandler(in, new AbstractInHandler {
+      override def onUpstreamFinish(): Unit = {
+        if(canComplete){
+          completeStage()
+        } else {
+          logger.info("Upstream completed but we are not ready yet")
+          upstreamCompleted=true
+        }
+      }
+
       override def onPush(): Unit = {
         val elem = grab(in)
-
-        val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out,report))
-        val failedCb = createAsyncCallback[Throwable](err=>fail(out, err))
 
         val mxsFile = vault.getObject(elem.oid)
 
@@ -38,17 +50,24 @@ class ValidateMD5[T](vault:Vault, errorOnValidationFailure:Boolean=false) extend
           logger.warn(s"Checksums disabled, can't validate output")
           push(out,elem)
         } else {
+          canComplete = false
           MatrixStoreHelper.getOMFileMd5(mxsFile).onComplete({
             case Failure(err) =>
               logger.error(s"getOMFileMd5 crashed: ", err)
               failedCb.invoke(err)
+              canComplete = true
+              if(canComplete) completeStage()
             case Success(Failure(err)) =>
               logger.error(s"Could not get MD5 checksum from matrixstore: ", err)
+              canComplete = true
+              if(canComplete) completeStage()
             case Success(Success(md5)) =>
               logger.info(s"Got checksum $md5 from appliance, vs calculated ${elem.checksum}")
               if (md5.length != elem.checksum.get.length) {
                 logger.error(s"Checksum types differ, this is a misconfiguration")
                 failedCb.invoke(new RuntimeException("Checksum types differ, this is a misconfiguration"))
+                canComplete = true
+                if(canComplete) completeStage()
               } else {
                 if (md5 != elem.checksum.get) {
                   logger.error(s"Checksums do not match!")
@@ -59,6 +78,8 @@ class ValidateMD5[T](vault:Vault, errorOnValidationFailure:Boolean=false) extend
                 } else {
                   completedCb.invoke(elem.copy(validationPassed = Some(true)))
                 }
+                canComplete = true
+                if(canComplete) completeStage()
               }
           }) //getOMFileMd5.onComplete
         } //elem.checksum.isEmpty

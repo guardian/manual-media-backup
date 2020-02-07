@@ -93,13 +93,12 @@ object MatrixStoreHelper {
   def findByFilename(vault:Vault, fileName:String, includeFields:Seq[String]):Try[Seq[ObjectMatrixEntry]] = Try {
     var finalSeq:Seq[ObjectMatrixEntry] = Seq()
 
-    val baseQueryString = s"""MXFS_FILENAME:"${santiseFileNameForQuery(fileName)}""""
     val updatedIncludeFields = includeFields ++ Seq("__mxs__creationTime","__mxs__modifiedTime","__mxs__accessedTime","__mxs__length")
-    val queryString = baseQueryString + s"\nkeywords: ${updatedIncludeFields.mkString(",")}"
 
-    logger.debug(s"querystring is \'$queryString\'")
-    val searchTerm = new Attribute(Constants.CONTENT,queryString)
+    val baseSearch = SearchTerm.createSimpleTerm("MXFS_FILENAME", fileName)
+    val includeTerms = updatedIncludeFields.map(fieldName=>SearchTerm.createSimpleTerm("__mxs__rtn_attr", fieldName))
 
+    val searchTerm = SearchTerm.createANDTerm((baseSearch +: includeTerms).toArray)
     val iterator = vault.searchObjectsIterator(searchTerm, 5).asScala
 
     while(iterator.hasNext){

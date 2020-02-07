@@ -26,29 +26,46 @@ class OMLookupMetadata(userInfo:UserInfo)(implicit mat:Materializer, ec:Executio
     private val logger = LoggerFactory.getLogger(getClass)
     private var vault:Vault = _
 
+    val completeCb = getAsyncCallback[(ObjectMatrixEntry,MxsMetadata,MXFSFileAttributes)](argTuple=>{
+      val updated = argTuple._1.copy(
+        attributes = Some(argTuple._2),
+        fileAttribues = Some(FileAttributes(argTuple._3))
+      )
+      push(out, updated)
+    })
+
+    val failedCb = getAsyncCallback[Throwable](err=>failStage(err))
+
+    private var canComplete = true
+    private var upstreamCompleted = false
+
     setHandler(in, new AbstractInHandler {
+      override def onUpstreamFinish(): Unit = {
+        if(canComplete) {
+          completeStage()
+        } else {
+          logger.info("Upstream completed but we are not ready yet")
+          upstreamCompleted = true
+        }
+      }
       override def onPush(): Unit = {
         val elem=grab(in)
-
-        val completeCb = getAsyncCallback[(ObjectMatrixEntry,MxsMetadata,MXFSFileAttributes)](argTuple=>{
-          val updated = argTuple._1.copy(
-            attributes = Some(argTuple._2),
-            fileAttribues = Some(FileAttributes(argTuple._3))
-          )
-          push(out, updated)
-        })
-
-        val failedCb = getAsyncCallback[Throwable](err=>failStage(err))
 
         try {
           val obj = vault.getObject(elem.oid)
 
+          canComplete = false
+
           MetadataHelper.getAttributeMetadata(obj).onComplete({
             case Success(meta)=>
               completeCb.invoke((elem, meta, MetadataHelper.getMxfsMetadata(obj)))
+              canComplete = true
+              if(upstreamCompleted) completeStage()
             case Failure(exception)=>
               logger.error(s"Could not look up metadata: ", exception)
               failedCb.invoke(exception)
+              canComplete = true
+              if(upstreamCompleted) completeStage()
           })
 
         } catch {

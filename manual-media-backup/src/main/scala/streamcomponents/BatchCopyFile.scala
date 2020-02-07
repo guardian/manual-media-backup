@@ -7,6 +7,7 @@ import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, Gra
 import com.om.mxs.client.japi.{MatrixStore, MxsObject, UserInfo, Vault}
 import helpers.{Copier, MatrixStoreHelper}
 import models.{BackupEntry, BackupStatus}
+import org.apache.commons.io.filefilter.FalseFileFilter
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -64,11 +65,22 @@ class BatchCopyFile (userInfo:UserInfo, checksumType: String, chunkSize:Int, max
     private implicit val logger:org.slf4j.Logger = LoggerFactory.getLogger(getClass)
 
     private var maybeVault:Option[Vault] = None
+    private var canComplete = true
+    private var upstreamCompleted = false
 
     val completedCb = createAsyncCallback[BackupEntry](e=>push(out, e))
     val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
 
     setHandler(in, new AbstractInHandler {
+      override def onUpstreamFinish(): Unit = {
+        if(canComplete) {
+          completeStage()
+        } else {
+          logger.debug("Upstream completed but we are not in a completable state")
+          upstreamCompleted = true
+        }
+      }
+
       override def onPush(): Unit = {
         val elem = grab(in)
 
@@ -86,14 +98,17 @@ class BatchCopyFile (userInfo:UserInfo, checksumType: String, chunkSize:Int, max
             val copyGraph = Copier.createCopyGraph(fileToBackUp, chunkSize*1024, checksumType, mxsObject)
             makeCopy(copyGraph, mxsObject, checksumType).onComplete({
               case Success(applianceChecksum)=> //if we get here either the checksums matched or no checksumming was requested
-                elem.maybeObjectMatrixEntry.get.attributes
                 val updated = elem.copy(applianceChecksum=Some(applianceChecksum), status = BackupStatus.BACKED_UP)
                 completedCb.invoke(updated)
+                canComplete = true
+                if(upstreamCompleted) completeStage()
               case Failure(err)=>
                 logger.error(s"File copy of ${elem.originalPath.toString} failed: ", err)
                 logger.warn(s"Deleting partial or corrupted file for ${elem.originalPath.toString} on destination")
                 mxsObject.delete()
+                canComplete = true
                 failedCb.invoke(err)
+                if(upstreamCompleted) completeStage()
             })
         }
       }
@@ -116,5 +131,6 @@ class BatchCopyFile (userInfo:UserInfo, checksumType: String, chunkSize:Int, max
     override def postStop(): Unit = {
       maybeVault.map(_.dispose())
     }
+
   }
 }

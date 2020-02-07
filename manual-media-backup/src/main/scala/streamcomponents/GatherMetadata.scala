@@ -149,7 +149,17 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
     val completedCb = createAsyncCallback[BackupEntry](e=>push(out,e))
     val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
 
+    private var canComplete = true
+    private var upstreamCompleted = false
+
     setHandler(in, new AbstractInHandler {
+      override def onUpstreamFinish(): Unit = {
+        if(canComplete) completeStage() else {
+          logger.warn("Upstage completed but we are not ready yet")
+          upstreamCompleted = true
+        }
+      }
+
       override def onPush(): Unit = {
         val elem = grab(in)
 
@@ -158,6 +168,7 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
 
         logger.info(s"basePath is $basePath")
 
+        canComplete = false
         val updatedCustomMetaFut = maybeMetadata match {
           case Some(existingMeta)=>
             val currentMeta = if(elem.originalPath.getFileName.toString.startsWith(".")){
@@ -196,9 +207,13 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
               }
             }
             completedCb.invoke(updatedBackupEntry)
+            canComplete = true
+            if(upstreamCompleted) completeStage()
           case Failure(err)=>
             logger.error(s"Could not look up metadata for ${elem.originalPath}: ", err)
             failedCb.invoke(err)
+            canComplete = true
+            if(upstreamCompleted) completeStage()
         })
       }
     })

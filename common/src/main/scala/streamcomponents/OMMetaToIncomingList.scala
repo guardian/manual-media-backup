@@ -59,14 +59,27 @@ class OMMetaToIncomingList (userInfo:UserInfo, log:Boolean=false,logFields:Seq[S
     private val logger = LoggerFactory.getLogger(getClass)
     private implicit var vault:Vault = _
 
-    setHandler(in, new AbstractInHandler {
-      override def onPush(): Unit = {
-        val successCb = createAsyncCallback[IncomingListEntry](entry=>{
-          push(out,entry)
-        })
-        val failureCb = createAsyncCallback[Throwable](err=>failStage(err))
+    val successCb = createAsyncCallback[IncomingListEntry](entry=>{
+      push(out,entry)
+    })
+    val failureCb = createAsyncCallback[Throwable](err=>failStage(err))
 
+    private var canComplete = true
+    private var upstreamCompleted = false
+
+    setHandler(in, new AbstractInHandler {
+      override def onUpstreamFinish(): Unit = {
+        if(canComplete) {
+          completeStage()
+        } else {
+          logger.info("Upstream completed but we are not ready yet")
+          upstreamCompleted = true
+        }
+      }
+
+      override def onPush(): Unit = {
         val elem = grab(in)
+        canComplete = false
         elem.getMetadata.onComplete({
           case Success(updatedEntry)=>
             val path,name = updatedEntry.stringAttribute("MXFS_FILENAME").getOrElse("unknown/unknown")
@@ -87,10 +100,13 @@ class OMMetaToIncomingList (userInfo:UserInfo, log:Boolean=false,logFields:Seq[S
               logger.info(s"${updatedEntry.oid}: ${fieldValuesString.getOrElse("(no metadata)")}")
             }
             successCb.invoke(output)
-
+            if(upstreamCompleted) completeStage()
+            canComplete = true
           case Failure(err)=>
             logger.error("Could not update metadata: ", err)
             failureCb.invoke(err)
+            if(upstreamCompleted) completeStage()
+            canComplete = true
         })
       }
     })

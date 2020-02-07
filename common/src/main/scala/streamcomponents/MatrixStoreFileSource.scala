@@ -19,7 +19,6 @@ class MatrixStoreFileSource(userInfo:UserInfo, sourceId:String, bufferSize:Int=2
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
-    //private var channel:SeekableByteChannel = _
     private var stream:InputStream = _
     private var mxsFile:MxsObject = _
     private var vault:Vault = _
@@ -53,7 +52,6 @@ class MatrixStoreFileSource(userInfo:UserInfo, sourceId:String, bufferSize:Int=2
       mxsFile = vault.getObject(sourceId)
       stream = mxsFile.newInputStream()
 
-      //channel = mxsFile.newSeekableObjectChannel(Set(AccessOption.READ).asJava)
       logger.debug(s"Stream is $stream")
     }
 

@@ -31,33 +31,55 @@ class ListRestoreFile[T](userInfo:UserInfo, vault:Vault,chunkSize:Int, checksumT
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private val logger = LoggerFactory.getLogger(getClass)
 
+    val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out, report))
+    val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
+
+    private var canComplete = true
+    private var upstreamCompleted = false
+
     setHandler(in, new AbstractInHandler {
+      override def onUpstreamFinish(): Unit = {
+        if(canComplete){
+          completeStage()
+        } else {
+          logger.info("Upstream completed but we are not ready yet")
+          upstreamCompleted=true
+        }
+      }
+
       override def onPush(): Unit = {
         logger.debug(s"ListRestoreFile: onPush")
         val entry = grab(in)
 
         logger.info(s"Starting copy of ${entry.oid}")
-        val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out, report))
-        val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
 
         val maybeOutPath = toPath.flatMap(p=>entry.maybeGetFilename().map(fn=>FilenameUtils.concat(p,fn)))
 
         maybeOutPath match {
           case Some(outPath)=>
             //we put the whole restore path into outPath so restorePath is not needed
+            canComplete = false
+
             Copier.copyFromRemote(userInfo, vault, Some(outPath), "", entry, chunkSize, checksumType).onComplete({
               case Success(Right( (filePath,maybeChecksum) ))=>
                 logger.info(s"Copied ${entry.oid} to $outPath")
                 completedCb.invoke(CopyReport[T](filePath, entry.oid, maybeChecksum, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = false, validationPassed = None))
+                canComplete = true
+                if(upstreamCompleted) completeStage()
               case Success(Left(copyProblem))=>
                 logger.warn(s"Could not copy file: $copyProblem")
                 completedCb.invoke(CopyReport[T](copyProblem.filepath.oid, "", None, entry.longAttribute("DPSP_SIZE").getOrElse(-1), preExisting = true, validationPassed = None))
+                canComplete = true
+                if(upstreamCompleted) completeStage()
               case Failure(err)=>
                 logger.info(s"Failed copying $entry", err)
                 failedCb.invoke(err)
+                canComplete = true
+                if(upstreamCompleted) completeStage()
             })
           case None=>
             logger.warn(s"Copying ${entry.oid}: No filename to output the file to ")
+            canComplete = true
             failedCb.invoke(new RuntimeException("No filename to output"))
         }
       }
