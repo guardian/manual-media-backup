@@ -29,7 +29,22 @@ class ListCopyFile[T](userInfo:UserInfo, chunkSize:Int, checksumType:String, imp
 
     private var maybeVault:Option[Vault] = None
 
+    val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out, report))
+    val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
+
+    private var canComplete = true
+    private var upstreamCompleted = false
+
     setHandler(in, new AbstractInHandler {
+      override def onUpstreamFinish(): Unit = {
+        if(canComplete){
+          completeStage()
+        } else {
+          logger.info("Upstream completed but we are not ready yet")
+          upstreamCompleted=true
+        }
+      }
+
       override def onPush(): Unit = {
         logger.debug(s"listCopyFile: onPush")
         val entry = grab(in)
@@ -40,19 +55,24 @@ class ListCopyFile[T](userInfo:UserInfo, chunkSize:Int, checksumType:String, imp
         }
 
         logger.info(s"Starting copy of ${entry.filepath}")
-        val completedCb = createAsyncCallback[CopyReport[T]](report=>push(out, report))
-        val failedCb = createAsyncCallback[Throwable](err=>failStage(err))
+        canComplete = false
 
         Copier.copyFromLocal(userInfo, maybeVault.get, Some(entry.filePath), entry.filepath, chunkSize, checksumType).onComplete({
           case Success(Right( (oid,maybeChecksum) ))=>
             logger.info(s"Copied ${entry.filepath} to $oid")
             completedCb.invoke(CopyReport[T](entry.filePath, oid, maybeChecksum, entry.size, preExisting = false, validationPassed = None))
+            canComplete=true
+            if(upstreamCompleted) completeStage()
           case Success(Left(copyProblem))=>
             logger.warn(s"Could not copy file: $copyProblem")
             completedCb.invoke(CopyReport[T](entry.filePath, copyProblem.filepath.oid, None, entry.size, preExisting = true, validationPassed = None))
+            canComplete=true
+            if(upstreamCompleted) completeStage()
           case Failure(err)=>
             logger.info(s"Failed copying ${entry.filepath}", err)
             failedCb.invoke(err)
+            canComplete=true
+            if(upstreamCompleted) completeStage()
         })
       }
     })
