@@ -18,7 +18,7 @@ class GatherMetadata (plutoCommunicator:ActorRef) extends GraphStage[FlowShape[B
   import helpers.PlutoCommunicator._
   private val logger = LoggerFactory.getLogger(getClass)
 
-  implicit val timeout:akka.util.Timeout = 60 seconds
+  implicit val timeout:akka.util.Timeout = 240 seconds
   private final val in:Inlet[BackupEntry] = Inlet.create("GatherMetadata.in")
   private final val out:Outlet[BackupEntry] = Outlet.create("GatherMetadata.out")
 
