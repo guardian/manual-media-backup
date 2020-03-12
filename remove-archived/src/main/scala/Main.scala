@@ -1,7 +1,9 @@
 import akka.actor.ActorSystem
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer}
 import akka.stream.scaladsl.{Balance, GraphDSL, Merge, RunnableGraph, Sink}
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
+import helpers.TrustStoreHelper
 import models.{ArchiveStatus, ObjectMatrixEntry, PotentialRemoveStreamObject}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ArchiveHunterExists, ArchiveHunterFileSizeSwitch, LocalFileExists, OMFastSearchSource}
@@ -47,6 +49,8 @@ object Main {
       Await.ready(terminate(1), 2 hours)
       throw new RuntimeException("should not get here")
   }
+
+  lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
   def buildStream(userInfo:UserInfo) = {
     import akka.stream.scaladsl.GraphDSL.Implicits._
@@ -115,6 +119,19 @@ object Main {
     }
 
   def main(args: Array[String]): Unit = {
+    if(extraKeyStores.isDefined){
+      logger.info(s"Loading in extra keystores from ${extraKeyStores.get.mkString(",")}")
+      /* this should set the default SSL context to use the stores as well */
+      TrustStoreHelper.setupTS(extraKeyStores.get) match {
+        case Success(sslContext) =>
+          val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
+          Http().setDefaultClientHttpsContext(https)
+        case Failure(err) =>
+          logger.error(s"Could not set up https certs: ", err)
+          System.exit(1)
+      }
+    }
+
     UserInfoBuilder.fromFile(vaultFile) match {
       case Failure(err)=>
         logger.error(s"Could not read vault data from $vaultFile", err)
