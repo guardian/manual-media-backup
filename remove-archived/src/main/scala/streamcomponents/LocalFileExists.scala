@@ -6,6 +6,9 @@ import models.PotentialRemoveStreamObject
 import org.slf4j.LoggerFactory
 import java.io.File
 
+/**
+  * pushes the incoming element to "YES" if a file exists in the same location in the local filesystem, otherwise NO
+  */
 class LocalFileExists extends GraphStage[UniformFanOutShape[PotentialRemoveStreamObject, PotentialRemoveStreamObject ]] {
   private final val in:Inlet[PotentialRemoveStreamObject] = Inlet.create("LocalFileExists.in")
   private final val yes:Outlet[PotentialRemoveStreamObject] = Outlet.create("LocalFileExists.yes")
@@ -25,11 +28,14 @@ class LocalFileExists extends GraphStage[UniformFanOutShape[PotentialRemoveStrea
             logger.warn(s"OM file ${elem.omFile.oid} has no path!")
             pull(in)
           case Some(filepath)=>
+            logger.debug(s"checking filepath $filepath")
             val f = new File(filepath)
             if(f.exists()) {
               push(yes, elem)
+              logger.debug(s"$filepath exists")
             } else {
               push(no, elem)
+              logger.debug(s"$filepath does not exist")
             }
         }
       }

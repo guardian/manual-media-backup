@@ -8,7 +8,7 @@ import streamcomponents.{LocalFileExists, OMFastSearchSource}
 object Main {
   def buildStream(userInfo:UserInfo) = {
     val terms = Array(SearchTerm.createSimpleTerm(Constants.CONTENT,"*"))
-    val includeFields = Array("MXFS_PATH","MXFS_FILENAME",)
+    val includeFields = Array("MXFS_PATH","MXFS_FILENAME")
 
     val sinkFact = Sink.seq[PotentialRemoveStreamObject]
 
