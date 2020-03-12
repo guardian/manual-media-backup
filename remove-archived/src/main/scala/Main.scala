@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory
 import streamcomponents.{ArchiveHunterExists, ArchiveHunterFileSizeSwitch, LocalFileExists, OMFastSearchSource}
 
 import scala.concurrent.Await
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
@@ -28,6 +28,7 @@ object Main {
       Await.ready(terminate(1), 2 hours)
       throw new RuntimeException("should not get here")
   }
+
   val archiveHunterKey = sys.env.get("ARCHIVEHUNTER_SECRET_KEY") match {
     case Some(key)=>key
     case None=>
@@ -77,7 +78,7 @@ object Main {
         val splitter = builder.add(Balance[PotentialRemoveStreamObject](paralellism, true))
         val finalMerger = builder.add(Merge[PotentialRemoveStreamObject](paralellism, false))
 
-        src.out.take(50000).map(PotentialRemoveStreamObject.apply) ~> splitter
+        src.out.map(PotentialRemoveStreamObject.apply) ~> splitter
 
         for (i <- 0 until paralellism) {
           val p = builder.add(processor)
@@ -103,12 +104,23 @@ object Main {
     (totalCount, totalSize)
   }
 
+  def testConnection(userInfo:UserInfo) =
+    Try { MatrixStore.openVault(userInfo) } match {
+      case Success(v) =>
+        val totalSpace = v.getAttributes.totalSpace()
+        logger.info(s"Connected to ${userInfo.getClusterId} on ${userInfo.getAddresses} with $totalSpace bytes total")
+      case Failure(err) =>
+        logger.error(s"Could not connect to vault $userInfo", err)
+        sys.exit(3)
+    }
+
   def main(args: Array[String]): Unit = {
     UserInfoBuilder.fromFile(vaultFile) match {
       case Failure(err)=>
         logger.error(s"Could not read vault data from $vaultFile", err)
         sys.exit(2)
       case Success(userInfo)=>
+        testConnection(userInfo)
         RunnableGraph.fromGraph(buildStream(userInfo)).run().onComplete({
           case Failure(err)=>
             logger.error(s"Could not perform scan: ", err)
