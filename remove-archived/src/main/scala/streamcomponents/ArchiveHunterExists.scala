@@ -19,18 +19,18 @@ class ArchiveHunterExists(baseUri:String, key:String, stripPathElements:Int)(imp
 
   override def shape: UniformFanOutShape[PotentialRemoveStreamObject, PotentialRemoveStreamObject] = new UniformFanOutShape[PotentialRemoveStreamObject, PotentialRemoveStreamObject](in, Array(yes,no))
 
-  private val requestor = new ArchiveHunterRequestor(baseUri, key)
+  lazy private val requestor = new ArchiveHunterRequestor(baseUri, key)
 
   def stripPath(incomingPath:String)(implicit logger:Logger):String = {
     if(stripPathElements==0){
       incomingPath
     } else {
       val parts = incomingPath.split("/")
-      if(parts.length>stripPathElements) {
+      if(parts.length<stripPathElements) {
         logger.warn(s"path was too short to split! Length was ${parts.length} and want to split $stripPathElements")
         incomingPath
       } else {
-        parts.slice(stripPathElements,-1).mkString("/")
+        parts.slice(stripPathElements,parts.length).mkString("/")
       }
     }
   }
@@ -80,7 +80,7 @@ class ArchiveHunterExists(baseUri:String, key:String, stripPathElements:Int)(imp
                 noCb.invoke(elem)
               case Success(Right(found:ArchiveHunterFound))=>
                 logger.info(s"$filename found in ArchiveHunter at ${found.archiveHunterCollection} with ID ${found.archiveHunterId}")
-                yesCb.invoke(elem)
+                yesCb.invoke(elem.copy(archivedSize = found.size))
             })
         }
       }

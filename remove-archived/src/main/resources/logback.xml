@@ -1,0 +1,22 @@
+<configuration>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%date [%level] from %logger in %thread - %message%n%xException</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ASYNCSTDOUT" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="STDOUT" />
+    </appender>
+
+    <logger name="UserInfoBuilder$" level="WARN"/>
+    <logger name="helpers" level="INFO"/>
+    <logger name="Main$" level="INFO"/>
+    <logger name="streamcomponents" level="INFO"/>
+    <logger name="streamcomponents.OMFastSearchSource" level="WARN"/>
+    <root level="WARN">
+        <appender-ref ref="ASYNCSTDOUT" />
+    </root>
+
+</configuration>

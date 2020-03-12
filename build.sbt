@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
 
 lazy val `root` = (project in file("."))
     .dependsOn(common)
-    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid, `push-proxies`, `backup-estimate-tool`)
+    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid, `push-proxies`, `backup-estimate-tool`, removearchived)
 
 lazy val `common` = (project in file("common"))
     .settings(

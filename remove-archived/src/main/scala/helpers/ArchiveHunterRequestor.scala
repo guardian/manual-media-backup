@@ -52,7 +52,7 @@ class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:Act
     val maybeCollectionName = node.downField("bucket").as[String]
     val maybeArchiveHunterId = node.downField("id").as[String]
     val maybeDeleted = node.downField("beenDeleted").as[Boolean]
-    val maybeSize = node.downField("size").as[Int]
+    val maybeSize = node.downField("size").as[Long]
     if(maybeCollectionName.isLeft || maybeArchiveHunterId.isLeft || maybeDeleted.isLeft){
       val errorDetail = Seq(maybeCollectionName, maybeArchiveHunterId, maybeDeleted).collect({case Left(err)=>err.toString()}).mkString(",")
       Left(s"Could not decode json from ArchiveHunder: $errorDetail")
