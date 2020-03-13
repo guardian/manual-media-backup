@@ -13,7 +13,7 @@
     <logger name="UserInfoBuilder$" level="WARN"/>
     <logger name="helpers" level="INFO"/>
     <logger name="Main$" level="INFO"/>
-    <logger name="streamcomponents" level="INFO"/>
+    <logger name="streamcomponents" level="WARN"/>
     <logger name="streamcomponents.OMFastSearchSource" level="WARN"/>
     <root level="WARN">
         <appender-ref ref="ASYNCSTDOUT" />

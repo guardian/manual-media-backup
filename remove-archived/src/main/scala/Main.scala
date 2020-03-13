@@ -1,14 +1,18 @@
+import java.io.File
+
+import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
-import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, Materializer}
-import akka.stream.scaladsl.{Balance, GraphDSL, Merge, RunnableGraph, Sink}
+import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, IOResult, Materializer}
+import akka.stream.scaladsl.{Balance, FileIO, GraphDSL, Keep, Merge, RunnableGraph, Sink, Source}
+import akka.util.ByteString
 import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, MxsObject, SearchTerm, UserInfo, Vault}
 import helpers.TrustStoreHelper
 import models.{ArchiveStatus, ObjectMatrixEntry, PotentialRemoveStreamObject}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ArchiveHunterExists, ArchiveHunterFileSizeSwitch, LocalFileExists, OMFastSearchSource}
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -50,6 +54,8 @@ object Main {
       throw new RuntimeException("should not get here")
   }
 
+  val maybeDeletionReportFile = sys.env.get("DELETION_REPORT_FILE")
+
   lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
   def buildStream(userInfo:UserInfo) = {
@@ -82,7 +88,7 @@ object Main {
         val splitter = builder.add(Balance[PotentialRemoveStreamObject](paralellism, true))
         val finalMerger = builder.add(Merge[PotentialRemoveStreamObject](paralellism, false))
 
-        src.out.map(PotentialRemoveStreamObject.apply) ~> splitter
+        src.out.take(25000).map(PotentialRemoveStreamObject.apply) ~> splitter
 
         for (i <- 0 until paralellism) {
           val p = builder.add(processor)
@@ -101,11 +107,31 @@ object Main {
     }
   }
 
-  def summarise(scanData:Seq[PotentialRemoveStreamObject],forState: ArchiveStatus.Value):(Int,Long) = {
+  /**
+    * outputs the given sequence of objects as a CSV file
+    * @param records
+    * @param toFileName
+    * @return
+    */
+  def outputList(records:Seq[PotentialRemoveStreamObject], toFileName:String):Future[IOResult] = {
+    val f = new File(toFileName)
+    val sink = FileIO.toPath(f.toPath)
+
+    Source
+      .fromIterator(()=>records.iterator)
+      .map(entry=>"\""+ entry.omFile.pathOrFilename.getOrElse("(no name)")+"\""+s",${getMaybeLocalSize(entry.omFile).getOrElse(-1L)},${entry.archivedSize.getOrElse(-1L)}\n")
+      .map(ByteString.apply)
+      .toMat(sink)(Keep.right)
+      .run()
+  }
+
+  def summarise(scanData:Seq[PotentialRemoveStreamObject],forState: ArchiveStatus.Value, outputTo:Option[String]=None):(Int,Long,Option[Future[IOResult]]) = {
     val matchingRecords = scanData.filter(_.status.contains(forState))
     val totalSize = matchingRecords.foldLeft[Long](0L)((acc,elem)=>acc+getMaybeLocalSize(elem.omFile).getOrElse(0L))
     val totalCount = matchingRecords.length
-    (totalCount, totalSize)
+
+    val maybeCsvFut = outputTo.map(filename=>outputList(matchingRecords, filename))
+    (totalCount, totalSize, maybeCsvFut)
   }
 
   def testConnection(userInfo:UserInfo) =
@@ -144,19 +170,37 @@ object Main {
             terminate(3)
           case Success(scanData)=>
             logger.info("Run completed")
-            val (canDeleteCount, canDeleteSize) = summarise(scanData, ArchiveStatus.SAFE_TO_DELETE)
+            val (canDeleteCount, canDeleteSize, writeCsvFut) = summarise(scanData, ArchiveStatus.SAFE_TO_DELETE, maybeDeletionReportFile)
             val canDeleteSizeGb = canDeleteSize / scala.math.pow(10,9).toLong
             logger.info(s"$canDeleteCount files comprising ${canDeleteSizeGb} Gb can be deleted")
-            val (notArchCount, notArchSize) = summarise(scanData, ArchiveStatus.NOT_ARCHIVED)
+            val (notArchCount, notArchSize, _) = summarise(scanData, ArchiveStatus.NOT_ARCHIVED)
             val notArchSizeGb = notArchSize / scala.math.pow(10,9).toLong
             logger.info(s"$notArchCount files comprising $notArchSizeGb Gb are not archived")
-            val (conflictCount, conflictSize) = summarise(scanData, ArchiveStatus.ARCHIVE_CONFLICT)
+            val (conflictCount, conflictSize, _) = summarise(scanData, ArchiveStatus.ARCHIVE_CONFLICT)
             val conflictSizeGb = conflictSize / scala.math.pow(10,9).toLong
             logger.info(s"$conflictCount files comprising ${conflictSizeGb} Gb exist in archive with the wrong sizes")
-            val (keepCount, keepSize) = summarise(scanData, ArchiveStatus.SHOULD_KEEP)
+            val (keepCount, keepSize, _) = summarise(scanData, ArchiveStatus.SHOULD_KEEP)
             val keepSizeGb = keepSize / scala.math.pow(10,9).toLong
             logger.info(s"$keepCount files comprising ${keepSizeGb} Gb are still present on primary")
-            terminate(0)
+
+            writeCsvFut match {
+              case None=>
+                terminate(0)
+              case Some(writeCsvResult)=>writeCsvResult.onComplete({
+                case Failure(err)=>
+                  logger.error("Could not write output CSV: ", err)
+                  terminate(4)
+                case Success(ioResult)=>
+                  if(ioResult.wasSuccessful){
+                    logger.info(s"Deletion report written to ${maybeDeletionReportFile}")
+                    terminate(0)
+                  } else {
+                    logger.warn(s"Deletion report write failed: ${ioResult.status}")
+                    terminate(4)
+                  }
+              })
+            }
+
         })
     }
   }
