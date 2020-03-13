@@ -88,7 +88,7 @@ object Main {
         val splitter = builder.add(Balance[PotentialRemoveStreamObject](paralellism, true))
         val finalMerger = builder.add(Merge[PotentialRemoveStreamObject](paralellism, false))
 
-        src.out.take(25000).map(PotentialRemoveStreamObject.apply) ~> splitter
+        src.out.map(PotentialRemoveStreamObject.apply) ~> splitter
 
         for (i <- 0 until paralellism) {
           val p = builder.add(processor)
