@@ -139,6 +139,7 @@ object Main {
       case Success(v) =>
         val totalSpace = v.getAttributes.totalSpace()
         logger.info(s"Connected to ${userInfo.getClusterId} on ${userInfo.getAddresses} with $totalSpace bytes total")
+        v.dispose()
       case Failure(err) =>
         logger.error(s"Could not connect to vault $userInfo", err)
         sys.exit(3)
