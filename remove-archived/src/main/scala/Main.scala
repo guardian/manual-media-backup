@@ -10,7 +10,7 @@ import com.om.mxs.client.japi.{Attribute, Constants, MatrixStore, MxsObject, Sea
 import helpers.TrustStoreHelper
 import models.{ArchiveStatus, ObjectMatrixEntry, PotentialRemoveStreamObject}
 import org.slf4j.LoggerFactory
-import streamcomponents.{ArchiveHunterExists, ArchiveHunterFileSizeSwitch, LocalFileExists, OMFastSearchSource}
+import streamcomponents.{ArchiveHunterExists, ArchiveHunterFileSizeSwitch, LocalFileExists, OMDeleteSink, OMFastSearchSource}
 
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success, Try}
@@ -58,12 +58,13 @@ object Main {
 
   lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
+  val reallyDelete = sys.env.get("REALLY_DELETE")
+
   def buildStream(userInfo:UserInfo) = {
     import akka.stream.scaladsl.GraphDSL.Implicits._
     val includeFields = Seq("MXFS_PATH", "MXFS_FILENAME", "DPSP_SIZE")
     val terms = Array(SearchTerm.createSimpleTerm(Constants.CONTENT, s"*\nkeywords: ${includeFields.mkString(",")}"))
     val sinkFact = Sink.seq[PotentialRemoveStreamObject]
-
 
     val processor = GraphDSL.create() { implicit builder =>
       val existsSwitch = builder.add(new LocalFileExists)
@@ -125,6 +126,21 @@ object Main {
       .run()
   }
 
+  def performDeletion(records:Seq[PotentialRemoveStreamObject], userInfo:UserInfo, reallyDelete:Boolean):Future[Done] = {
+    val sinkFact = new OMDeleteSink(userInfo, reallyDelete)
+
+    val graph = GraphDSL.create(sinkFact) { implicit builder=> sink=>
+      import akka.stream.scaladsl.GraphDSL.Implicits._
+
+      Source
+        .fromIterator(()=>records.filter(_.status.contains(ArchiveStatus.SAFE_TO_DELETE)).toIterator)
+        .map(_.omFile) ~> sink
+      ClosedShape
+    }
+
+    RunnableGraph.fromGraph(graph).run()
+  }
+
   def summarise(scanData:Seq[PotentialRemoveStreamObject],forState: ArchiveStatus.Value, outputTo:Option[String]=None):(Int,Long,Option[Future[IOResult]]) = {
     val matchingRecords = scanData.filter(_.status.contains(forState))
     val totalSize = matchingRecords.foldLeft[Long](0L)((acc,elem)=>acc+getMaybeLocalSize(elem.omFile).getOrElse(0L))
@@ -184,23 +200,40 @@ object Main {
             val keepSizeGb = keepSize / scala.math.pow(10,9).toLong
             logger.info(s"$keepCount files comprising ${keepSizeGb} Gb are still present on primary")
 
-            writeCsvFut match {
-              case None=>
-                terminate(0)
-              case Some(writeCsvResult)=>writeCsvResult.onComplete({
-                case Failure(err)=>
-                  logger.error("Could not write output CSV: ", err)
-                  terminate(4)
-                case Success(ioResult)=>
-                  if(ioResult.wasSuccessful){
-                    logger.info(s"Deletion report written to ${maybeDeletionReportFile}")
-                    terminate(0)
-                  } else {
-                    logger.warn(s"Deletion report write failed: ${ioResult.status}")
-                    terminate(4)
-                  }
-              })
+            val deleteFut=if(reallyDelete.contains("yes")) {
+              logger.info(s"Performing deletion of $canDeleteCount files totalling $canDeleteSizeGb Gb....")
+              performDeletion(scanData.filter(_.status.contains(ArchiveStatus.SAFE_TO_DELETE)), userInfo, reallyDelete.contains("yes"))
+            } else {
+              logger.warn("No deletion is being performed. To delete files, set the environment variable REALLY_DELETE to the exact string 'yes'")
+              Future(Done)
             }
+
+            val futureSeq = Seq(writeCsvFut, Some(deleteFut)).collect({case Some(f)=>f})
+            Future.sequence(futureSeq).onComplete({
+              case Failure(err)=>
+                logger.error(s"Either CSV write or deletion failed: ", err)
+                terminate(4)
+              case Success(_)=>
+                logger.info("All done")
+                terminate(0)
+            })
+//            finalFutures match {
+//              case None=>
+//                terminate(0)
+//              case Some(writeCsvResult)=>writeCsvResult.onComplete({
+//                case Failure(err)=>
+//                  logger.error("Could not write output CSV: ", err)
+//                  terminate(4)
+//                case Success(ioResult)=>
+//                  if(ioResult.wasSuccessful){
+//                    logger.info(s"Deletion report written to ${maybeDeletionReportFile}")
+//                    terminate(0)
+//                  } else {
+//                    logger.warn(s"Deletion report write failed: ${ioResult.status}")
+//                    terminate(4)
+//                  }
+//              })
+//            }
 
         })
     }
