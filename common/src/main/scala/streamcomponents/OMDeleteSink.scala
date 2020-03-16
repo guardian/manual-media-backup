@@ -65,6 +65,7 @@ class OMDeleteSink(userInfo:UserInfo, reallyDelete:Boolean) extends GraphStageWi
       }
 
       override def afterPostStop() = {
+        maybeVault.map(_.dispose())
         completionPromise.complete(Success(Done))
       }
     }

@@ -217,23 +217,6 @@ object Main {
                 logger.info("All done")
                 terminate(0)
             })
-//            finalFutures match {
-//              case None=>
-//                terminate(0)
-//              case Some(writeCsvResult)=>writeCsvResult.onComplete({
-//                case Failure(err)=>
-//                  logger.error("Could not write output CSV: ", err)
-//                  terminate(4)
-//                case Success(ioResult)=>
-//                  if(ioResult.wasSuccessful){
-//                    logger.info(s"Deletion report written to ${maybeDeletionReportFile}")
-//                    terminate(0)
-//                  } else {
-//                    logger.warn(s"Deletion report write failed: ${ioResult.status}")
-//                    terminate(4)
-//                  }
-//              })
-//            }
 
         })
     }
