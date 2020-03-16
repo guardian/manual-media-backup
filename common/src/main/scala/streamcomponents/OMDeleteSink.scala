@@ -45,6 +45,7 @@ class OMDeleteSink(userInfo:UserInfo, reallyDelete:Boolean) extends GraphStageWi
             } else {
               logger.warn(s"Requested to delete item ${elem.oid} (${elem.pathOrFilename.getOrElse("no filename")}) that does not exist on the vault")
             }
+            pull(in)
           } catch {
             case err:Throwable=>
               logger.error(s"Could not check or delete ${elem.oid} (${elem.pathOrFilename.getOrElse("no filename")}): ", err)
