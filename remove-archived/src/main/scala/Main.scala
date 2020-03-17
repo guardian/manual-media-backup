@@ -132,9 +132,14 @@ object Main {
     val graph = GraphDSL.create(sinkFact) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
+      val splitter = builder.add(Balance[ObjectMatrixEntry](paralellism, true))
+
       Source
         .fromIterator(()=>records.filter(_.status.contains(ArchiveStatus.SAFE_TO_DELETE)).toIterator)
-        .map(_.omFile) ~> sink
+        .map(_.omFile) ~> splitter
+
+      for(i <- 0 to paralellism) splitter.out(i) ~> sink
+
       ClosedShape
     }
 
