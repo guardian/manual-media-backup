@@ -66,7 +66,7 @@ class VSDeleteShapeAndOrFile(implicit vsCommunicator:VSCommunicator, mat:Materia
               errorCb.invoke(new RuntimeException(s"${errorSeq.length} / ${results.length} deletions failed"))
             } else {
               logger.info(s"Deleted ${results.length} shapes")
-              vsCommunicator.request(OperationType.DELETE, s"/API/file/${elem.vsFileId}",None,Map()).onComplete({
+              vsCommunicator.request(OperationType.DELETE, s"/API/storage/file/${elem.vsFileId}",None,Map()).onComplete({
                 case Failure(err)=>
                   logger.error(s"File deletion failed: ",err)
                   errorCb.invoke(err)
@@ -79,6 +79,16 @@ class VSDeleteShapeAndOrFile(implicit vsCommunicator:VSCommunicator, mat:Materia
               })
             }
         })
+      }
+
+      override def onUpstreamFinish(): Unit = {
+        if(canTerminate) {
+          logger.debug("upstream terminated and we can too")
+          completeStage()
+        } else {
+          logger.debug("upstream terminated but we are still waiting for async operations")
+          mustTerminate = true
+        }
       }
     })
 
