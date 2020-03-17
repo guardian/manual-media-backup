@@ -1,13 +1,13 @@
 package vsStreamComponents
 
-import akka.stream.{Attributes, FlowShape, Inlet, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
-import models.{CopyReport, HttpError, VSBackupEntry}
+import akka.stream._
+import models.{CopyReport, HttpError}
 import org.slf4j.LoggerFactory
 import vidispine.VSCommunicator
 
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 class VSDeleteFile(comm:VSCommunicator,destStorageId:String)(implicit mat:Materializer) extends GraphStage[FlowShape[CopyReport[VSBackupEntry],CopyReport[VSBackupEntry]]] {
