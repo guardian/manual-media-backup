@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
 
 lazy val `root` = (project in file("."))
     .dependsOn(common)
-    .aggregate(manualbackup,vsmediabackup, showmxschecksum, inspectoid, `push-proxies`, `backup-estimate-tool`, removearchived)
+    .aggregate(manualbackup,`unclog-vidispine`, showmxschecksum, inspectoid, `push-proxies`, `backup-estimate-tool`, removearchived)
 
 lazy val `common` = (project in file("common"))
     .settings(
@@ -155,7 +155,7 @@ lazy val `inspectoid` = (project in file("inspect-oid")).enablePlugins(DockerPlu
     )
   )
 
-lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(DockerPlugin, AshScriptPlugin)
+lazy val `unclog-vidispine` = (project in file("unclog-vidispine")).enablePlugins(DockerPlugin, AshScriptPlugin)
   .dependsOn(common)
   .settings(
     version := sys.props.getOrElse("build.number","DEV"),
@@ -163,10 +163,10 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
-    packageName in Docker := "guardianmultimedia/vs-media-backup",
+    packageName in Docker := "guardianmultimedia/unclog-vidispine",
     packageName := "vs-media-backup",
     dockerBaseImage := "openjdk:14-jdk-alpine",
-    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"vs-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"unclog-vidispine",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image
       Cmd("RUN", "chown daemon /opt/docker && chmod u+w /opt/docker && chmod -R a+x /opt/docker"),
@@ -175,7 +175,8 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
     libraryDependencies ++=Seq(
       "com.typesafe.akka" %% "akka-stream" % akkaVersion,
       "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
-      "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+      "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.1.2",
       "com.typesafe.akka" %% "akka-http" % "10.1.7",
       "javax.xml.bind" % "jaxb-api" % "2.3.1",       //AWS SDK complains about missing this (unlisted optional dependency)
       "io.circe" %% "circe-core" % circeVersion,
