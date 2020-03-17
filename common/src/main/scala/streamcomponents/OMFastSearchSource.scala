@@ -12,7 +12,7 @@ import scala.collection.JavaConverters._
 import scala.util.{Failure, Success}
 
 class OMFastSearchSource(userInfo:UserInfo, searchTerms:Array[SearchTerm], includeFields:Array[String], contentSearchBareTerm:Boolean=false, atOnce:Int=10) extends GraphStage[SourceShape[ObjectMatrixEntry]] {
-  private final val out:Outlet[ObjectMatrixEntry] = Outlet.create("OMFastSEearchSource.out")
+  private final val out:Outlet[ObjectMatrixEntry] = Outlet.create("OMFastSeearchSource.out")
 
   override def shape: SourceShape[ObjectMatrixEntry] = SourceShape.of(out)
 
