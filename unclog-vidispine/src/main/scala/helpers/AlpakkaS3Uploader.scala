@@ -6,12 +6,17 @@ import akka.stream.scaladsl.{GraphDSL, RunnableGraph}
 import models.{ObjectMatrixEntry, S3Target}
 import akka.stream.alpakka.s3._
 import akka.http.scaladsl.model.ContentType
+import com.amazonaws.services.s3.AmazonS3ClientBuilder
+import com.amazonaws.services.s3.model.GetObjectMetadataRequest
 import com.om.mxs.client.japi.UserInfo
 import org.slf4j.LoggerFactory
 import streamcomponents.MatrixStoreFileSource
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class AlpakkaS3Uploader(userInfo:UserInfo) {
   private val logger = LoggerFactory.getLogger(getClass)
+
+  private val s3Client = AmazonS3ClientBuilder.defaultClient()
 
   /**
    * perform an asynchronous upload from ObjectMatrix to S3
@@ -20,7 +25,7 @@ class AlpakkaS3Uploader(userInfo:UserInfo) {
    * @param to [[S3Target]] object indicating where to upload to
    * @param sys implicitly provided ActorSystem
    * @param mat implicitly provided Materializer
-   * @return a Future containing an alpakka MultipartUploadResult describing the operation
+   * @return a Future containing an ObjectMetadata object describing the written object
    */
   def performS3Upload(sourceOid:String, sourceContentType:String, to:S3Target)(implicit sys:ActorSystem, mat:Materializer) = {
     val realContentType = ContentType.parse(sourceContentType) match {
@@ -44,6 +49,9 @@ class AlpakkaS3Uploader(userInfo:UserInfo) {
       ClosedShape
     }
 
-    RunnableGraph.fromGraph(graph).run()
+    RunnableGraph.fromGraph(graph).run().map(r=>{
+      val rq = new GetObjectMetadataRequest(r.bucket, r.key)
+      s3Client.getObjectMetadata(rq)
+    })
   }
 }

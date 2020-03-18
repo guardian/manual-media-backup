@@ -178,6 +178,8 @@ lazy val `unclog-vidispine` = (project in file("unclog-vidispine")).enablePlugin
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.1.2",
       "com.typesafe.akka" %% "akka-http" % "10.1.7",
+      "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
+      "com.amazonaws" % "aws-java-sdk-s3" % "1.11.372",
       "javax.xml.bind" % "jaxb-api" % "2.3.1",       //AWS SDK complains about missing this (unlisted optional dependency)
       "io.circe" %% "circe-core" % circeVersion,
       "io.circe" %% "circe-generic" % circeVersion,

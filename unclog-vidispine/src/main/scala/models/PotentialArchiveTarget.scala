@@ -3,22 +3,39 @@ package models
 import io.circe._
 import org.slf4j.LoggerFactory
 
-import scala.util.{Failure, Try}
+import scala.util.{Failure, Success, Try}
+import eu.medsea.mimeutil.MimeUtil2
 
 object ArchiveTargetStatus extends Enumeration {
   val IN_PROGRESS,TARGET_CONFLICT, UPLOAD_FAILED, DELETE_FAILED, SUCCESS = Value
 
 }
 
-case class PotentialArchiveTarget(byteSize:Option[Long], md5Hash:Option[String], archivedSize:Option[Long], oid:String, mxsFilename:String,
+case class PotentialArchiveTarget(byteSize:Option[Long], md5Hash:Option[String], archivedSize:Option[Long], contentType:String, oid:String, mxsFilename:String,
                                   vsFileId:String, vsItemAttachment:Option[String],
-                                  vsShapeAttachment:Option[Seq[String]], status:ArchiveTargetStatus.Value)
+                                  vsShapeAttachment:Option[Seq[String]], uploadedTarget:Option[S3Target], status:ArchiveTargetStatus.Value)
 
 object PotentialArchiveTarget {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  def apply(byteSize: Option[Long], md5Hash: Option[String], oid: String, mxsFilename: String, vsFileId: String, vsItemAttachment: Option[String], vsShapeAttachment: Option[Seq[String]]): PotentialArchiveTarget =
-    new PotentialArchiveTarget(byteSize, md5Hash, None, oid, mxsFilename, vsFileId, vsItemAttachment, vsShapeAttachment, ArchiveTargetStatus.IN_PROGRESS)
+  private val mimeUtil = new MimeUtil2
+  mimeUtil.registerMimeDetector("eu.medsea.mimeutil.detector.MagicMimeMimeDetector")
+  mimeUtil.registerMimeDetector("eu.medsea.mimeutil.detector.ExtensionMimeDetector")
+
+  def mimeTypeForFilepath(filepath:String) = Try { Option(MimeUtil2.getMostSpecificMimeType(mimeUtil.getMimeTypes(filepath)).toString) }
+
+  def apply(byteSize: Option[Long], md5Hash: Option[String], oid: String, mxsFilename: String, vsFileId: String, vsItemAttachment: Option[String], vsShapeAttachment: Option[Seq[String]]): PotentialArchiveTarget = {
+    val contentType:String = mimeTypeForFilepath(mxsFilename) match {
+      case Success(Some(mimeType))=>mimeType
+      case Success(None)=>
+        logger.debug(s"could not find any MIME type for file path $mxsFilename")
+        "application/octet-stream"
+      case Failure(err)=>
+        logger.error(s"could not determine MIME type for file path $mxsFilename: ", err)
+        "application/octet-stream"
+    }
+    new PotentialArchiveTarget(byteSize, md5Hash, None, contentType, oid, mxsFilename, vsFileId, vsItemAttachment, vsShapeAttachment, None, ArchiveTargetStatus.IN_PROGRESS)
+  }
 
   /**
     * internal helper method that pulls a list of values out of some nested json

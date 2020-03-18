@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module external.linked.project.id="common [file:/home/andy/workdev/manual-media-backup/]" external.linked.project.path="$MODULE_DIR$/../../common" external.root.project.path="$MODULE_DIR$/../.." external.system.id="SBT" type="JAVA_MODULE" version="4">
-  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_11">
+  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_8">
     <output url="file://$MODULE_DIR$/../../common/target/scala-2.12/classes" />
     <output-test url="file://$MODULE_DIR$/../../common/target/scala-2.12/test-classes" />
     <exclude-output />
@@ -13,15 +13,6 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="sbt: ch.qos.logback:logback-classic:1.2.3:jar" level="project" />
     <orderEntry type="module-library">
-      <library name="sbt: unmanaged-sources-and-docs">
-        <CLASSES />
-        <JAVADOC />
-        <SOURCES>
-          <root url="jar://$USER_HOME$/.ivy2/cache/io.netty/netty-transport-native-epoll/srcs/netty-transport-native-epoll-4.0.52.Final-sources.jar!/" />
-        </SOURCES>
-      </library>
-    </orderEntry>
-    <orderEntry type="module-library">
       <library name="sbt: unmanaged-jars">
         <CLASSES>
           <root url="jar://$MODULE_DIR$/../../common/lib/mxsjapi.jar!/" />
@@ -30,6 +21,15 @@
         </CLASSES>
         <JAVADOC />
         <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library name="sbt: unmanaged-sources-and-docs">
+        <CLASSES />
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$USER_HOME$/.ivy2/cache/io.netty/netty-transport-native-epoll/srcs/netty-transport-native-epoll-4.0.52.Final-sources.jar!/" />
+        </SOURCES>
       </library>
     </orderEntry>
     <orderEntry type="library" name="sbt: org.typelevel:macro-compat_2.12:1.1.1:jar" level="project" />

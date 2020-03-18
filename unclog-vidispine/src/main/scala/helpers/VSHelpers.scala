@@ -10,7 +10,7 @@ import vidispine.{FieldNames, VSCommunicator, VSLazyItem}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object VSHelpers {
-  def setArchivalMetadataFields(vsItem:VSLazyItem, archivedTo:S3Target, archiveDate:Option[ZonedDateTime]=None)(implicit vsCommunicator:VSCommunicator, mat:Materializer) = {
+  def setArchivalMetadataFields(vsItemId:String, archivedTo:S3Target, archiveDate:Option[ZonedDateTime]=None)(implicit vsCommunicator:VSCommunicator, mat:Materializer) = {
     val commitTime = archiveDate.getOrElse(ZonedDateTime.now())
     val xmlDoc = <MetadataDocument xmlns="http://xml.vidispine.com/schema/vidispine">
       <group>Asset</group>
@@ -41,7 +41,7 @@ object VSHelpers {
       </timespan>
     </MetadataDocument>
 
-    val uri = s"/API/item/${vsItem.itemId}/metadata"
+    val uri = s"/API/item/${vsItemId}/metadata"
     vsCommunicator.request(OperationType.PUT,uri,Some(xmlDoc.toString()),Map("Content-Type"->"application/xml"))
   }
 }
