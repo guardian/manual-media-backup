@@ -28,19 +28,21 @@ object Main {
 
       val ahLookup = builder.add(new ArchiveHunterLookup(ahBaseUri, ahSecret))
 
-      val src = FileIO
+      val src = builder.add(Source.fromGraph(FileIO
         .fromPath(sourceFile)
         .via(Framing.delimiter(ByteString("\n"),10240000,allowTruncation=false))
-        .map(recordBytes=> PotentialArchiveTarget.fromMediaCensusJson(recordBytes.decodeString("UTF-8")))
+        .map(recordBytes=>PotentialArchiveTarget.fromMediaCensusJson(recordBytes.decodeString("UTF-8")))
           .map({
             case Success(target)=>target
             case Failure(err)=>
               logger.error(s"Could not decode incoming target: ", err)
               throw err
           })
+      ))
 
+      src.out ~> ahLookup
+      ahLookup.out(0) ~>          //"YES" branch - item already exists
 
-      src ~> ahLookup
       ClosedShape
     }
   }

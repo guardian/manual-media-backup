@@ -19,12 +19,12 @@ import scala.util.{Failure, Success, Try}
   * @param system implicitly provided Actor System
   * @param mat implicitly provided Materializer
   */
-class ArchiveHunterLookup(baseUri:String, key:String)(implicit val system:ActorSystem, implicit val mat:Materializer) extends GraphStage[FanOutShape2[PotentialArchiveTarget, PotentialArchiveTarget, PotentialArchiveTarget ]]{
+class ArchiveHunterLookup(baseUri:String, key:String)(implicit val system:ActorSystem, implicit val mat:Materializer) extends GraphStage[UniformFanOutShape[PotentialArchiveTarget, PotentialArchiveTarget ]]{
   private final val in:Inlet[PotentialArchiveTarget] = Inlet.create("ArchiveHunterLookup.in")
   private final val yes:Outlet[PotentialArchiveTarget] = Outlet.create("ArchiveHunterLookup.vsFileOut")
   private final val no:Outlet[PotentialArchiveTarget] = Outlet.create("ArchiveHunterLookup.ahNearlineOut")
 
-  override def shape: FanOutShape2[PotentialArchiveTarget, PotentialArchiveTarget, PotentialArchiveTarget ] = new FanOutShape2(in, yes, no)
+  override def shape: UniformFanOutShape[PotentialArchiveTarget, PotentialArchiveTarget] = new UniformFanOutShape(in, Array(yes, no))
 
   protected val requestor = new ArchiveHunterRequestor(baseUri, key)
 
