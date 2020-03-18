@@ -9,7 +9,8 @@ object ArchiveTargetStatus extends Enumeration {
   val IN_PROGRESS,TARGET_CONFLICT, UPLOAD_FAILED, DELETE_FAILED, SUCCESS = Value
 
 }
-case class PotentialArchiveTarget(byteSize:Option[Long], md5Hash:Option[String], oid:String, mxsFilename:String,
+
+case class PotentialArchiveTarget(byteSize:Option[Long], md5Hash:Option[String], archivedSize:Option[Long], oid:String, mxsFilename:String,
                                   vsFileId:String, vsItemAttachment:Option[String],
                                   vsShapeAttachment:Option[Seq[String]], status:ArchiveTargetStatus.Value)
 
@@ -17,8 +18,15 @@ object PotentialArchiveTarget {
   private val logger = LoggerFactory.getLogger(getClass)
 
   def apply(byteSize: Option[Long], md5Hash: Option[String], oid: String, mxsFilename: String, vsFileId: String, vsItemAttachment: Option[String], vsShapeAttachment: Option[Seq[String]]): PotentialArchiveTarget =
-    new PotentialArchiveTarget(byteSize, md5Hash, oid, mxsFilename, vsFileId, vsItemAttachment, vsShapeAttachment, ArchiveTargetStatus.IN_PROGRESS)
+    new PotentialArchiveTarget(byteSize, md5Hash, None, oid, mxsFilename, vsFileId, vsItemAttachment, vsShapeAttachment, ArchiveTargetStatus.IN_PROGRESS)
 
+  /**
+    * internal helper method that pulls a list of values out of some nested json
+    * @param listCursor cursor at which to decode. This must point to an array, which contains objects with a "shapeId" key
+    * @param currentValues Sequence of values to start with. Normally pass an empty sequence
+    * @tparam A the data type that is to be extracted
+    * @return
+    */
   private def getList[A:io.circe.Decoder](listCursor:ACursor, currentValues:Seq[A]):Option[Seq[A]] = {
     listCursor.downField("shapeId").as[A] match {
       case Left(err)=>
@@ -33,6 +41,11 @@ object PotentialArchiveTarget {
     }
   }
 
+  /**
+    * manual decode from incoming json to a PotentialArchiveTarget instance
+    * @param jsonString raw json string for parsing
+    * @return either the PotentialArchiveTarget or an error
+    */
   def fromMediaCensusJson(jsonString:String):Try[PotentialArchiveTarget] = {
     io.circe.parser.parse(jsonString) match {
       case Left(parseErr)=>
