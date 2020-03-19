@@ -3,12 +3,13 @@ import java.nio.charset.Charset
 import java.nio.file.Path
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.{FileIO, Framing, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import akka.util.ByteString
 import archivehunter.ArchiveHunterLookup
 import com.om.mxs.client.japi.UserInfo
-import helpers.{AlpakkaS3Uploader, VSHelpers}
+import helpers.{AlpakkaS3Uploader, TrustStoreHelper, VSHelpers}
 import models.{ArchiveTargetStatus, PotentialArchiveTarget, S3Target, VSConfig}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ArchiveHunterFileSizeSwitch, FromMediaCensusJson}
@@ -44,6 +45,8 @@ object Main {
 
   val vaultFile = sys.env("VAULT_FILE")
   val readingFrom = sys.env("NDJSON_LIST")
+
+  lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
   def terminate(exitCode:Int) = actorSystem.terminate().andThen({
     case _=>System.exit(exitCode)
@@ -141,6 +144,19 @@ object Main {
   def gb(forNum:Long):Long = math.ceil(forNum/math.pow(1024,3)).toLong
 
   def main(args: Array[String]): Unit = {
+    if(extraKeyStores.isDefined){
+      logger.info(s"Loading in extra keystores from ${extraKeyStores.get.mkString(",")}")
+      /* this should set the default SSL context to use the stores as well */
+      TrustStoreHelper.setupTS(extraKeyStores.get) match {
+        case Success(sslContext) =>
+          val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
+          Http().setDefaultClientHttpsContext(https)
+        case Failure(err) =>
+          logger.error(s"Could not set up https certs: ", err)
+          System.exit(1)
+      }
+    }
+
     if(testOnVsItem.isDefined) {
       testSetArchivalFields(testOnVsItem.get).onComplete({
         case Failure(err)=>
