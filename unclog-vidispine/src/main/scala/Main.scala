@@ -1,8 +1,9 @@
+import java.io.File
 import java.nio.charset.Charset
 import java.nio.file.Path
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{FileIO, Framing, GraphDSL, Merge, Sink, Source}
+import akka.stream.scaladsl.{FileIO, Framing, GraphDSL, Merge, RunnableGraph, Sink, Source}
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import akka.util.ByteString
 import archivehunter.ArchiveHunterLookup
@@ -14,6 +15,7 @@ import streamcomponents.ArchiveHunterFileSizeSwitch
 import vidispine.VSCommunicator
 import vsStreamComponents.VSDeleteShapeAndOrFile
 import com.softwaremill.sttp._
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 
@@ -37,6 +39,13 @@ object Main {
   lazy val chunkSize = sys.env.getOrElse("CHUNK_SIZE","1024").toInt //chunk size in kByte/s
 
   lazy implicit val vsCommunicator = new VSCommunicator(vsConfig.vsUri, vsConfig.plutoUser, vsConfig.plutoPass)
+
+  val vaultFile = sys.env("VAULT_FILE")
+  val readingFrom = sys.env("NDJSON_LIST")
+
+  def terminate(exitCode:Int) = actorSystem.terminate().andThen({
+    case _=>System.exit(exitCode)
+  })
 
   def buildStream(sourceFile:Path, userInfo:UserInfo) = {
     val sinkFact = Sink.seq[PotentialArchiveTarget]
@@ -99,6 +108,51 @@ object Main {
 
       outputMerge ~> sink
       ClosedShape
+    }
+  }
+
+  /**
+   * returns the item count and total size for all items in the given state
+   * @param results complete sequence of results
+   * @param forStatus status value to filter
+   * @return a tuple of (count of items, sum of byteSize)
+   */
+  def totalUpStatus(results:Seq[PotentialArchiveTarget], forStatus:ArchiveTargetStatus.Value) = {
+    val matches = results.filter(_.status==forStatus)
+    val totalSize = matches.foldLeft(0L)((acc,elem)=>acc+elem.byteSize.getOrElse(0))
+    val totalCount = matches.length
+    (totalCount, totalSize)
+  }
+
+  def gb(forNum:Long):Long = math.ceil(forNum/math.pow(1024,3)).toLong
+
+  def main(args: Array[String]): Unit = {
+    UserInfoBuilder.fromFile(vaultFile) match {
+      case Failure(err)=>
+        logger.error(s"Could not get vault information from $vaultFile: ", err)
+        terminate(1)
+      case Success(userInfo)=>
+        val readingFromFile = new File(readingFrom)
+        val graph = buildStream(readingFromFile.toPath, userInfo)
+        RunnableGraph.fromGraph(graph).run().onComplete({
+          case Failure(err)=>
+            logger.error("Main stream crashed: ",err)
+            terminate(2)
+          case Success(results)=>
+            val (successCount, successSize) = totalUpStatus(results, ArchiveTargetStatus.SUCCESS)
+            val (delFailureCount, delFailureSize) = totalUpStatus(results, ArchiveTargetStatus.DELETE_FAILED)
+            val (upFailureCount, upFailureSize) = totalUpStatus(results, ArchiveTargetStatus.UPLOAD_FAILED)
+            val (conflictCount, conflictSize) = totalUpStatus(results, ArchiveTargetStatus.TARGET_CONFLICT)
+            val (stillInProgCount, stillInProgSize) = totalUpStatus(results, ArchiveTargetStatus.IN_PROGRESS) //should always be zero!
+
+            logger.info("Run completed")
+            logger.info(s"Successful items: $successCount totalling ${gb(successSize)} Gib")
+            logger.info(s"Deletion failures: $delFailureCount totalling ${gb(delFailureSize)} Gib")
+            logger.info(s"Upload failures: $upFailureCount totalling ${gb(upFailureSize)} Gib")
+            logger.info(s"Upload conflicts: $conflictCount totalling ${gb(conflictSize)} Gib")
+            logger.info(s"Still in progress (?): $stillInProgCount totalling ${gb(stillInProgSize)}")
+            terminate(0)
+        })
     }
   }
 }
