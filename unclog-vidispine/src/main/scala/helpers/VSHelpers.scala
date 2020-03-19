@@ -11,6 +11,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object VSHelpers {
   def setArchivalMetadataFields(vsItemId:String, archivedTo:S3Target, archiveDate:Option[ZonedDateTime]=None)(implicit vsCommunicator:VSCommunicator, mat:Materializer) = {
+    val vsDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXX")
+    val vsDateOnly = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     val commitTime = archiveDate.getOrElse(ZonedDateTime.now())
     val xmlDoc = <MetadataDocument xmlns="http://xml.vidispine.com/schema/vidispine">
       <group>Asset</group>
@@ -23,7 +25,7 @@ object VSHelpers {
           </field>
           <field>
             <name>{FieldNames.EXTERNAL_ARCHIVE_COMMITTED_AT}</name>
-            <value>{commitTime.format(DateTimeFormatter.ISO_DATE_TIME)}</value>
+            <value>{commitTime.format(vsDateFormat)}</value>
           </field>
           <field>
             <name>{FieldNames.EXTERNAL_ARCHIVE_DEVICE}</name>
@@ -35,7 +37,7 @@ object VSHelpers {
           </field>
           <field>
             <name>{FieldNames.EXTERNAL_ARCHIVE_REPORT}</name>
-            <value>{commitTime.format(DateTimeFormatter.BASIC_ISO_DATE)} Archived out by unclog-vidispine</value>
+            <value>{commitTime.format(vsDateOnly)} Archived out by unclog-vidispine</value>
           </field>
         </group>
       </timespan>

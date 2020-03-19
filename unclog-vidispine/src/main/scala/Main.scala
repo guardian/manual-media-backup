@@ -36,6 +36,8 @@ object Main {
     sys.env("VIDISPINE_PASSWORD")
   )
 
+  lazy val testOnVsItem = sys.env.get("TEST_VSITEM_ID")
+
   lazy val chunkSize = sys.env.getOrElse("CHUNK_SIZE","1024").toInt //chunk size in kByte/s
 
   lazy implicit val vsCommunicator = new VSCommunicator(vsConfig.vsUri, vsConfig.plutoUser, vsConfig.plutoPass)
@@ -46,6 +48,15 @@ object Main {
   def terminate(exitCode:Int) = actorSystem.terminate().andThen({
     case _=>System.exit(exitCode)
   })
+
+  def testSetArchivalFields(itemId:String) = {
+    VSHelpers.setArchivalMetadataFields(itemId,S3Target(targetBucket,"test-path")).map({
+      case Left(err)=>
+        logger.error(s"set archival fields test failed: $err")
+      case Right(_)=>
+        logger.info(s"set archival fields test success!")
+    })
+  }
 
   def buildStream(sourceFile:Path, userInfo:UserInfo) = {
     val sinkFact = Sink.seq[PotentialArchiveTarget]
@@ -119,7 +130,7 @@ object Main {
    */
   def totalUpStatus(results:Seq[PotentialArchiveTarget], forStatus:ArchiveTargetStatus.Value) = {
     val matches = results.filter(_.status==forStatus)
-    val totalSize = matches.foldLeft(0L)((acc,elem)=>acc+elem.byteSize.getOrElse(0))
+    val totalSize = matches.foldLeft(0L)((acc,elem)=>acc+elem.byteSize.getOrElse(0L))
     val totalCount = matches.length
     (totalCount, totalSize)
   }
@@ -127,6 +138,18 @@ object Main {
   def gb(forNum:Long):Long = math.ceil(forNum/math.pow(1024,3)).toLong
 
   def main(args: Array[String]): Unit = {
+    if(testOnVsItem.isDefined) {
+      testSetArchivalFields(testOnVsItem.get).onComplete({
+        case Failure(err)=>
+          logger.error("test crashed: ", err)
+          terminate(1)
+        case Success(_)=>
+          logger.info("test success")
+          terminate(0)
+      })
+      return
+    }
+
     UserInfoBuilder.fromFile(vaultFile) match {
       case Failure(err)=>
         logger.error(s"Could not get vault information from $vaultFile: ", err)
@@ -146,10 +169,10 @@ object Main {
             val (stillInProgCount, stillInProgSize) = totalUpStatus(results, ArchiveTargetStatus.IN_PROGRESS) //should always be zero!
 
             logger.info("Run completed")
-            logger.info(s"Successful items: $successCount totalling ${gb(successSize)} Gib")
-            logger.info(s"Deletion failures: $delFailureCount totalling ${gb(delFailureSize)} Gib")
-            logger.info(s"Upload failures: $upFailureCount totalling ${gb(upFailureSize)} Gib")
-            logger.info(s"Upload conflicts: $conflictCount totalling ${gb(conflictSize)} Gib")
+            logger.info(s"Successful items:      $successCount totalling ${gb(successSize)} Gib")
+            logger.info(s"Deletion failures:     $delFailureCount totalling ${gb(delFailureSize)} Gib")
+            logger.info(s"Upload failures:       $upFailureCount totalling ${gb(upFailureSize)} Gib")
+            logger.info(s"Upload conflicts:      $conflictCount totalling ${gb(conflictSize)} Gib")
             logger.info(s"Still in progress (?): $stillInProgCount totalling ${gb(stillInProgSize)}")
             terminate(0)
         })
