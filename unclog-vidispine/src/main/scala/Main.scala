@@ -11,7 +11,7 @@ import com.om.mxs.client.japi.UserInfo
 import helpers.{AlpakkaS3Uploader, VSHelpers}
 import models.{ArchiveTargetStatus, PotentialArchiveTarget, S3Target, VSConfig}
 import org.slf4j.LoggerFactory
-import streamcomponents.ArchiveHunterFileSizeSwitch
+import streamcomponents.{ArchiveHunterFileSizeSwitch, FromMediaCensusJson}
 import vidispine.VSCommunicator
 import vsStreamComponents.VSDeleteShapeAndOrFile
 import com.softwaremill.sttp._
@@ -69,24 +69,27 @@ object Main {
       val archiveSizeCheck = builder.add(fssFact)
       val uploader = new AlpakkaS3Uploader(userInfo)
       val postUploadSizeCheck = builder.add(fssFact)
-
+      val decoder = builder.add(new FromMediaCensusJson())
       val canDeleteMerge = builder.add(Merge[PotentialArchiveTarget](2))
       val deleter = builder.add(new VSDeleteShapeAndOrFile())
 
       val outputMerge = builder.add(Merge[PotentialArchiveTarget](3))
-      val src = builder.add(Source.fromGraph(FileIO
-        .fromPath(sourceFile)
-        .via(Framing.delimiter(ByteString("\n"),10240000,allowTruncation=false))
-        .map(recordBytes=>PotentialArchiveTarget.fromMediaCensusJson(recordBytes.decodeString("UTF-8")))
-        .map({
-          case Success(target)=>target
-          case Failure(err)=>
-            logger.error(s"Could not decode incoming target: ", err)
-            throw err
-        })
-      ))
+//      val src = builder.add(Source.fromGraph(FileIO
+//        .fromPath(sourceFile)
+//        .via(Framing.delimiter(ByteString("\n"),10240000,allowTruncation=false))
+//        .map(recordBytes=>PotentialArchiveTarget.fromMediaCensusJson(recordBytes.decodeString("UTF-8")))
+//        .map({
+//          case Success(target)=>target
+//          case Failure(err)=>
+//            logger.error(s"Could not decode incoming target: ", err)
+//            throw err
+//        })
+//      ))
 
-      src.out ~> ahLookup
+      val src = FileIO.fromPath(sourceFile)
+      val framer = builder.add(Framing.delimiter(ByteString("\n"),10240000,allowTruncation=false))
+      src ~> framer ~> decoder ~> ahLookup
+      //src.out ~> ahLookup
       ahLookup.out(0) ~> archiveSizeCheck                                                                 //"YES" branch - item already exists, check file sizes
       ahLookup.out(1).mapAsyncUnordered(4)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
         val target = S3Target(targetBucket, entry.mxsFilename)
