@@ -2,7 +2,7 @@ package vsStreamComponents
 
 import akka.stream.{Attributes, FlowShape, Inlet, Materializer, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
-import models.{ArchiveTargetStatus, PotentialArchiveTarget}
+import models.{ArchiveTargetStatus, HttpError, PotentialArchiveTarget}
 import org.slf4j.LoggerFactory
 import vidispine.VSCommunicator
 import vidispine.VSCommunicator.OperationType
@@ -63,7 +63,15 @@ class VSDeleteShapeAndOrFile(implicit vsCommunicator:VSCommunicator, mat:Materia
             if(errorSeq.nonEmpty){
               logger.error(s"${errorSeq.length} / ${results.length} deletions failed: ")
               errorSeq.foreach(err=>logger.error(s"\t$err"))
-              errorCb.invoke(new RuntimeException(s"${errorSeq.length} / ${results.length} deletions failed"))
+              val notFoundErrors = errorSeq.collect({
+                case err:HttpError=>err.errorCode==404
+              })
+              if(notFoundErrors.length!=errorSeq.length) {
+                errorCb.invoke(new RuntimeException(s"${errorSeq.length} / ${results.length} deletions failed"))
+              } else {
+                logger.info("Ignoring not found error")
+                successCb.invoke(elem)
+              }
             } else {
               logger.info(s"Deleted ${results.length} shapes")
               vsCommunicator.request(OperationType.DELETE, s"/API/storage/file/${elem.vsFileId}",None,Map()).onComplete({

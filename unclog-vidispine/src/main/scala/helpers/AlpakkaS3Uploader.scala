@@ -49,9 +49,18 @@ class AlpakkaS3Uploader(userInfo:UserInfo) {
       ClosedShape
     }
 
-    RunnableGraph.fromGraph(graph).run().map(r=>{
+
+    RunnableGraph.fromGraph(graph).run().map(r => {
       val rq = new GetObjectMetadataRequest(r.bucket, r.key)
-      s3Client.getObjectMetadata(rq)
+      Right(s3Client.getObjectMetadata(rq))
+    }).recover({
+      case err:java.io.IOException=>
+        if(err.getMessage.contains("error 306")){
+          logger.error(s"source object $sourceOid did not exist")
+          Left("source object did not exist")
+        } else {
+          throw err
+        }
     })
   }
 }

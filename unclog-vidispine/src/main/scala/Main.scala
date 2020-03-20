@@ -18,6 +18,7 @@ import vsStreamComponents.VSDeleteShapeAndOrFile
 import com.softwaremill.sttp._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object Main {
@@ -96,9 +97,12 @@ object Main {
       ahLookup.out(0) ~> archiveSizeCheck                                                                 //"YES" branch - item already exists, check file sizes
       ahLookup.out(1).mapAsyncUnordered(4)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
         val target = S3Target(targetBucket, entry.mxsFilename)
-        uploader.performS3Upload(entry.oid,entry.contentType, target).map(r=>{
-          logger.info(s"Uploaded ${entry.mxsFilename} (${entry.oid}) to $target")
-          entry.copy(status = ArchiveTargetStatus.SUCCESS, archivedSize = Some(r.getContentLength))
+        uploader.performS3Upload(entry.oid,entry.contentType, target).map({
+          case Right(r)=>
+            logger.info(s"Uploaded ${entry.mxsFilename} (${entry.oid}) to $target")
+            entry.copy(status = ArchiveTargetStatus.SUCCESS, archivedSize = Some(r.getContentLength))
+          case Left(_)=>
+            entry.copy(status = ArchiveTargetStatus.UPLOAD_FAILED)
         })
       }) ~> postUploadSizeCheck
 
@@ -111,14 +115,24 @@ object Main {
       canDeleteMerge.out.mapAsync(4)(elem=>{
         elem.vsItemAttachment match {
           case Some(vsItemId)=>
-            VSHelpers.setArchivalMetadataFields(vsItemId, elem.uploadedTarget.get).map({
-              case Left(err)=>
-                logger.error(s"Could not update VS archival fields on $vsItemId: $err")
-                throw new RuntimeException("could not update VS item, see logs for error")
-              case Right(_)=>
-                logger.info(s"Updated VS archival fields on $vsItemId for ${elem.vsFileId}")
-                elem
-            })
+            elem.uploadedTarget match {
+              case Some(uploadedTarget)=>
+                VSHelpers.setArchivalMetadataFields(vsItemId, uploadedTarget).map({
+                  case Left(err)=>
+                    logger.error(s"Could not update VS archival fields on $vsItemId: $err")
+                    throw new RuntimeException("could not update VS item, see logs for error")
+                  case Right(_)=>
+                    logger.info(s"Updated VS archival fields on $vsItemId for ${elem.vsFileId}")
+                    elem
+                })
+              case None=>
+                logger.warn(s"Item $elem was not uploaded so can't update archival info")
+                Future(elem.copy(status = ArchiveTargetStatus.UPLOAD_FAILED))
+            }
+
+          case None=>
+            logger.warn(s"Item $elem has no vs item attachment, so can't update its data")
+            Future(elem)
         }
       }) ~> deleter
       deleter.out.map(_.copy(status = ArchiveTargetStatus.SUCCESS)) ~> outputMerge
