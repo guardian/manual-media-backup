@@ -165,7 +165,7 @@ lazy val `unclog-vidispine` = (project in file("unclog-vidispine")).enablePlugin
     dockerUsername  := sys.props.get("docker.username"),
     packageName in Docker := "guardianmultimedia/unclog-vidispine",
     packageName := "vs-media-backup",
-    dockerBaseImage := "openjdk:14-jdk-alpine",
+    dockerBaseImage := "openjdk:8-alpine",
     dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"unclog-vidispine",Some(sys.props.getOrElse("build.number","DEV"))),
     dockerCommands ++= Seq(
       Cmd("USER","root"), //fix the permissions in the built docker image

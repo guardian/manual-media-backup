@@ -174,6 +174,7 @@ object Main {
         logger.error(s"Could not get vault information from $vaultFile: ", err)
         terminate(1)
       case Success(userInfo)=>
+        logger.debug(s"Got userinfo: $userInfo")
         val readingFromFile = new File(readingFrom)
         val graph = buildStream(readingFromFile.toPath, userInfo)
         RunnableGraph.fromGraph(graph).run().onComplete({
