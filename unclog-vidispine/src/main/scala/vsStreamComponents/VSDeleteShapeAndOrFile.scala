@@ -63,9 +63,7 @@ class VSDeleteShapeAndOrFile(implicit vsCommunicator:VSCommunicator, mat:Materia
             if(errorSeq.nonEmpty){
               logger.error(s"${errorSeq.length} / ${results.length} deletions failed: ")
               errorSeq.foreach(err=>logger.error(s"\t$err"))
-              val notFoundErrors = errorSeq.collect({
-                case err:HttpError=>err.errorCode==404
-              })
+              val notFoundErrors = errorSeq.filter(_.errorCode==404)
               if(notFoundErrors.length!=errorSeq.length) {
                 errorCb.invoke(new RuntimeException(s"${errorSeq.length} / ${results.length} deletions failed"))
               } else {

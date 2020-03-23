@@ -80,7 +80,45 @@ class VSDeleteShapeAndOrFileSpec extends Specification with Mockito {
         None,
         Map()
       )
+    }
 
+    "ignore 404 errors" in new AkkaTestkitSpecs2Support {
+      implicit val mat:Materializer = ActorMaterializer.create(system)
+
+      implicit val mockedCommunicator = mock[VSCommunicator]
+      val mockedErr = mock[HttpError]
+      mockedErr.errorCode returns 404
+
+      mockedCommunicator.request(any,any,any,any,any,any)(any,any) returns Future(Left(mockedErr))
+
+      val sinkFact = Sink.seq[PotentialArchiveTarget]
+      val graph = GraphDSL.create(sinkFact) {implicit builder=> sink=>
+        import akka.stream.scaladsl.GraphDSL.Implicits._
+
+        val src = builder.add(Source.single(PotentialArchiveTarget(None,None,"fake-oid","fake-filename","VX-123",Some("VX-456"),Some(Seq("VX-567","VX-678")))))
+        val toTest = builder.add(new VSDeleteShapeAndOrFile())
+        src ~> toTest ~> sink
+        ClosedShape
+      }
+
+      val result = Await.result(RunnableGraph.fromGraph(graph).run(), 10 seconds)
+
+      result.length mustEqual 1
+      result.head.status mustEqual ArchiveTargetStatus.SUCCESS
+
+      there was atLeastOne(mockedCommunicator).request(VSCommunicator.OperationType.DELETE,
+        "/API/storage/file/VX-123",
+        None,
+        Map()
+      ) andThen atLeastOne (mockedCommunicator).request(VSCommunicator.OperationType.DELETE,
+        "/API/item/VX-456/shape/VX-567",
+        None,
+        Map()
+      ) andThen atLeastOne (mockedCommunicator).request(VSCommunicator.OperationType.DELETE,
+        "/API/item/VX-456/shape/VX-678",
+        None,
+        Map()
+      )
     }
   }
 }
