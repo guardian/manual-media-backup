@@ -25,7 +25,11 @@ import scala.util.{Failure, Success}
 object Main {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private val config = ConfigFactory.parseString("akka.http.host-connection-pool.response-entity-subscription-timeout = 100.seconds")
+  private val config = ConfigFactory.parseString(
+    """akka.http.host-connection-pool.response-entity-subscription-timeout = 100.seconds
+      |akka.http.host-connection-pool.max-connections=1024
+      |""".stripMargin)
+
   private implicit val actorSystem:ActorSystem = ActorSystem.create("unclog-vidispine", config)
   private implicit val mat:Materializer = ActorMaterializer.create(actorSystem)
 
@@ -95,11 +99,11 @@ object Main {
 //      ))
 
       val src = FileIO.fromPath(sourceFile)
-      val framer = builder.add(Framing.delimiter(ByteString("\n"),10240000,allowTruncation=false))
+      val framer = builder.add(Framing.delimiter(ByteString("\n"),102400,allowTruncation=false))
       src ~> framer ~> decoder ~> ahLookup
       //src.out ~> ahLookup
       ahLookup.out(0) ~> archiveSizeCheck                                                                 //"YES" branch - item already exists, check file sizes
-      ahLookup.out(1).mapAsyncUnordered(0)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
+      ahLookup.out(1).mapAsyncUnordered(1)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
         val target = S3Target(targetBucket, entry.mxsFilename)
         uploader.performS3Upload(entry.oid,entry.contentType, target).map({
           case Right(r)=>
