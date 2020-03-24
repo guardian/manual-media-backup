@@ -62,7 +62,7 @@ object Main {
   })
 
   def testSetArchivalFields(itemId:String) = {
-    VSHelpers.setArchivalMetadataFields(itemId,S3Target(targetBucket,"test-path")).map({
+    VSHelpers.setArchivalMetadataFields(itemId,S3Target(targetBucket,"test-path",None)).map({
       case Left(err)=>
         logger.error(s"set archival fields test failed: $err")
       case Right(_)=>
@@ -104,7 +104,7 @@ object Main {
       //src.out ~> ahLookup
       ahLookup.out(0) ~> archiveSizeCheck                                                                 //"YES" branch - item already exists, check file sizes
       ahLookup.out(1).mapAsyncUnordered(1)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
-        val target = S3Target(targetBucket, entry.mxsFilename)
+        val target = S3Target(targetBucket, entry.mxsFilename,None)
         uploader.performS3Upload(entry.oid,entry.contentType, target).map({
           case Right(r)=>
             logger.info(s"Uploaded ${entry.mxsFilename} (${entry.oid}) to $target")
@@ -201,7 +201,7 @@ object Main {
           val testS3Bucket = sys.env.getOrElse("TEST_S3_BUCKET", "test-bucket")
           val testS3Path = sys.env.getOrElse("TEST_S3_PATH","unclog-test-file")
           val u = new AlpakkaS3Uploader(userInfo)
-          u.performS3Upload(testOnOMFile.get,"application/octet-stream", S3Target(testS3Bucket, testS3Path)).onComplete({
+          u.performS3Upload(testOnOMFile.get,"application/octet-stream", S3Target(testS3Bucket, testS3Path,None)).onComplete({
             case Failure(err)=>
               logger.error("performS3Upload crashed: ", err)
               //terminate(1)

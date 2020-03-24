@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 
 import scala.collection.JavaConverters._
-import com.amazonaws.services.s3.model.{AbortMultipartUploadRequest, CompleteMultipartUploadRequest, CompleteMultipartUploadResult, InitiateMultipartUploadRequest, PartETag, UploadPartRequest}
+import com.amazonaws.services.s3.model.{AbortMultipartUploadRequest, CompleteMultipartUploadRequest, CompleteMultipartUploadResult, InitiateMultipartUploadRequest, ObjectMetadata, PartETag, UploadPartRequest}
 import helpers.ByteBufferBackedInputStream
 
 import scala.concurrent.{Future, Promise}
@@ -46,7 +46,7 @@ class SyncS3Uploader(s3Target:S3Target, client:AmazonS3,bufferCapacity:Int=5*102
           .withInputStream(s)
 
         val result = client.uploadPart(rq)
-        logger.info(s"uploaded chunk $partCounter of size $partLength, got ${result.getETag}")
+        logger.trace(s"uploaded chunk $partCounter of size $partLength, got ${result.getETag}")
         s.close()
         partCounter+=1
         uploadedEtags = uploadedEtags :+ result.getPartETag
@@ -56,7 +56,7 @@ class SyncS3Uploader(s3Target:S3Target, client:AmazonS3,bufferCapacity:Int=5*102
       setHandler(in, new AbstractInHandler {
         override def onPush(): Unit = {
           val newData = grab(in).toArray
-          logger.info(s"got ${newData.length} more data, remaining is ${buffer.remaining()}, limit is ${buffer.limit()}...")
+          logger.trace(s"got ${newData.length} more data, remaining is ${buffer.remaining()}, limit is ${buffer.limit()}...")
           if(newData.length > buffer.remaining()) {
             pushBufferContent(false, buffer.limit() - buffer.remaining()) match {
               case Success(_)=>
@@ -97,10 +97,14 @@ class SyncS3Uploader(s3Target:S3Target, client:AmazonS3,bufferCapacity:Int=5*102
 
       override def preStart(): Unit = {
         try {
-          val rq = new InitiateMultipartUploadRequest(s3Target.bucket, s3Target.path)
+          val meta = new ObjectMetadata()
+          s3Target.maybeContentType.map(t=>meta.setContentType(t.toString()))
+          logger.debug(s"content type is ${meta.getContentType}")
+
+          val rq = new InitiateMultipartUploadRequest(s3Target.bucket, s3Target.path).withObjectMetadata(meta)
           val initiateResponse = client.initiateMultipartUpload(rq)
           uploadId = initiateResponse.getUploadId
-          logger.info(s"upload ID is $uploadId")
+          logger.debug(s"upload ID is $uploadId")
           buffer = ByteBuffer.allocate(bufferCapacity)
           pull(in)
         } catch {

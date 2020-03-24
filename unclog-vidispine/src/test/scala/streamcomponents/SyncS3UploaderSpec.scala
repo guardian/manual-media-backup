@@ -2,12 +2,14 @@ package streamcomponents
 
 import java.io.File
 
+import akka.http.scaladsl.model.ContentType
 import akka.stream.scaladsl.{FileIO, GraphDSL, RunnableGraph}
 import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import models.S3Target
 import org.specs2.mutable.Specification
 import vsStreamComponents.AkkaTestkitSpecs2Support
+
 import scala.concurrent.duration._
 import scala.concurrent.Await
 
@@ -18,8 +20,13 @@ class SyncS3UploaderSpec extends Specification {
         implicit val mat: Materializer = ActorMaterializer.create(system)
 
         val client = AmazonS3ClientBuilder.defaultClient()
+        val realContentType = ContentType.parse("video/mp4") match {
+          case Left(errs)=>
+            ContentType.parse("application/octet-stream").right.get
+          case Right(ct)=>ct
+        }
 
-        val sinkFact = new SyncS3Uploader(S3Target("archivehunter-test-media", "test.mp4"), client)
+        val sinkFact = new SyncS3Uploader(S3Target("archivehunter-test-media", "test.mp4", Some(realContentType)), client)
         val graph = GraphDSL.create(sinkFact) { implicit builder =>
           sink =>
             import akka.stream.scaladsl.GraphDSL.Implicits._

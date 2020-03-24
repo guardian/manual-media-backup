@@ -10,7 +10,8 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest
 import com.om.mxs.client.japi.UserInfo
 import org.slf4j.LoggerFactory
-import streamcomponents.MatrixStoreFileSource
+import streamcomponents.{MatrixStoreFileSource, SyncS3Uploader}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AlpakkaS3Uploader(userInfo:UserInfo) {
@@ -35,12 +36,13 @@ class AlpakkaS3Uploader(userInfo:UserInfo) {
       case Right(ct)=>ct
     }
 
-    val sinkFact = scaladsl.S3.multipartUpload(
-      to.bucket,
-      to.path,
-      realContentType,
-    )
+//    val sinkFact = scaladsl.S3.multipartUpload(
+//      to.bucket,
+//      to.path,
+//      realContentType,
+//    )
 
+    val sinkFact = new SyncS3Uploader(to.copy(maybeContentType = Some(realContentType)), s3Client)
     val graph = GraphDSL.create(sinkFact) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
@@ -51,7 +53,7 @@ class AlpakkaS3Uploader(userInfo:UserInfo) {
 
 
     RunnableGraph.fromGraph(graph).run().map(r => {
-      val rq = new GetObjectMetadataRequest(r.bucket, r.key)
+      val rq = new GetObjectMetadataRequest(r.getBucketName, r.getKey)
       Right(s3Client.getObjectMetadata(rq))
     }).recover({
       case err:java.io.IOException=>

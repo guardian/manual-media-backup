@@ -1,3 +1,5 @@
 package models
 
-case class S3Target(bucket:String, path:String)
+import akka.http.scaladsl.model.ContentType
+
+case class S3Target(bucket:String, path:String, maybeContentType:Option[ContentType])
