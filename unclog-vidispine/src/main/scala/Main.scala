@@ -97,7 +97,7 @@ object Main {
       src ~> framer ~> decoder ~> ahLookup
       //src.out ~> ahLookup
       ahLookup.out(0) ~> archiveSizeCheck                                                                 //"YES" branch - item already exists, check file sizes
-      ahLookup.out(1).mapAsyncUnordered(4)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
+      ahLookup.out(1).mapAsyncUnordered(1)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
         val target = S3Target(targetBucket, entry.mxsFilename)
         uploader.performS3Upload(entry.oid,entry.contentType, target).map({
           case Right(r)=>
