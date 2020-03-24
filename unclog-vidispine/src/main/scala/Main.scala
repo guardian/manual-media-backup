@@ -16,6 +16,7 @@ import streamcomponents.{ArchiveHunterFileSizeSwitch, FromMediaCensusJson}
 import vidispine.VSCommunicator
 import vsStreamComponents.VSDeleteShapeAndOrFile
 import com.softwaremill.sttp._
+import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -24,7 +25,8 @@ import scala.util.{Failure, Success}
 object Main {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private implicit val actorSystem:ActorSystem = ActorSystem.create("unclog-vidispine")
+  private val config = ConfigFactory.parseString("akka.http.host-connection-pool.response-entity-subscription-timeout = 100.seconds")
+  private implicit val actorSystem:ActorSystem = ActorSystem.create("unclog-vidispine", config)
   private implicit val mat:Materializer = ActorMaterializer.create(actorSystem)
 
   val ahBaseUri = sys.env("ARCHIVE_HUNTER_URL")
