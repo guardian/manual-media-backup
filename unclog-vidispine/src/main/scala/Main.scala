@@ -42,6 +42,8 @@ object Main {
 
   lazy val testOnVsItem = sys.env.get("TEST_VSITEM_ID")
 
+  lazy val testOnOMFile = sys.env.get("TEST_UPLOAD_OID")
+
   lazy val chunkSize = sys.env.getOrElse("CHUNK_SIZE","1024").toInt //chunk size in kByte/s
 
   lazy implicit val vsCommunicator = new VSCommunicator(vsConfig.vsUri, vsConfig.plutoUser, vsConfig.plutoPass)
@@ -97,7 +99,7 @@ object Main {
       src ~> framer ~> decoder ~> ahLookup
       //src.out ~> ahLookup
       ahLookup.out(0) ~> archiveSizeCheck                                                                 //"YES" branch - item already exists, check file sizes
-      ahLookup.out(1).mapAsyncUnordered(1)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
+      ahLookup.out(1).mapAsyncUnordered(0)(entry=>{                                            //"NO" branch  - item does not exist in archive, upload it
         val target = S3Target(targetBucket, entry.mxsFilename)
         uploader.performS3Upload(entry.oid,entry.contentType, target).map({
           case Right(r)=>
@@ -191,27 +193,44 @@ object Main {
         terminate(1)
       case Success(userInfo)=>
         logger.debug(s"Got userinfo: $userInfo")
-        val readingFromFile = new File(readingFrom)
-        val graph = buildStream(readingFromFile.toPath, userInfo)
-        RunnableGraph.fromGraph(graph).run().onComplete({
-          case Failure(err)=>
-            logger.error("Main stream crashed: ",err)
-            terminate(2)
-          case Success(results)=>
-            val (successCount, successSize) = totalUpStatus(results, ArchiveTargetStatus.SUCCESS)
-            val (delFailureCount, delFailureSize) = totalUpStatus(results, ArchiveTargetStatus.DELETE_FAILED)
-            val (upFailureCount, upFailureSize) = totalUpStatus(results, ArchiveTargetStatus.UPLOAD_FAILED)
-            val (conflictCount, conflictSize) = totalUpStatus(results, ArchiveTargetStatus.TARGET_CONFLICT)
-            val (stillInProgCount, stillInProgSize) = totalUpStatus(results, ArchiveTargetStatus.IN_PROGRESS) //should always be zero!
+        if(testOnOMFile.isDefined){
+          val testS3Bucket = sys.env.getOrElse("TEST_S3_BUCKET", "test-bucket")
+          val testS3Path = sys.env.getOrElse("TEST_S3_PATH","unclog-test-file")
+          val u = new AlpakkaS3Uploader(userInfo)
+          u.performS3Upload(testOnOMFile.get,"application/octet-stream", S3Target(testS3Bucket, testS3Path)).onComplete({
+            case Failure(err)=>
+              logger.error("performS3Upload crashed: ", err)
+              //terminate(1)
+            case Success(Left(err))=>
+              logger.error(s"test upload failed: $err")
+              //terminate(2)
+            case Success(Right(meta))=>
+              logger.info(s"test upload succeeded. ${meta.getContentLength} bytes uploaded with checksum of ${meta.getContentMD5}")
+              //terminate(0)
+          })
+        } else {
+          val readingFromFile = new File(readingFrom)
+          val graph = buildStream(readingFromFile.toPath, userInfo)
+          RunnableGraph.fromGraph(graph).run().onComplete({
+            case Failure(err) =>
+              logger.error("Main stream crashed: ", err)
+              terminate(2)
+            case Success(results) =>
+              val (successCount, successSize) = totalUpStatus(results, ArchiveTargetStatus.SUCCESS)
+              val (delFailureCount, delFailureSize) = totalUpStatus(results, ArchiveTargetStatus.DELETE_FAILED)
+              val (upFailureCount, upFailureSize) = totalUpStatus(results, ArchiveTargetStatus.UPLOAD_FAILED)
+              val (conflictCount, conflictSize) = totalUpStatus(results, ArchiveTargetStatus.TARGET_CONFLICT)
+              val (stillInProgCount, stillInProgSize) = totalUpStatus(results, ArchiveTargetStatus.IN_PROGRESS) //should always be zero!
 
-            logger.info("Run completed")
-            logger.info(s"Successful items:      $successCount totalling ${gb(successSize)} Gib")
-            logger.info(s"Deletion failures:     $delFailureCount totalling ${gb(delFailureSize)} Gib")
-            logger.info(s"Upload failures:       $upFailureCount totalling ${gb(upFailureSize)} Gib")
-            logger.info(s"Upload conflicts:      $conflictCount totalling ${gb(conflictSize)} Gib")
-            logger.info(s"Still in progress (?): $stillInProgCount totalling ${gb(stillInProgSize)}")
-            terminate(0)
-        })
+              logger.info("Run completed")
+              logger.info(s"Successful items:      $successCount totalling ${gb(successSize)} Gib")
+              logger.info(s"Deletion failures:     $delFailureCount totalling ${gb(delFailureSize)} Gib")
+              logger.info(s"Upload failures:       $upFailureCount totalling ${gb(upFailureSize)} Gib")
+              logger.info(s"Upload conflicts:      $conflictCount totalling ${gb(conflictSize)} Gib")
+              logger.info(s"Still in progress (?): $stillInProgCount totalling ${gb(stillInProgSize)}")
+              terminate(0)
+          })
+        }
     }
   }
 }
