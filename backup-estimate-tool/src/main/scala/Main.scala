@@ -82,7 +82,7 @@ object Main {
     */
   def getObjectMatrixContent(userInfo:UserInfo) = {
     //we don't seem to get whatever field is first in the list :(
-    val searchTerm = SearchTerm.createSimpleTerm(Constants.CONTENT, "*\nkeywords: __mxs__id,__mxs__location,MXFS_FILENAME,DPSP_SIZE,MXFS_MODIFICATION_TIME\n")
+    val searchTerm = SearchTerm.createSimpleTerm(Constants.CONTENT, "*\nkeywords: __mxs__id,MXFS_FILENAME,DPSP_SIZE,MXFS_MODIFICATION_TIME\n")
     val interestingFields = Array("MXFS_FILENAME","DPSP_SIZE","MXFS_MODIFICATION_TIME")
     val sinkFact = Sink.ignore
 
