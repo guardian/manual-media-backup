@@ -13,7 +13,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -30,6 +33,18 @@ type IndexRecord struct {
 	NeedBackupSize int64     `json:"needsBackupSize"`
 	NoBackupSize   int64     `json:"noBackupSize"`
 	Timestamp      time.Time `json:"timestamp"`
+}
+
+type FileRecord struct {
+	Timestamp    time.Time `json:"timestamp"`
+	Filename     string    `json:"filename"`
+	Extension    string    `json:"extension"`
+	WorkingGroup string    `json:"working_group"`
+	Commission   string    `json:"commission"`
+	Project      string    `json:"project"`
+	StatErr      string    `json:"stat_error"`
+	Size         int64     `json:"size"`
+	WholePath    string    `json:"wholepath"`
 }
 
 /**
@@ -183,6 +198,43 @@ func RemoveOldList(esClient *elasticsearch.Client) {
 	}
 }
 
+var xtnsplitter = regexp.MustCompile("^(.*)\\.([^.]+)$")
+
+func MakeFileRecord(fileNamePtr *string) *FileRecord {
+	if fileNamePtr == nil {
+		return nil
+	}
+
+	var rec FileRecord
+
+	rec.WholePath = *fileNamePtr
+	dirPart, filePart := path.Split(*fileNamePtr)
+	stringParts := strings.Split(dirPart, "/")
+	if len(stringParts) >= 7 {
+		rec.WorkingGroup = stringParts[5]
+		rec.Commission = stringParts[6]
+		rec.Project = stringParts[7]
+	}
+
+	matches := xtnsplitter.FindStringSubmatch(filePart)
+	if matches == nil {
+		rec.Filename = filePart
+	} else {
+		rec.Filename = matches[1]
+		rec.Extension = matches[2]
+	}
+
+	info, statErr := os.Stat(*fileNamePtr)
+	if statErr == nil {
+		rec.Size = info.Size()
+		rec.Timestamp = info.ModTime()
+	} else {
+		rec.StatErr = statErr.Error()
+		rec.Timestamp = time.Now()
+	}
+	return &rec
+}
+
 /**
 sets up a loop to read from the given channel of filenames and pushes them into the index
 no bulk is performed as yet because the number is expected to be relatively small
@@ -195,11 +247,13 @@ func AddToIndex(esClient *elasticsearch.Client, fileListChan chan *string) int {
 			log.Print("AddToIndex got to end of data, returning")
 			return ctr
 		}
+		if *fileNamePtr == "" {
+			continue
+		}
 		ctr += 1
 		ctx := context.Background()
-		marshalledContent, _ := json.Marshal(map[string]string{
-			"filename": *fileNamePtr,
-		})
+
+		marshalledContent, _ := json.Marshal(MakeFileRecord(fileNamePtr))
 		req := esapi.IndexRequest{
 			Index:   "files-to-back-up",
 			Body:    bytes.NewReader(marshalledContent),
