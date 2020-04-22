@@ -52,6 +52,20 @@ object Main {
     result
   }
 
+  def writeUnbackedupFiles(counterData: FinalEstimate) = {
+    val outputFile = new File(s"${sys.env.getOrElse("HOME","/tmp")}/to-back-up.lst")
+    val s = new FileOutputStream(outputFile)
+
+    val result = Try {
+      counterData.pathsToBackUp.foreach(path=>{
+        val line = path + "\n"
+        s.write(line.getBytes("UTF-8"))
+      })
+    }
+    s.close()
+    result
+  }
+
   /**
     * build and run a stream to fetch files info from source path and put it into the BackupsEstimateGroup actor
     * @param startAt path to start from
@@ -125,21 +139,23 @@ object Main {
             contentImg.get(entry.filePath) match {
               case None=>
                 logger.info(s"Entry $entry had no matches")
-                EstimateCounter(Some(entry.size),None)
+                EstimateCounter(Some(entry.size),None, entry.filePath)
               case Some(potentialBackups)=>
                 val matches = potentialBackups.filter(_.size==entry.size)
                 if(matches.nonEmpty){
                   logger.debug(s"Entry $entry matched ${matches.head} and ${matches.tail.length} others")
-                  EstimateCounter(None, Some(entry.size))
+                  EstimateCounter(None, Some(entry.size), entry.filePath)
                 } else {
                   logger.debug(s"Entry $entry matched nothing out of $potentialBackups")
-                  EstimateCounter(Some(entry.size), None)
+                  EstimateCounter(Some(entry.size), None, entry.filePath)
                 }
             }
           })
           .toMat(Sink.fold[FinalEstimate, EstimateCounter](FinalEstimate.empty)((acc, elem) => {
             if (elem.needsBackupSize.isDefined) {
-              acc.copy(needsBackupCount = acc.needsBackupCount + 1, needsBackupSize = acc.needsBackupSize + elem.needsBackupSize.get)
+              acc.copy(needsBackupCount = acc.needsBackupCount + 1,
+                needsBackupSize = acc.needsBackupSize + elem.needsBackupSize.get,
+                pathsToBackUp = acc.pathsToBackUp :+ elem.filePath)
             } else if (elem.noBackupSize.isDefined) {
               acc.copy(noBackupCount = acc.noBackupCount + 1, noBackupSize = acc.noBackupSize + elem.noBackupSize.get)
             } else {
@@ -198,10 +214,14 @@ object Main {
                 .onComplete({
                   case Success(finalEstimate) =>
                     logger.info(s"Final estimate results: ${finalEstimate.needsBackupSize} b comprising of ${finalEstimate.needsBackupCount} files need backing up")
-                    logger.info(s"${finalEstimate.noBackupSize} b conmprising of ${finalEstimate.noBackupCount} files do not need backing up")
+                    logger.info(s"${finalEstimate.noBackupSize} b comprising of ${finalEstimate.noBackupCount} files do not need backing up")
                     writeBackupEstimate(finalEstimate) match {
                       case Success(_)=>logger.info(s"Wrote backup estimate json")
                       case Failure(err)=>logger.error(s"Could not write estimate json: ", err)
+                    }
+                    writeUnbackedupFiles(finalEstimate) match {
+                      case Success(_)=>logger.info(s"Wrote list of not backed up files")
+                      case Failure(err)=>logger.error(s"Could not write un backed up files: ", err)
                     }
                     system.terminate()
                   case Failure(err) =>

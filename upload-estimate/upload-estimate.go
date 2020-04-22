@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"github.com/elastic/go-elasticsearch/v6"
 	"github.com/elastic/go-elasticsearch/v6/esapi"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -59,6 +62,14 @@ func GetDefaultFilename() string {
 	return basePath + "/backup-estimate.json"
 }
 
+func GetDefaultListName() string {
+	var basePath = os.Getenv("HOME")
+	if basePath == "" {
+		basePath = "/tmp"
+	}
+	return basePath + "/to-back-up.lst"
+}
+
 /**
 establish a connection to ElasticSearch. Terminates if no connection can be established
 */
@@ -108,9 +119,103 @@ func LoadFile(fileNamePtr *string) (*JsonFormat, error) {
 	return &content, nil
 }
 
+/**
+reads in the given file in the background, passing out each line to a channel as it is read
+*/
+func ReadInListfile(fileNamePtr *string) (chan *string, error) {
+	f, openErr := os.Open(*fileNamePtr)
+	if openErr != nil {
+		log.Printf("Could not open %s to read: %s", *fileNamePtr, openErr)
+		return nil, openErr
+	}
+
+	//why a pointer? so we can pass nil to indicate end-of-stream.
+	outputChan := make(chan *string, 10)
+
+	go func() {
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f) //scanner splits on newlines by default
+		for scanner.Scan() {
+			outpt := scanner.Text()
+			outputChan <- &outpt
+		}
+		outputChan <- nil
+	}()
+
+	return outputChan, nil
+}
+
+func DoesIndexExist(esClient *elasticsearch.Client) (bool, error) {
+	existsResponse, exErr := esClient.Indices.Exists([]string{"files-to-back-up"})
+
+	if exErr != nil {
+		log.Fatal("could not check for existence of old index: ", exErr)
+	}
+	defer existsResponse.Body.Close()
+	io.Copy(ioutil.Discard, existsResponse.Body)
+	switch existsResponse.StatusCode {
+	case 200: //index exists
+		return true, nil
+	case 404: //index does not exist
+		return false, nil
+	default: //something else
+		log.Fatal("DoesIndexExist got an unexpected response: ", existsResponse.StatusCode)
+		return false, errors.New("should not get here")
+	}
+}
+
+func RemoveOldList(esClient *elasticsearch.Client) {
+	exists, existErr := DoesIndexExist(esClient)
+	if existErr != nil {
+		log.Fatal("could not check for index existence")
+	}
+	if exists {
+		log.Printf("RemoveOldList: there is an existing index for file list, removing and re-creating")
+
+		response, err := esClient.Indices.Delete([]string{"files-to-back-up"})
+		if err != nil {
+			log.Fatal("could not remove old index: ", err)
+		}
+		response.Body.Close()
+	} else {
+		log.Printf("RemoteOldList: no existing index, proceeding")
+	}
+}
+
+/**
+sets up a loop to read from the given channel of filenames and pushes them into the index
+no bulk is performed as yet because the number is expected to be relatively small
+*/
+func AddToIndex(esClient *elasticsearch.Client, fileListChan chan *string) int {
+	ctr := 0
+	for {
+		fileNamePtr := <-fileListChan
+		if fileNamePtr == nil {
+			log.Print("AddToIndex got to end of data, returning")
+			return ctr
+		}
+		ctr += 1
+		ctx := context.Background()
+		marshalledContent, _ := json.Marshal(map[string]string{
+			"filename": *fileNamePtr,
+		})
+		req := esapi.IndexRequest{
+			Index:   "files-to-back-up",
+			Body:    bytes.NewReader(marshalledContent),
+			Refresh: "false",
+		}
+		_, err := req.Do(ctx, esClient)
+		if err != nil {
+			log.Printf("WARNING AddToIndex could not index %s due to %s", *fileNamePtr, err)
+		}
+	}
+}
+
 func main() {
 	defaultFileName := GetDefaultFilename()
 	fileNamePtr := flag.String("input-file", defaultFileName, "Name of the json file to import and upload")
+	listNamePtr := flag.String("input-list", GetDefaultListName(), "Name of a text file to import filenames from")
 	elasticUrlPtr := flag.String("elasticsearch", "http://localhost:9200", "URL to the Elasticsearch cluster")
 	indexNamePtr := flag.String("index", "backup-estimate", "Name of the index to save data to")
 
@@ -147,4 +252,14 @@ func main() {
 	} else {
 		log.Printf("Output record to ES")
 	}
+
+	log.Printf("Reading file list in from %s", *listNamePtr)
+	filesToBackUp, readErr := ReadInListfile(listNamePtr)
+	if readErr != nil {
+		log.Fatal("could not read in list file: ", readErr)
+	}
+
+	RemoveOldList(esClient)
+	totalIndexed := AddToIndex(esClient, filesToBackUp)
+	log.Printf("All %d files read in", totalIndexed)
 }
