@@ -141,15 +141,27 @@ object Main {
             contentImg.get(entry.filePath) match {
               case None=>
                 logger.info(s"Entry $entry had no matches")
-                EstimateCounter(Some(entry.size),None, BackupDebugInfo(entry.filePath,Some("Entry had no matches")))
+                EstimateCounter(Some(entry.size),None, BackupDebugInfo(entry.filePath,Some("Entry had no matches"), Seq()))
               case Some(potentialBackups)=>
                 val matches = potentialBackups.filter(_.size==entry.size)
                 if(matches.nonEmpty){
                   logger.debug(s"Entry $entry matched ${matches.head} and ${matches.tail.length} others")
-                  EstimateCounter(None, Some(entry.size), BackupDebugInfo(entry.filePath,Some(s"Matched ${matches.length} out of ${potentialBackups.length} potential entries")))
+                  EstimateCounter(None,
+                    Some(entry.size),
+                    BackupDebugInfo(entry.filePath,
+                      Some(s"Matched ${matches.length} out of ${potentialBackups.length} potential entries"),
+                      potentialBackups.map(_.size)
+                    )
+                  )
                 } else {
                   logger.debug(s"Entry $entry matched nothing out of $potentialBackups")
-                  EstimateCounter(Some(entry.size), None, BackupDebugInfo(entry.filePath,Some(s"Matched none out of ${potentialBackups.length} potential entries")))
+                  EstimateCounter(Some(entry.size),
+                    None,
+                    BackupDebugInfo(entry.filePath,
+                      Some(s"Matched none out of ${potentialBackups.length} potential entries"),
+                      potentialBackups.map(_.size)
+                    )
+                  )
                 }
             }
           })
