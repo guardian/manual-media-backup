@@ -74,17 +74,17 @@ object Main {
     * @return
     */
   def getFileSystemContent(startAt:Path, excludeListFile:Option[String]) = {
-    FileListSource(startAt)
+    FileListSource(startAt).async
       .via(new FilterOutDirectories)
       .via(UTF8PathCharset())
       .via(new FilterOutMacStuff)
       .via(new ExcludeListSwitch(excludeListFile))
       .map(_.toFile).async
       .filter(_.exists())
-      .map(file=>BackupEstimateEntry(file.getAbsolutePath,
+      .mapAsync(4)(file=>Future{ BackupEstimateEntry(file.getAbsolutePath,
         file.length(),
         ZonedDateTime.ofInstant(Instant.ofEpochMilli(file.lastModified()), ZoneId.systemDefault())
-      ))
+      )})
       //.map(entry=>estimateActor ! BackupEstimateGroup.AddToGroup(entry))
       .toMat(Sink.seq)(Keep.right)
       .run()
