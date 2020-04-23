@@ -1,8 +1,9 @@
 package models
 
-case class EstimateCounter(needsBackupSize:Option[Long],noBackupSize:Option[Long],filePath:String)
+case class BackupDebugInfo(filePath:String, notes:Option[String])
+case class EstimateCounter(needsBackupSize:Option[Long],noBackupSize:Option[Long],filePath:BackupDebugInfo)
 
-case class FinalEstimate(needsBackupCount:Int, needsBackupSize:Long, noBackupCount:Int, noBackupSize:Long, pathsToBackUp:Seq[String])
+case class FinalEstimate(needsBackupCount:Int, needsBackupSize:Long, noBackupCount:Int, noBackupSize:Long, pathsToBackUp:Seq[BackupDebugInfo])
 object FinalEstimate {
   def apply(needsBackupCount: Int, needsBackupSize: Long, noBackupCount: Int, noBackupSize: Long): FinalEstimate =
     new FinalEstimate(needsBackupCount, needsBackupSize, noBackupCount, noBackupSize, Seq())

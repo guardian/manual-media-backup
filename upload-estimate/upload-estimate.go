@@ -35,6 +35,11 @@ type IndexRecord struct {
 	Timestamp      time.Time `json:"timestamp"`
 }
 
+type BackupDebugEntry struct {
+	FilePath string `json:"filePath"`
+	Notes    string `json:"notes"`
+}
+
 type FileRecord struct {
 	Timestamp    time.Time `json:"timestamp"`
 	Filename     string    `json:"filename"`
@@ -45,6 +50,7 @@ type FileRecord struct {
 	StatErr      string    `json:"stat_error"`
 	Size         int64     `json:"size"`
 	WholePath    string    `json:"wholepath"`
+	Notes        string    `json:"notes"`
 }
 
 /**
@@ -137,7 +143,7 @@ func LoadFile(fileNamePtr *string) (*JsonFormat, error) {
 /**
 reads in the given file in the background, passing out each line to a channel as it is read
 */
-func ReadInListfile(fileNamePtr *string) (chan *string, error) {
+func ReadInListfile(fileNamePtr *string) (chan *BackupDebugEntry, error) {
 	f, openErr := os.Open(*fileNamePtr)
 	if openErr != nil {
 		log.Printf("Could not open %s to read: %s", *fileNamePtr, openErr)
@@ -145,15 +151,24 @@ func ReadInListfile(fileNamePtr *string) (chan *string, error) {
 	}
 
 	//why a pointer? so we can pass nil to indicate end-of-stream.
-	outputChan := make(chan *string, 10)
+	outputChan := make(chan *BackupDebugEntry, 10)
 
 	go func() {
 		defer f.Close()
 
 		scanner := bufio.NewScanner(f) //scanner splits on newlines by default
 		for scanner.Scan() {
-			outpt := scanner.Text()
-			outputChan <- &outpt
+			var entry BackupDebugEntry
+			rawJson := scanner.Text()
+			if rawJson == "" {
+				continue
+			}
+			marshalErr := json.Unmarshal([]byte(rawJson), &entry)
+			if marshalErr == nil {
+				outputChan <- &entry
+			} else {
+				log.Printf("could not unmarshal line: %s", marshalErr)
+			}
 		}
 		outputChan <- nil
 	}()
@@ -200,15 +215,16 @@ func RemoveOldList(esClient *elasticsearch.Client) {
 
 var xtnsplitter = regexp.MustCompile("^(.*)\\.([^.]+)$")
 
-func MakeFileRecord(fileNamePtr *string) *FileRecord {
-	if fileNamePtr == nil {
+func MakeFileRecord(entryPtr *BackupDebugEntry) *FileRecord {
+	if entryPtr == nil {
 		return nil
 	}
 
 	var rec FileRecord
 
-	rec.WholePath = *fileNamePtr
-	dirPart, filePart := path.Split(*fileNamePtr)
+	rec.WholePath = entryPtr.FilePath
+	rec.Notes = entryPtr.Notes
+	dirPart, filePart := path.Split(entryPtr.FilePath)
 	stringParts := strings.Split(dirPart, "/")
 	if len(stringParts) >= 7 {
 		rec.WorkingGroup = stringParts[5]
@@ -224,7 +240,7 @@ func MakeFileRecord(fileNamePtr *string) *FileRecord {
 		rec.Extension = matches[2]
 	}
 
-	info, statErr := os.Stat(*fileNamePtr)
+	info, statErr := os.Stat(entryPtr.FilePath)
 	if statErr == nil {
 		rec.Size = info.Size()
 		rec.Timestamp = info.ModTime()
@@ -239,16 +255,13 @@ func MakeFileRecord(fileNamePtr *string) *FileRecord {
 sets up a loop to read from the given channel of filenames and pushes them into the index
 no bulk is performed as yet because the number is expected to be relatively small
 */
-func AddToIndex(esClient *elasticsearch.Client, fileListChan chan *string) int {
+func AddToIndex(esClient *elasticsearch.Client, fileListChan chan *BackupDebugEntry) int {
 	ctr := 0
 	for {
 		fileNamePtr := <-fileListChan
 		if fileNamePtr == nil {
 			log.Print("AddToIndex got to end of data, returning")
 			return ctr
-		}
-		if *fileNamePtr == "" {
-			continue
 		}
 		ctr += 1
 		ctx := context.Background()

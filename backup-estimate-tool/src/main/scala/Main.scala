@@ -7,7 +7,7 @@ import akka.stream.{ActorMaterializer, ClosedShape, Materializer}
 import akka.stream.scaladsl.{GraphDSL, Keep, RunnableGraph, Sink, Source}
 import com.om.mxs.client.japi.{Constants, SearchTerm, UserInfo}
 import models.BackupEstimateGroup.{BEMsg, FoundEntry, NotFoundEntry, SizeReturn}
-import models.{BackupEstimateEntry, BackupEstimateGroup, EstimateCounter, FinalEstimate}
+import models.{BackupDebugInfo, BackupEstimateEntry, BackupEstimateGroup, EstimateCounter, FinalEstimate}
 import org.slf4j.LoggerFactory
 import streamcomponents.{BackupEstimateGroupSink, ExcludeListSwitch, FileListSource, FilterOutDirectories, FilterOutMacStuff, OMFastSearchSource, UTF8PathCharset}
 
@@ -53,12 +53,14 @@ object Main {
   }
 
   def writeUnbackedupFiles(counterData: FinalEstimate) = {
+    import io.circe.generic.auto._
+    import io.circe.syntax._
     val outputFile = new File(s"${sys.env.getOrElse("HOME","/tmp")}/to-back-up.lst")
     val s = new FileOutputStream(outputFile)
 
     val result = Try {
       counterData.pathsToBackUp.foreach(path=>{
-        val line = path + "\n"
+        val line = path.asJson.noSpaces
         s.write(line.getBytes("UTF-8"))
       })
     }
@@ -139,15 +141,15 @@ object Main {
             contentImg.get(entry.filePath) match {
               case None=>
                 logger.info(s"Entry $entry had no matches")
-                EstimateCounter(Some(entry.size),None, entry.filePath)
+                EstimateCounter(Some(entry.size),None, BackupDebugInfo(entry.filePath,Some("Entry had no matches")))
               case Some(potentialBackups)=>
                 val matches = potentialBackups.filter(_.size==entry.size)
                 if(matches.nonEmpty){
                   logger.debug(s"Entry $entry matched ${matches.head} and ${matches.tail.length} others")
-                  EstimateCounter(None, Some(entry.size), entry.filePath)
+                  EstimateCounter(None, Some(entry.size), BackupDebugInfo(entry.filePath,Some(s"Matched ${matches.length} out of ${potentialBackups.length} potential entries")))
                 } else {
                   logger.debug(s"Entry $entry matched nothing out of $potentialBackups")
-                  EstimateCounter(Some(entry.size), None, entry.filePath)
+                  EstimateCounter(Some(entry.size), None, BackupDebugInfo(entry.filePath,Some(s"Matched none out of ${potentialBackups.length} potential entries")))
                 }
             }
           })

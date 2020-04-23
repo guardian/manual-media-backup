@@ -7,7 +7,8 @@ import (
 
 func TestMakeFileRecord(t *testing.T) {
 	fakeFileName := "/media/MediaVolume/fsgaghahd/jnjfgjhfjfg/Multimedia_Antisocial/Silly_Commission/boyd_paul_someproject/media/filename.wav"
-	rec := MakeFileRecord(&fakeFileName)
+	entry := BackupDebugEntry{FilePath: fakeFileName, Notes: "some notes here"}
+	rec := MakeFileRecord(&entry)
 
 	if rec == nil {
 		t.Error("MakeFileRecord unexpectedly returned nil")
@@ -44,5 +45,9 @@ func TestMakeFileRecord(t *testing.T) {
 
 	if rec.WholePath != fakeFileName {
 		t.Errorf("wholepath did not match incoming name")
+	}
+
+	if rec.Notes != "some notes here" {
+		t.Errorf("notes did not match incoming notes, got %s", rec.Notes)
 	}
 }
