@@ -60,7 +60,7 @@ object Main {
 
     val result = Try {
       counterData.pathsToBackUp.foreach(path=>{
-        val line = path.asJson.noSpaces
+        val line = path.asJson.noSpaces + "\n"
         s.write(line.getBytes("UTF-8"))
       })
     }
