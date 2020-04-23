@@ -61,8 +61,8 @@ class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:Act
     }
   }
 
-  def lookupRequest(forPath:String):Future[Either[String,ArchiveHunterLookupResult]] = {
-    val url = s"$baseUri/api/searchpath?filePath=${URLEncoder.encode(forPath)}"
+  def lookupRequest(forPath:String, attempt:Int=0):Future[Either[String,ArchiveHunterLookupResult]] = {
+    val url = s"$baseUri/api/searchpath?filePath=${URLEncoder.encode(forPath,"UTF-8")}"
 
     logger.debug(s"Going to request $url")
 
@@ -85,6 +85,15 @@ class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:Act
               case Left(parseError)=>Left(parseError.toString)
             }
           })
+        case StatusCodes.BadGateway || StatusCodes.GatewayTimeout=>
+          response.entity.discardBytes()
+          logger.error(s"Archivehunter returned a ${response.status} error on attempt $attempt, retrying after delay")
+          if(attempt>=100){
+            logger.error(s"Archivehunter not responding, giving up.")
+            Future(Left(s"Archivehunter is not responding"))
+          }
+          Thread.sleep((attempt+1)*2)
+          lookupRequest(forPath, attempt+1)
         case _=>
           response.entity.getDataBytes().runWith(Sink.fold(ByteString())((acc,entry)=>acc++entry), mat).map(bytes=>{
             Left(s"Unexpected response ${response.status} from server: ${bytes.decodeString("UTF-8")}")

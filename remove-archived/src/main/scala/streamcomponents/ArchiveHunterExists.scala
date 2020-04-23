@@ -41,23 +41,23 @@ class ArchiveHunterExists(baseUri:String, key:String, stripPathElements:Int)(imp
     private var canTerminate = true
     private var mustTerminate = false
 
-    setHandler(in, new AbstractInHandler {
-      private val yesCb = createAsyncCallback[PotentialRemoveStreamObject](elem=>{
-        canTerminate=true
-        push(yes,elem)
-        if(mustTerminate) completeStage()
-      })
-      private val noCb = createAsyncCallback[PotentialRemoveStreamObject](elem=>{
-        canTerminate=true
-        push(no,elem)
-        if(mustTerminate) completeStage()
-      })
-      private val errCb = createAsyncCallback[Throwable](err=>{
-        canTerminate=true
-        failStage(err)
-        if(mustTerminate) completeStage()
-      })
+    private val yesCb = createAsyncCallback[PotentialRemoveStreamObject](elem=>{
+      canTerminate=true
+      push(yes,elem)
+      if(mustTerminate) completeStage()
+    })
+    private val noCb = createAsyncCallback[PotentialRemoveStreamObject](elem=>{
+      canTerminate=true
+      push(no,elem)
+      if(mustTerminate) completeStage()
+    })
+    private val errCb = createAsyncCallback[Throwable](err=>{
+      canTerminate=true
+      failStage(err)
+      if(mustTerminate) completeStage()
+    })
 
+    setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
         val elem = grab(in)
 
