@@ -1,6 +1,6 @@
 package streamcomponents
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 import java.time.{Instant, ZoneId, ZonedDateTime}
 
 import akka.stream.{Attributes, Inlet, Outlet, UniformFanOutShape}
@@ -100,7 +100,9 @@ class NeedsBackupSwitch extends GraphStage[UniformFanOutShape[BackupEntry, Backu
                 ZonedDateTime.now()
             }
 
+            val f = elem.originalPath.toFile
             val omLastModified = omAttributes.mtime
+            val omSize = omAttributes.size
 
             val maybeBeingWritten:Option[Boolean] = elem.maybeObjectMatrixEntry.flatMap(_.attributes).flatMap(_.boolValues.get("GNM_BEING_WRITTEN"))
 
@@ -110,8 +112,13 @@ class NeedsBackupSwitch extends GraphStage[UniformFanOutShape[BackupEntry, Backu
               logger.info(s"File ${elem.originalPath} has 'being written' flag, assuming a previous run crashed and it must be updated")
               push(yes, elem)
             } else if (fileLastModified.isAfter(omLastModified)) {
-              logger.info(s"File ${elem.originalPath} needs backup")
-              push(yes, elem)
+              if(f.length()==omSize){
+                logger.info(s"File ${elem.originalPath} has a timestamp suggesting it needs backup but the existing file is the same size, skipping")
+                push(no, elem)
+              } else {
+                logger.info(s"File ${elem.originalPath} needs backup, timestamp and file size mismatch")
+                push(yes, elem)
+              }
             } else {
               logger.info(s"File ${elem.originalPath} does not need backup")
               push(no, elem)
