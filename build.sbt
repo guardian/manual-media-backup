@@ -118,6 +118,7 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       dockerBaseImage := "openjdk:14-jdk-alpine",
       libraryDependencies ++= Seq(
         "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
+        "net.java.dev.jna" % "jna" % "5.5.0",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
         "org.specs2" %% "specs2-core" % "4.5.1" % Test,
         "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
