@@ -102,7 +102,6 @@ class NeedsBackupSwitch extends GraphStage[UniformFanOutShape[BackupEntry, Backu
 
             val f = elem.originalPath.toFile
             val omLastModified = omAttributes.mtime
-            val omSize = omAttributes.size
 
             val maybeBeingWritten:Option[Boolean] = elem.maybeObjectMatrixEntry.flatMap(_.attributes).flatMap(_.boolValues.get("GNM_BEING_WRITTEN"))
 
@@ -112,7 +111,9 @@ class NeedsBackupSwitch extends GraphStage[UniformFanOutShape[BackupEntry, Backu
               logger.info(s"File ${elem.originalPath} has 'being written' flag, assuming a previous run crashed and it must be updated")
               push(yes, elem)
             } else if (fileLastModified.isAfter(omLastModified)) {
-              if(f.length()==omSize){
+              if(f.length()==omAttributes.size){  //__mxs_length is always lifted by findByFilename and put into the attributes
+                                                  // (called from CheckOMFile) so we have it here.
+                                                  // if there is an error then the _whole_ of omAttributes is None and we are in the other case
                 logger.info(s"File ${elem.originalPath} has a timestamp suggesting it needs backup but the existing file is the same size, skipping")
                 push(no, elem)
               } else {
