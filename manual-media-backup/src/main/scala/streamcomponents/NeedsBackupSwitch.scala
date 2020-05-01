@@ -25,11 +25,11 @@ class NeedsBackupSwitch(implicit mat:Materializer) extends GraphStage[UniformFan
   override def shape: UniformFanOutShape[BackupEntry, BackupEntry] = new UniformFanOutShape[BackupEntry, BackupEntry](in, Array(yes,no))
 
   /**
-    * use the unix `stat` utility to
+    * use the unix `stat` utility to get hold of actual mtime and ctime values from the filesystem
     * @param forPath
     * @return
     */
-  def getModifiedTime(forPath:Path):Future[Either[ZonedDateTime, String]] = {
+  def getModifiedTime(forPath:Path):Future[Either[String, ZonedDateTime]] = {
     UnixStat.getStatInfo(forPath).map(result=>{
       val maybeMtime = result.get("Modify")
       val maybeCtime = result.get("Change")

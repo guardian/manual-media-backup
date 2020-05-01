@@ -1,6 +1,6 @@
 package helpers
 
-import java.nio.file.Path
+import java.nio.file.{Files, LinkOption, Path}
 import java.time.ZonedDateTime
 
 import akka.stream.Materializer
@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 import scala.sys.process.Process
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
   * Helper class to run the unix `stat` utility against a file to reveal information about it
@@ -34,7 +35,7 @@ object UnixStat {
     */
   def getStatInfo(forFile:Path)(implicit mat:Materializer):Future[Map[String,ZonedDateTime]] = {
     val sourceFuture = Future {
-      val proc = Process.apply("/usr/bin/stat", Seq(forFile.toString))
+      val proc = Process("/usr/bin/stat", Seq(forFile.toString))
       val s = proc.lineStream
       akka.stream.scaladsl.Source.fromIterator(() => s.iterator)
     }
@@ -63,4 +64,8 @@ object UnixStat {
     )
   }
 
+  def anotherGetStatInfo(file:Path) = {
+    val results = Files.readAttributes(file, "*", LinkOption.NOFOLLOW_LINKS)
+    results
+  }
 }

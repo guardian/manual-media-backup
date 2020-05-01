@@ -43,6 +43,8 @@ type BackupDebugEntry struct {
 
 type FileRecord struct {
 	Timestamp           time.Time `json:"timestamp"`
+	Mtime               time.Time `json:"mtime"`
+	Atime               time.Time `json:"atime"`
 	Filename            string    `json:"filename"`
 	Extension           string    `json:"extension"`
 	WorkingGroup        string    `json:"working_group"`

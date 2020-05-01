@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -50,4 +52,16 @@ func TestMakeFileRecord(t *testing.T) {
 	if rec.Notes != "some notes here" {
 		t.Errorf("notes did not match incoming notes, got %s", rec.Notes)
 	}
+}
+
+func TestStatInfoSys(t *testing.T) {
+	filepath := "test.json"
+
+	fileInfo, _ := os.Stat(filepath)
+	osStatInfo := fileInfo.Sys().(*syscall.Stat_t)
+
+	osStatInfo.Birthtimespec
+	atime := time.Unix(osStatInfo.Atimespec.Sec, osStatInfo.Atimespec.Nsec)
+	println(atime.Format(time.RFC3339))
+
 }
