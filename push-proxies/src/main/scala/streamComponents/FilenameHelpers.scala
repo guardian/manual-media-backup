@@ -2,10 +2,11 @@ package streamComponents
 
 import com.gu.vidispineakka.vidispine.{VSFile, VSLazyItem, VSShape}
 import helpers.CategoryPathMap
+import org.slf4j.LoggerFactory
 
 trait FilenameHelpers {
   private val extensionExtractor = "^(.*)\\.([^\\.]+)$".r
-
+  private val localLogger = LoggerFactory.getLogger("streamComponents.FilenameHelpers")
   /**
     * try to get the file extension for the given file
     * @param forPath
@@ -39,7 +40,9 @@ trait FilenameHelpers {
       case Some(fileName) =>
         Some(fileName)
       case None =>
-        fromShape.flatMap(_.files.map(_.path).headOption)
+        val maybeCategory = fromItem.lookedUpMetadata.get("gnm_asset_category").flatMap(_.values.headOption)
+        localLogger.info(s"Got category $maybeCategory for ${fromItem.itemId}")
+        fromShape.flatMap(_.files.map(file=>maybeCategory.map(_.value + "/").getOrElse("") + file.path).headOption)
     }).map(path=>{
       if(path.startsWith("/")) path.substring(1) else path
     })
