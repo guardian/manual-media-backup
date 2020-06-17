@@ -53,6 +53,7 @@ object PushProxiesMain extends FilenameHelpers {
 
   val paralellism = sys.env.getOrElse("PARALELLISM","4").toInt
 
+  val missingFilesPath = sys.env.getOrElse("MISSING_FILES_REPORTDIR",".")
   val storagePathProperties = sys.env.get("CATEGORY_PATH_PROPERTIES")
   val maybeStoragePathMap = storagePathProperties.map(propsfile=>new CategoryPathMap(new File(propsfile)))
 
@@ -205,8 +206,8 @@ object PushProxiesMain extends FilenameHelpers {
 
       case Failure(err)=>
         val finalTs = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("YYYYmmdd-HHMM"))
-        logger.info(s"Outputting missing files report to lostfiles-$finalTs.csv")
-        (lostFilesCounter ? LostFilesCounter.Dump(s"lostfiles-$finalTs.csv")).andThen({
+        logger.info(s"Outputting missing files report to ${missingFilesPath}/lostfiles-$finalTs.csv")
+        (lostFilesCounter ? LostFilesCounter.Dump(s"${missingFilesPath}/lostfiles-$finalTs.csv")).andThen({
           case _ =>
             logger.error(s"Could not run migration: ", err)
             //actorSystem.terminate()

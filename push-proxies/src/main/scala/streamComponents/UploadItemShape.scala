@@ -77,20 +77,20 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
 
     private var canComplete:Boolean=true
 
+    val completedCb = createAsyncCallback[VSLazyItem](i=>{
+      logger.info(s"called completedCb")
+      canComplete=true
+      push(out, i)
+    })
+
+    val failedCb = createAsyncCallback[Throwable](err=>{
+      logger.error("Called failedCallback: ", err)
+      canComplete=true
+      failStage(err)
+    })
+
     setHandler(in, new AbstractInHandler {
       override def onPush(): Unit = {
-        val completedCb = createAsyncCallback[VSLazyItem](i=>{
-          logger.info(s"called completedCb")
-          canComplete=true
-          push(out, i)
-        })
-
-        val failedCb = createAsyncCallback[Throwable](err=>{
-          logger.error("Called failedCallback: ", err)
-          canComplete=true
-          failStage(err)
-        })
-
         val elem = grab(in)
         canComplete = false
 
