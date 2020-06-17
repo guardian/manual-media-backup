@@ -146,6 +146,19 @@ class UploadItemShape(shapeNameAnyOf:Seq[String], bucketName:String, cannedAcl:C
               logger.info(s"Uploaded to ${uploadResult.location}")
               completedCb.invokeWithFeedback(elem)
             }).recoverWith({
+              case err: java.lang.RuntimeException=>
+                if(err.getMessage.contains("Could not get a content source") && lostFilesCounter.isDefined) {
+                  logger.error("Detected missing file from Vidispine")
+                  shapes.headOption.map(topShape=> {
+                    topShape.files.headOption.map(topFile=>
+                    lostFilesCounter.get ! RegisterLost(topFile, topShape, elem)
+                    )
+                  })
+                  completedCb.invokeWithFeedback(elem)
+                } else {
+                  logger.error(s"lostFilesCounter is ${lostFilesCounter}")
+                  failedCb.invokeWithFeedback(err)
+                }
               case err: Throwable =>
                 logger.error(s"Could not perform upload for any of shape $shapeNameAnyOf on item ${elem.itemId}: ", err)
                 failedCb.invokeWithFeedback(err)

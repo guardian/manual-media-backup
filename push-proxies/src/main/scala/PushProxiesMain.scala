@@ -160,7 +160,7 @@ object PushProxiesMain extends FilenameHelpers {
       val mediaMetadataGrabber = builder.add(metaGrabberFactory)
       val projectMetadataGrabber = builder.add(metaGrabberFactory)
 
-      val uploadProxy = builder.add(new UploadItemShape(proxyShapeNames,proxyBucket,CannedAcl.Private,None,maybeStoragePathMap))
+      val uploadProxy = builder.add(new UploadItemShape(proxyShapeNames,proxyBucket,CannedAcl.Private,counter,maybeStoragePathMap))
       val uploadThumb = builder.add(new UploadItemThumbnail(proxyBucket,CannedAcl.Private, maybeStoragePathMap))
       val uploadMedia = builder.add(new UploadItemShape(Seq("original"),mediaBucket,CannedAcl.Private,counter, maybeStoragePathMap))
       val uploadProject = builder.add(new UploadItemShape(Seq("original"),projectBucket,CannedAcl.Private,counter, maybeStoragePathMap))
