@@ -1,23 +1,50 @@
 package models.pluto
 
 import java.util.UUID
+
+import akka.actor.ActorSystem
+import akka.stream.Materializer
+import helpers.PlutoCommunicatorFuncs
 import org.specs2.mutable.Specification
+import io.circe.generic.auto._
+import org.slf4j.LoggerFactory
+import org.specs2.mock.Mockito
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 
-
-class WorkingGroupRecordSpec extends Specification {
-  import WorkingGroupRecordDecoder._
+class WorkingGroupRecordSpec extends Specification with Mockito{
   "WorkingGroupRecord" should {
     "be automatically parseable from live environment data" in {
-      val testContent = """[{"hide": "workinggroup_hide", "name": "Something", "uuid": "166ADAFC-AB2D-4AA1-8B21-170BFCF276B6"}, {"hide": "workinggroup_hide", "name": "Something else", "uuid": "AC41E286-9CDA-40D3-B4AC-E483C8E25906"}, {"hide": null, "name": "Third thing", "uuid": "814D152A-084E-43A4-A524-D376B36666CD"}]"""
+      val testContent = """{
+                          |    "status": "ok",
+                          |    "count": 1,
+                          |    "result": [
+                          |        {
+                          |            "id": 1,
+                          |            "hide": false,
+                          |            "name": "Multimedia Anti-Social",
+                          |            "commissioner": "Boyd Paul"
+                          |        }
+                          |    ]
+                          |}""".stripMargin
+      class TestPlutoCommFuncs extends PlutoCommunicatorFuncs {
+        override val plutoSharedSecret:String = "secret"
+        override val plutoBaseUri: String = "http://localhost"
+        override val logger = LoggerFactory.getLogger(getClass)
+        override val mat:Materializer = mock[Materializer]
+        override val system = mock[ActorSystem]
+      }
 
-      val result = io.circe.parser.parse(testContent).flatMap(_.as[Seq[WorkingGroupRecord]])
-      result must beRight
+      val toTest = new TestPlutoCommFuncs
+      val result = Await.result(toTest.contentBodyToJson[Seq[WorkingGroupRecord]](Future(testContent)), 30 seconds)
 
-      result.right.get.length mustEqual 3
-      result.right.get.head mustEqual WorkingGroupRecord(UUID.fromString("166ADAFC-AB2D-4AA1-8B21-170BFCF276B6"),"Something",Some(true))
-      result.right.get(1) mustEqual WorkingGroupRecord(UUID.fromString("AC41E286-9CDA-40D3-B4AC-E483C8E25906"),"Something else",Some(true))
-      result.right.get(2) mustEqual WorkingGroupRecord(UUID.fromString("814D152A-084E-43A4-A524-D376B36666CD"),"Third thing",None)
-
+      result must beSome(Seq(WorkingGroupRecord(
+        1,
+        "Multimedia Anti-Social",
+        Some(false),
+        "Boyd Paul"
+      )))
     }
   }
 }

@@ -4,7 +4,7 @@ import java.nio.file.Path
 import java.util.UUID
 import akka.actor.{Actor, ActorRef, ActorSystem}
 import akka.stream.Materializer
-import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord, WorkingGroupRecordDecoder}
+import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord}
 import org.slf4j.LoggerFactory
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
@@ -20,8 +20,8 @@ object PlutoCommunicator {
   case class CacheProject(forId:String, result:Option[ProjectRecord]) extends AFHMsg
   case class LookupCommission(forId:String) extends AFHMsg
   case class CacheCommission(forId:String, result:Option[CommissionRecord]) extends AFHMsg
-  case class LookupWorkingGroup(forId:UUID) extends AFHMsg
-  case class CacheWorkingGroups(list:Seq[WorkingGroupRecord],maybeReturnId:Option[UUID]) extends AFHMsg
+  case class LookupWorkingGroup(forId:Int) extends AFHMsg
+  case class CacheWorkingGroups(list:Seq[WorkingGroupRecord],maybeReturnId:Option[Int]) extends AFHMsg
   case class LookupMaster(forFileName:String) extends AFHMsg
   case class CacheMaster(forFileName:String, result:Seq[MasterRecord]) extends AFHMsg
   case class LookupDeliverableAsset(forFileName:String) extends AFHMsg
@@ -50,7 +50,7 @@ class PlutoCommunicator(override val plutoBaseUri:String, override val plutoShar
   private var assetFolderCache: Map[Path, Option[AssetFolderRecord]] = Map()
   private var projectsCache: Map[String, Option[ProjectRecord]] = Map()
   private var commissionsCache: Map[String, Option[CommissionRecord]] = Map()
-  private var workingGroupCache: Map[UUID, Option[WorkingGroupRecord]] = Map()
+  private var workingGroupCache: Map[Int, Option[WorkingGroupRecord]] = Map()
   private var masterCache: Map[String, Seq[MasterRecord]] = Map()
   private var deliverableAssetCache: Map[String, Option[DeliverableAssetRecord]] = Map()
   private var deliverableBundleCache: Map[Int, Option[DeliverableBundleRecord]] = Map()
@@ -124,7 +124,7 @@ class PlutoCommunicator(override val plutoBaseUri:String, override val plutoShar
       }
 
     case CacheWorkingGroups(list, maybeReturn) =>
-      workingGroupCache = list.map(rec => (rec.uuid -> Some(rec))).toMap
+      workingGroupCache = list.map(rec => (rec.id -> Some(rec))).toMap
       maybeReturn match {
         case Some(idToReturn) =>
           sender() ! FoundWorkingGroup(workingGroupCache.get(idToReturn).flatten)

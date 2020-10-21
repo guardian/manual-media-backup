@@ -1,44 +1,81 @@
 package models
 
+import java.time.{ZoneId, ZonedDateTime}
 import java.util.UUID
 
-import helpers.LocalDateTimeEncoder
+import akka.actor.ActorSystem
+import akka.stream.Materializer
+import helpers.{LocalDateTimeEncoder, PlutoCommunicatorFuncs}
 import org.specs2.mutable.Specification
 import io.circe.generic.auto._
 import io.circe.syntax._
 import models.pluto.ProjectRecord
+import org.slf4j.LoggerFactory
+import org.specs2.mock.Mockito
 
-class ProjectRecordSpec extends Specification with LocalDateTimeEncoder {
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Await, Future}
+
+class ProjectRecordSpec extends Specification with LocalDateTimeEncoder with Mockito {
   "ProjectRecord" should {
     "be readable from a json blob" in {
       val jsonSource = """{
-                         |  "collection_id": 13,
-                         |  "user": 1,
-                         |  "created": "2018-08-01T12:21:12.532",
-                         |  "updated": "2019-02-26T10:21:53.518",
-                         |  "commission": 10,
-                         |  "gnm_project_status": "Held",
-                         |  "gnm_project_standfirst": null,
-                         |  "gnm_project_headline": "dasdsadsadsa test 2",
-                         |  "gnm_project_username": [
-                         |    1
-                         |  ],
-                         |  "gnm_project_project_file_item": null,
-                         |  "gnm_project_prelude_file_item": null,
-                         |  "gnm_project_type": "0470ff3b-603d-456d-8ea3-e391ddbe11ce",
-                         |  "project_locker_id": null,
-                         |  "project_locker_id_prelude": null
+                         |    "status": "ok",
+                         |    "result": {
+                         |        "id": 1,
+                         |        "projectTypeId": 1,
+                         |        "vidispineId": "VX-1234",
+                         |        "title": "hgdhfhjhgjgff",
+                         |        "created": "2020-09-03T10:04:40.519+0000",
+                         |        "updated": "2020-09-14T11:49:37.393+0000",
+                         |        "user": "72adedb0-f332-488c-b393-d8482b229d8a",
+                         |        "workingGroupId": 1,
+                         |        "commissionId": 1,
+                         |        "deletable": true,
+                         |        "deep_archive": false,
+                         |        "sensitive": false,
+                         |        "status": "New",
+                         |        "productionOffice": "UK"
+                         |    }
                          |}""".stripMargin
-      val json = io.circe.parser.parse(jsonSource).right.get
-      val result = json.as[ProjectRecord]
-      result must beRight
-      val finalObj = result.right.get
-      finalObj.collection_id mustEqual 13
-      finalObj.user mustEqual 1
-      finalObj.commission mustEqual 10
-      finalObj.gnm_project_status must beSome("Held")
-      finalObj.gnm_project_standfirst must beNone
-      finalObj.gnm_project_type mustEqual UUID.fromString("0470ff3b-603d-456d-8ea3-e391ddbe11ce")
+      class TestPlutoCommFuncs extends PlutoCommunicatorFuncs {
+        override val plutoSharedSecret:String = "secret"
+        override val plutoBaseUri: String = "http://localhost"
+        override val logger = LoggerFactory.getLogger(getClass)
+        override val mat:Materializer = mock[Materializer]
+        override val system = mock[ActorSystem]
+      }
+
+      val toTest = new TestPlutoCommFuncs
+      val result = Await.result(toTest.contentBodyToJson[ProjectRecord](Future(jsonSource)), 5 seconds)
+      result must beSome(ProjectRecord(
+        1,
+        1,
+        Some("VX-1234"),
+        "hgdhfhjhgjgff",
+        ZonedDateTime.of(2020,9,3,10,4,40,519000000,ZoneId.of("Z")),
+        ZonedDateTime.of(2020,9,14,11,49,37,393000000,ZoneId.of("Z")),
+        "72adedb0-f332-488c-b393-d8482b229d8a",
+        Some(1),
+        Some(1),
+        Some(true),
+        Some(false),
+        Some(false),
+        "New",
+        "UK"
+      ))
+
+//      val json = io.circe.parser.parse(jsonSource).right.get
+//      val result = json.as[ProjectRecord]
+//      result must beRight
+//      val finalObj = result.right.get
+//      finalObj.collection_id mustEqual 13
+//      finalObj.user mustEqual 1
+//      finalObj.commission mustEqual 10
+//      finalObj.gnm_project_status must beSome("Held")
+//      finalObj.gnm_project_standfirst must beNone
+//      finalObj.gnm_project_type mustEqual UUID.fromString("0470ff3b-603d-456d-8ea3-e391ddbe11ce")
     }
   }
 }

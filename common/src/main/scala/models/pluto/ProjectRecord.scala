@@ -1,9 +1,9 @@
 package models.pluto
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZonedDateTime}
 
 
-case class ProjectRecord (id: Int, projectTypeId: Int, vidispineProjectId: Option[String],
-                          projectTitle: String, created:LocalDateTime, updated:LocalDateTime, user: String, workingGroupId: Option[Int],
+case class ProjectRecord (id: Int, projectTypeId: Int, vidispineId: Option[String],
+                          title: String, created:ZonedDateTime, updated:ZonedDateTime, user: String, workingGroupId: Option[Int],
                           commissionId: Option[Int], deletable: Option[Boolean], deep_archive: Option[Boolean],
                           sensitive: Option[Boolean], status:String, productionOffice: String)

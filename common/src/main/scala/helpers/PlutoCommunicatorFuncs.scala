@@ -14,7 +14,7 @@ import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
 import auth.HMAC
 import io.circe.syntax._
-import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord, WorkingGroupRecordDecoder}
+import models.pluto.{AssetFolderRecord, CommissionRecord, DeliverableAssetRecord, DeliverableBundleRecord, MasterRecord, ProjectRecord, WorkingGroupRecord}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -55,6 +55,17 @@ trait PlutoCommunicatorFuncs {
   /* extract call to static object to make testing easier */
   def callHttp = Http()
 
+  def contentBodyToJson[T:io.circe.Decoder](contentBody:Future[String]) = contentBody
+    .map(io.circe.parser.parse)
+    .map(_.map(json=>(json \\ "result").headOption.getOrElse(json)))  //if the actual object is hidden under a "result" field take that
+    .map(_.flatMap(_.as[T]))
+    .map({
+      case Left(err) =>
+        logger.error(s"Problematic response: ${contentBody.value}")
+        throw new RuntimeException("Could not understand server response: ", err)
+      case Right(data) => Some(data)
+    })
+
   /**
     * internal method that performs a call to pluto, handles response codes/retries and unmarshals reutrned JSON to a domain object.
     * If the server returns a 200 response then the content is parsed as JSON and unmarshalled into the given object
@@ -91,15 +102,7 @@ trait PlutoCommunicatorFuncs {
 
       response.status.intValue() match {
         case 200 =>
-          contentBody
-            .map(io.circe.parser.parse)
-            .map(_.flatMap(_.as[T]))
-            .map({
-              case Left(err) =>
-                logger.error(s"Problematic response: ${contentBody.value}")
-                throw new RuntimeException("Could not understand server response: ", err)
-              case Right(data) => Some(data)
-            })
+          contentBodyToJson(contentBody)
         case 404 =>
           Future(None)
         case 403 =>
@@ -166,8 +169,9 @@ trait PlutoCommunicatorFuncs {
   }
 
   def performWorkingGroupLookup() = {
-    import WorkingGroupRecordDecoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/commission/api/groups/")
+    import io.circe.generic.auto._
+    import LocalDateTimeEncoder._
+    val req = HttpRequest(uri=s"$plutoBaseUri/pluto-core/api/workinggroup")
     callToPluto[Seq[WorkingGroupRecord]](req)
   }
 
@@ -181,7 +185,7 @@ trait PlutoCommunicatorFuncs {
   def performDeliverableLookup(forFileName:String) = {
     import io.circe.generic.auto._
     import LocalDateTimeEncoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
+    val req = HttpRequest(uri=s"$plutoBaseUri/pluto-deliverables/api/asset/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
     callToPluto[DeliverableAssetRecord](req)
   }
 
