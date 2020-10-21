@@ -38,7 +38,7 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
 
       val mockedSelf = TestProbe()
 
-      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "someuser", "somepassword") {
+      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "secret") {
         override def callHttp: HttpExt = mockedHttp
 
         override val ownRef = mockedSelf.ref
@@ -63,7 +63,7 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
 
       val mockedSelf = TestProbe()
 
-      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "someuser", "somepassword") {
+      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "secret") {
         override def callHttp: HttpExt = mockedHttp
 
         override val ownRef = mockedSelf.ref
@@ -113,8 +113,7 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
 
 class PlutoCommunicatorTest(httpMock:HttpExt) (override implicit val system: ActorSystem, override val mat: Materializer) extends PlutoCommunicatorFuncs {
   override val plutoBaseUri: String = "http://localhost:9000"
-  override val plutoPass: String = "nothing"
-  override val plutoUser: String = "nothing"
+  override val plutoSharedSecret: String = "nothing"
   override val logger = LoggerFactory.getLogger("PlutoCommnicatorTest")
 
   override def callHttp: HttpExt = httpMock
