@@ -16,10 +16,10 @@ object PlutoCommunicator {
   case class Lookup(forPath:Path) extends AFHMsg
   case class StoreInCache(forPath:Path,result:Option[AssetFolderRecord]) extends AFHMsg
 
-  case class LookupProject(forId:String) extends AFHMsg
-  case class CacheProject(forId:String, result:Option[ProjectRecord]) extends AFHMsg
-  case class LookupCommission(forId:String) extends AFHMsg
-  case class CacheCommission(forId:String, result:Option[CommissionRecord]) extends AFHMsg
+  case class LookupProject(forId:Int) extends AFHMsg
+  case class CacheProject(forId:Int, result:Option[ProjectRecord]) extends AFHMsg
+  case class LookupCommission(forId:Option[Int]) extends AFHMsg
+  case class CacheCommission(forId:Int, result:Option[CommissionRecord]) extends AFHMsg
   case class LookupWorkingGroup(forId:Int) extends AFHMsg
   case class CacheWorkingGroups(list:Seq[WorkingGroupRecord],maybeReturnId:Option[Int]) extends AFHMsg
   case class LookupDeliverableAsset(forFileName:String) extends AFHMsg
@@ -46,8 +46,8 @@ class PlutoCommunicator(override val plutoBaseUri:String, override val plutoShar
   override protected val logger = LoggerFactory.getLogger(getClass)
 
   private var assetFolderCache: Map[Path, Option[AssetFolderRecord]] = Map()
-  private var projectsCache: Map[String, Option[ProjectRecord]] = Map()
-  private var commissionsCache: Map[String, Option[CommissionRecord]] = Map()
+  private var projectsCache: Map[Int, Option[ProjectRecord]] = Map()
+  private var commissionsCache: Map[Int, Option[CommissionRecord]] = Map()
   private var workingGroupCache: Map[Int, Option[WorkingGroupRecord]] = Map()
   private var deliverableAssetCache: Map[String, Option[DeliverableAssetRecord]] = Map()
   private var deliverableBundleCache: Map[Int, Option[DeliverableBundleRecord]] = Map()
@@ -104,20 +104,25 @@ class PlutoCommunicator(override val plutoBaseUri:String, override val plutoShar
     case CacheCommission(forId, result) =>
       commissionsCache ++= Map(forId -> result)
       sender() ! akka.actor.Status.Success
-    case LookupCommission(forId) =>
-      commissionsCache.get(forId) match {
-        case Some(record) =>
-          sender() ! FoundCommission(record)
-        case None =>
-          val originalSender = sender()
-          performCommissionLookup(forId).onComplete({
-            case Success(record) =>
-              ownRef ! CacheCommission(forId, record)
-              originalSender ! FoundCommission(record)
-            case Failure(err) =>
-              logger.error(s"Could no look up commission with ID $forId: ", err)
-              originalSender ! LookupFailed
-          })
+    case LookupCommission(maybeId) =>
+      maybeId match {
+        case Some(forId)=>
+          commissionsCache.get(forId) match {
+            case Some(record) =>
+              sender() ! FoundCommission(record)
+            case None =>
+              val originalSender = sender()
+              performCommissionLookup(forId).onComplete({
+                case Success(record) =>
+                  ownRef ! CacheCommission(forId, record)
+                  originalSender ! FoundCommission(record)
+                case Failure(err) =>
+                  logger.error(s"Could no look up commission with ID $forId: ", err)
+                  originalSender ! LookupFailed
+              })
+          }
+        case None=>
+          sender() ! FoundCommission(None)
       }
 
     case CacheWorkingGroups(list, maybeReturn) =>

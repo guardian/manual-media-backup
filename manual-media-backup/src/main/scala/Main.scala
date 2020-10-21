@@ -271,13 +271,12 @@ object Main {
 
     propsFile.flatMap(properties=>{
       val baseUri = Option(properties.getProperty("base-uri"))
-      val user = Option(properties.getProperty("user"))
-      val passwd = Option(properties.getProperty("password"))
+      val sharedSecret = Option(properties.getProperty("shared-secret"))
 
-      if(baseUri.isEmpty || user.isEmpty || passwd.isEmpty){
+      if(baseUri.isEmpty || sharedSecret.isEmpty || sharedSecret.isEmpty){
         Failure(new RuntimeException("Invalid properties. You must provide base-uri, user and password properties for pluto access"))
       } else {
-        Success(actorSystem.actorOf(Props(new PlutoCommunicator(baseUri.get, user.get, passwd.get))))
+        Success(actorSystem.actorOf(Props(new PlutoCommunicator(baseUri.get, sharedSecret.get))))
       }
     })
   }

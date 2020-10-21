@@ -6,7 +6,7 @@ import java.security._
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
-
+import org.apache.commons.codec.binary.Hex
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -28,7 +28,7 @@ object HMAC {
     val mac = Mac.getInstance("HmacSHA384")
     mac.init(secret)
     val hashString: Array[Byte] = mac.doFinal(preHashString.getBytes)
-    Base64.getEncoder.encodeToString(hashString) //new String(hashString.map(_.toChar))
+    Hex.encodeHexString(hashString)
   }
 
   /**
@@ -36,10 +36,10 @@ object HMAC {
     * @param sharedSecret passphrase to encrypt with
     * @return Option containing the hmac digest, or None if any headers were missing
     */
-  def calculateHmac(contentLength: Long, sha384Checksum: String, method: String, uri: String, sharedSecret: String):Option[String] = try {
+  def calculateHmac(contentType: String, sha384Checksum: String, method: String, uri: String, sharedSecret: String):Option[String] = try {
     val httpDate = httpDateFormatter.format(ZonedDateTime.now())
 
-    val string_to_sign = s"$httpDate\n$contentLength\n$sha384Checksum\n$method\n$uri"
+    val string_to_sign = s"$uri\n$httpDate\n$contentType\n$sha384Checksum\n$method"
     logger.debug(s"Outgoing request, string to sign: $string_to_sign")
     val hmac = generateHMAC(sharedSecret, string_to_sign)
     logger.debug(s"HMAC generated: $hmac")

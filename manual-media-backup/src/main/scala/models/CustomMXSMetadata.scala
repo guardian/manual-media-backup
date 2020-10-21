@@ -47,7 +47,6 @@ case class CustomMXSMetadata(itemType:String,
 }
 
 object CustomMXSMetadata {
-  val TYPE_MASTER = "master"
   val TYPE_RUSHES = "rushes"
   val TYPE_DELIVERABLE = "deliverables"
   val TYPE_PROJECT = "project"
