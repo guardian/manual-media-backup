@@ -85,7 +85,7 @@ trait PlutoCommunicatorFuncs {
     val checksumBytes = MessageDigest.getInstance("SHA-384").digest("".getBytes)
     val checksumString = checksumBytes.map("%02x".format(_)).mkString
     val token = HMAC.calculateHmac(
-      "application/octet-stream",
+      "",
       checksumString,
       "GET",
       multiSlashRemover.replaceAllIn(req.uri.path.toString(), "/"),
@@ -95,10 +95,9 @@ trait PlutoCommunicatorFuncs {
     if(token.isEmpty) Future.failed(new RuntimeException("could not build authorization"))
 
     val auth:HttpHeader = RawHeader("Authorization", s"HMAC ${token.get}")
-    val content:HttpHeader = RawHeader("Content-Type", "application/octet-stream")
     val checksum = RawHeader("Digest",s"SHA-384=$checksumString")
 
-    val updatedReq = req.copy(headers = scala.collection.immutable.Seq(auth, content, checksum)) //add in the authorization header
+    val updatedReq = req.copy(headers = scala.collection.immutable.Seq(auth, checksum)) //add in the authorization header
 
     callHttp.singleRequest(updatedReq).flatMap(response => {
       val contentBody = consumeResponseEntity(response.entity)
