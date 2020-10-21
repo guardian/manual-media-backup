@@ -175,24 +175,17 @@ trait PlutoCommunicatorFuncs {
     callToPluto[Seq[WorkingGroupRecord]](req)
   }
 
-  def performMasterLookup(forFileName:String) = {
-    import io.circe.generic.auto._
-    import LocalDateTimeEncoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/master/api/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
-    callToPluto[Seq[MasterRecord]](req).map(_.getOrElse(Seq()))
-  }
-
   def performDeliverableLookup(forFileName:String) = {
     import io.circe.generic.auto._
     import LocalDateTimeEncoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/pluto-deliverables/api/asset/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
+    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/asset/byFileName/?filename=${URLEncoder.encode(forFileName, "UTF-8")}")
     callToPluto[DeliverableAssetRecord](req)
   }
 
-  def performDelvierableBundleLookup(forId:Int) = {
+  def performDeliverableBundleLookup(forId:Int) = {
     import io.circe.generic.auto._
     import LocalDateTimeEncoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/$forId")
+    val req = HttpRequest(uri=s"$plutoBaseUri/deliverables/api/bundle/$forId")
     callToPluto[DeliverableBundleRecord](req)
   }
 }

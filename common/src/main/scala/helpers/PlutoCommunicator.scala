@@ -22,8 +22,6 @@ object PlutoCommunicator {
   case class CacheCommission(forId:String, result:Option[CommissionRecord]) extends AFHMsg
   case class LookupWorkingGroup(forId:Int) extends AFHMsg
   case class CacheWorkingGroups(list:Seq[WorkingGroupRecord],maybeReturnId:Option[Int]) extends AFHMsg
-  case class LookupMaster(forFileName:String) extends AFHMsg
-  case class CacheMaster(forFileName:String, result:Seq[MasterRecord]) extends AFHMsg
   case class LookupDeliverableAsset(forFileName:String) extends AFHMsg
   case class CacheDeliverableAsset(forFileName:String, result:Option[DeliverableAssetRecord]) extends AFHMsg
   case class LookupDeliverableBundle(forId:Int) extends AFHMsg
@@ -51,7 +49,6 @@ class PlutoCommunicator(override val plutoBaseUri:String, override val plutoShar
   private var projectsCache: Map[String, Option[ProjectRecord]] = Map()
   private var commissionsCache: Map[String, Option[CommissionRecord]] = Map()
   private var workingGroupCache: Map[Int, Option[WorkingGroupRecord]] = Map()
-  private var masterCache: Map[String, Seq[MasterRecord]] = Map()
   private var deliverableAssetCache: Map[String, Option[DeliverableAssetRecord]] = Map()
   private var deliverableBundleCache: Map[Int, Option[DeliverableBundleRecord]] = Map()
 
@@ -146,25 +143,6 @@ class PlutoCommunicator(override val plutoBaseUri:String, override val plutoShar
         sender() ! FoundWorkingGroup(workingGroupCache.get(forId).flatten)
       }
 
-    case CacheMaster(fileName, result) =>
-      masterCache += (fileName -> result)
-      sender() ! akka.actor.Status.Success
-    case LookupMaster(fileName) =>
-      masterCache.get(fileName) match {
-        case Some(cachedRecord) =>
-          sender() ! FoundMaster(cachedRecord)
-        case None =>
-          val originalSender = sender()
-          performMasterLookup(fileName).onComplete({
-            case Success(maybeRecords) =>
-              ownRef ! CacheMaster(fileName, maybeRecords)
-              originalSender ! FoundMaster(maybeRecords)
-            case Failure(err) =>
-              logger.error(s"Could not look up master $fileName: ", err)
-              originalSender ! LookupFailed
-          })
-      }
-
     case CacheDeliverableAsset(fileName, result) =>
       deliverableAssetCache += (fileName -> result)
       sender() ! akka.actor.Status.Success
@@ -193,7 +171,7 @@ class PlutoCommunicator(override val plutoBaseUri:String, override val plutoShar
           sender() ! FoundDeliverableBundle(cachedRecord)
         case None =>
           val originalSender = sender()
-          performDelvierableBundleLookup(forId).onComplete({
+          performDeliverableBundleLookup(forId).onComplete({
             case Success(maybeRecord) =>
               ownRef ! CacheDeliverableBundle(forId, maybeRecord)
               originalSender ! FoundDeliverableBundle(maybeRecord)
