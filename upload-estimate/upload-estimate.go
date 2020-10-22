@@ -230,7 +230,7 @@ func MakeFileRecord(entryPtr *BackupDebugEntry) *FileRecord {
 
 	dirPart, filePart := path.Split(entryPtr.FilePath)
 	stringParts := strings.Split(dirPart, "/")
-	if len(stringParts) >= 7 {
+	if len(stringParts) > 7 {
 		rec.WorkingGroup = stringParts[5]
 		rec.Commission = stringParts[6]
 		rec.Project = stringParts[7]
