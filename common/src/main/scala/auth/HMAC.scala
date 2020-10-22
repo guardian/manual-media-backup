@@ -36,8 +36,8 @@ object HMAC {
     * @param sharedSecret passphrase to encrypt with
     * @return Option containing the hmac digest, or None if any headers were missing
     */
-  def calculateHmac(contentType: String, sha384Checksum: String, method: String, uri: String, sharedSecret: String):Option[String] = try {
-    val httpDate = httpDateFormatter.format(ZonedDateTime.now())
+  def calculateHmac(contentType: String, sha384Checksum: String, method: String, uri: String, sharedSecret: String, time:ZonedDateTime):Option[String] = try {
+    val httpDate = httpDateFormatter.format(time)
 
     val string_to_sign = s"$uri\n$httpDate\n$contentType\n$sha384Checksum\n$method"
     logger.debug(s"Outgoing request, string to sign: $string_to_sign")

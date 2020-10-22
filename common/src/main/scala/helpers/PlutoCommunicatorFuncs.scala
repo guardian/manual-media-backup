@@ -3,6 +3,8 @@ package helpers
 import java.net.URLEncoder
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 import akka.actor.{Actor, ActorRef, ActorSystem}
@@ -85,6 +87,7 @@ trait PlutoCommunicatorFuncs {
     val checksumBytes = MessageDigest.getInstance("SHA-384").digest("".getBytes)
     val checksumString = checksumBytes.map("%02x".format(_)).mkString
     val queryPart = req.uri.rawQueryString.map(query=>"?" + query).getOrElse("")
+    val messageTime = ZonedDateTime.now()
 
     val token = HMAC.calculateHmac(
       "",
@@ -92,14 +95,15 @@ trait PlutoCommunicatorFuncs {
       "GET",
       multiSlashRemover.replaceAllIn(req.uri.path.toString(), "/") + queryPart,
       plutoSharedSecret,
+      messageTime
     )
 
     if(token.isEmpty) Future.failed(new RuntimeException("could not build authorization"))
 
     val auth:HttpHeader = RawHeader("Authorization", s"HMAC ${token.get}")
     val checksum = RawHeader("Digest",s"SHA-384=$checksumString")
-
-    val updatedReq = req.copy(headers = scala.collection.immutable.Seq(auth, checksum)) //add in the authorization header
+    val date = RawHeader("Date", DateTimeFormatter.RFC_1123_DATE_TIME.format(messageTime))
+    val updatedReq = req.copy(headers = scala.collection.immutable.Seq(auth, date, checksum)) //add in the authorization header
 
     callHttp.singleRequest(updatedReq).flatMap(response => {
       val contentBody = consumeResponseEntity(response.entity)
