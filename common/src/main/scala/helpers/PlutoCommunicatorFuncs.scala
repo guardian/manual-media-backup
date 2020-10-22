@@ -84,11 +84,13 @@ trait PlutoCommunicatorFuncs {
     logger.debug(s"Request URL is ${req.uri.toString()}")
     val checksumBytes = MessageDigest.getInstance("SHA-384").digest("".getBytes)
     val checksumString = checksumBytes.map("%02x".format(_)).mkString
+    val queryPart = req.uri.rawQueryString.map(query=>"?" + query).getOrElse("")
+
     val token = HMAC.calculateHmac(
       "",
       checksumString,
       "GET",
-      multiSlashRemover.replaceAllIn(req.uri.path.toString(), "/"),
+      multiSlashRemover.replaceAllIn(req.uri.path.toString(), "/") + queryPart,
       plutoSharedSecret,
     )
 
