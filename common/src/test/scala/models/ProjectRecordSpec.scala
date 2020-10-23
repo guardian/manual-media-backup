@@ -65,17 +65,6 @@ class ProjectRecordSpec extends Specification with LocalDateTimeEncoder with Moc
         "New",
         "UK"
       ))
-
-//      val json = io.circe.parser.parse(jsonSource).right.get
-//      val result = json.as[ProjectRecord]
-//      result must beRight
-//      val finalObj = result.right.get
-//      finalObj.collection_id mustEqual 13
-//      finalObj.user mustEqual 1
-//      finalObj.commission mustEqual 10
-//      finalObj.gnm_project_status must beSome("Held")
-//      finalObj.gnm_project_standfirst must beNone
-//      finalObj.gnm_project_type mustEqual UUID.fromString("0470ff3b-603d-456d-8ea3-e391ddbe11ce")
     }
   }
 }
