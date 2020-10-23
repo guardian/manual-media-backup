@@ -179,7 +179,7 @@ trait PlutoCommunicatorFuncs {
   def performWorkingGroupLookup() = {
     import io.circe.generic.auto._
     import LocalDateTimeEncoder._
-    val req = HttpRequest(uri=s"$plutoBaseUri/pluto-core/api/workinggroup")
+    val req = HttpRequest(uri=s"$plutoBaseUri/pluto-core/api/pluto/workinggroup")
     callToPluto[Seq[WorkingGroupRecord]](req)
   }
 
