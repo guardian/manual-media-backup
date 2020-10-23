@@ -75,7 +75,7 @@ lazy val `backup-estimate-tool` = (project in file("backup-estimate-tool")).enab
     mappings in Universal ++= Seq(
       (baseDirectory.value / "../upload-estimate/upload-estimate") -> "utils/upload-estimate"
     ),
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
@@ -108,7 +108,7 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       mappings in Universal ++= Seq(
         (baseDirectory.value / "../upload-estimate/upload-estimate") -> "utils/upload-estimate"
       ),
-      dockerPermissionStrategy := DockerPermissionStrategy.Run,
+      dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
       daemonUserUid in Docker := None,
       daemonUser in Docker := "daemon",
       dockerUsername  := sys.props.get("docker.username"),
@@ -138,7 +138,7 @@ lazy val `inspectoid` = (project in file("inspect-oid")).enablePlugins(DockerPlu
   .dependsOn(common)
   .settings(
     version := sys.props.getOrElse("build.number","DEV"),
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
@@ -159,7 +159,7 @@ lazy val `vsmediabackup` = (project in file("vs-media-backup")).enablePlugins(Do
   .dependsOn(common)
   .settings(
     version := sys.props.getOrElse("build.number","DEV"),
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
@@ -202,7 +202,7 @@ lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(Docker
   .dependsOn(common)
   .settings(
     version := sys.props.getOrElse("build.number","DEV"),
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
@@ -245,7 +245,7 @@ lazy val `showmxschecksum` = (project in file("show-mxs-checksum")).enablePlugin
   .dependsOn(common)
   .settings(
     version := sys.props.getOrElse("build.number","DEV"),
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),
@@ -278,7 +278,7 @@ lazy val `removearchived` = (project in file("remove-archived")).enablePlugins(D
   .dependsOn(common)
   .settings(
     version := sys.props.getOrElse("build.number","DEV"),
-    dockerPermissionStrategy := DockerPermissionStrategy.Run,
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
     daemonUserUid in Docker := None,
     daemonUser in Docker := "daemon",
     dockerUsername  := sys.props.get("docker.username"),

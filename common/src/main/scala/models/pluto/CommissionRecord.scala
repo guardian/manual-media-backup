@@ -1,8 +1,9 @@
 package models.pluto
 
-import java.time.LocalDateTime
-import java.util.UUID
+import java.sql.Timestamp
+import java.time.{LocalDateTime, ZonedDateTime}
 
-case class CommissionRecord(collection_id:Option[Int], user:Option[Int], created:LocalDateTime, updated:LocalDateTime,
-                            gnm_commission_title:String, gnm_commission_status:String, gnm_commission_workinggroup:UUID,
-                            gnm_commission_description:Option[String], gnm_commission_owner:List[Int])
+case class CommissionRecord(id:Int, created: ZonedDateTime, updated:ZonedDateTime,
+                            title: String, status: String, workingGroupId: Int,
+                            scheduledCompletion:LocalDateTime, owner:String,
+                            productionOffice:String)

@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<module external.linked.project.id="removearchived [file:/Users/localhome/workdev/manual-media-backup/]" external.linked.project.path="$MODULE_DIR$/../../remove-archived" external.root.project.path="$MODULE_DIR$/../.." external.system.id="SBT" type="JAVA_MODULE" version="4">
+<module external.linked.project.id="omshunt [file:/Users/localhome/workdev/manual-media-backup/]" external.linked.project.path="$MODULE_DIR$/../../om-shunt" external.root.project.path="$MODULE_DIR$/../.." external.system.id="SBT" type="JAVA_MODULE" version="4">
   <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_8">
-    <output url="file://$MODULE_DIR$/../../remove-archived/target/scala-2.12/classes" />
-    <output-test url="file://$MODULE_DIR$/../../remove-archived/target/scala-2.12/test-classes" />
+    <output url="file://$MODULE_DIR$/../../om-shunt/target/scala-2.12/classes" />
+    <output-test url="file://$MODULE_DIR$/../../om-shunt/target/scala-2.12/test-classes" />
     <exclude-output />
-    <content url="file://$MODULE_DIR$/../../remove-archived">
-      <sourceFolder url="file://$MODULE_DIR$/../../remove-archived/src/main/scala" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../remove-archived/src/test/scala" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/../../remove-archived/src/main/resources" type="java-resource" />
-      <excludeFolder url="file://$MODULE_DIR$/../../remove-archived/target" />
+    <content url="file://$MODULE_DIR$/../../om-shunt">
+      <sourceFolder url="file://$MODULE_DIR$/../../om-shunt/src/main/scala" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/../../om-shunt/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

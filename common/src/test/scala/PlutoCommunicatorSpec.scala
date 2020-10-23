@@ -27,7 +27,7 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
       import helpers.PlutoCommunicator._
       implicit val mat:Materializer = ActorMaterializer.create(system)
 
-      val rawServerResponse="""{"status":"ok","path":"/some/path/here","project":"VX-1234"}"""
+      val rawServerResponse="""{"status":"ok","path":"/some/path/here","project":1234}"""
 
       val mockedResponseEntity = mock[ResponseEntity]
       mockedResponseEntity.dataBytes returns Source.single(ByteString(rawServerResponse))
@@ -38,7 +38,7 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
 
       val mockedSelf = TestProbe()
 
-      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "someuser", "somepassword") {
+      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "secret") {
         override def callHttp: HttpExt = mockedHttp
 
         override val ownRef = mockedSelf.ref
@@ -48,11 +48,11 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
       val result = Await.result((toTest ? Lookup(path)).mapTo[AFHMsg],10 seconds)
 
       result must beAnInstanceOf[FoundAssetFolder]
-      result.asInstanceOf[FoundAssetFolder].result mustEqual Some(AssetFolderRecord("ok","/some/path/here","VX-1234"))
+      result.asInstanceOf[FoundAssetFolder].result must beSome(AssetFolderRecord("ok","/some/path/here",1234))
 
       val expectedRequest = HttpRequest(uri="https://pluto-base/gnm_asset_folder/lookup?path=%2Fsome%2Fpath%2Fhere")
       there was one(mockedHttp).singleRequest(expectedRequest)
-      mockedSelf.expectMsg(StoreInCache(path, Some(AssetFolderRecord("ok","/some/path/here","VX-1234"))))
+      mockedSelf.expectMsg(StoreInCache(path, Some(AssetFolderRecord("ok","/some/path/here",1234))))
     }
 
     "reply from the cache if there was a result available" in new AkkaTestkitSpecs2Support {
@@ -63,7 +63,7 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
 
       val mockedSelf = TestProbe()
 
-      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "someuser", "somepassword") {
+      val toTest = system.actorOf(Props(new PlutoCommunicator("https://pluto-base/", "secret") {
         override def callHttp: HttpExt = mockedHttp
 
         override val ownRef = mockedSelf.ref
@@ -71,12 +71,12 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
 
       val path = new File("/some/path/here").toPath
 
-      Await.ready(toTest ? StoreInCache(path, Some(AssetFolderRecord("ok","/some/path/here","VX-456"))), 10 seconds)
+      Await.ready(toTest ? StoreInCache(path, Some(AssetFolderRecord("ok","/some/path/here",456))), 10 seconds)
 
       val result = Await.result((toTest ? Lookup(path)).mapTo[AFHMsg],10 seconds)
 
       result must beAnInstanceOf[FoundAssetFolder]
-      result.asInstanceOf[FoundAssetFolder].result mustEqual Some(AssetFolderRecord("ok","/some/path/here","VX-456"))
+      result.asInstanceOf[FoundAssetFolder].result must beSome(AssetFolderRecord("ok","/some/path/here",456))
 
       val expectedRequest = HttpRequest(uri="https://pluto-base/gnm_asset_folder/lookup?path=%2Fsome%2Fpath%2Fhere")
       there was no(mockedHttp).singleRequest(expectedRequest)
@@ -113,8 +113,7 @@ class PlutoCommunicatorSpec extends Specification with Mockito {
 
 class PlutoCommunicatorTest(httpMock:HttpExt) (override implicit val system: ActorSystem, override val mat: Materializer) extends PlutoCommunicatorFuncs {
   override val plutoBaseUri: String = "http://localhost:9000"
-  override val plutoPass: String = "nothing"
-  override val plutoUser: String = "nothing"
+  override val plutoSharedSecret: String = "nothing"
   override val logger = LoggerFactory.getLogger("PlutoCommnicatorTest")
 
   override def callHttp: HttpExt = httpMock

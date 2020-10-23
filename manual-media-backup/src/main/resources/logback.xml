@@ -20,7 +20,9 @@
     <logger name="streamcomponents.CheckOMFile" level="WARN"/>
     <logger name="streamcomponents.GatherMetadata" level="ERROR"/>
     <logger name="helpers.MatrixStoreHelper" level="WARN"/>
-
+    <logger name="helpers.PlutoCommunicator" level="DEBUG"/>
+    <logger name="helpers.PlutoCommunicatorFuncs" level="DEBUG"/>
+    <logger name="auth" level="DEBUG"/>
     <logger name="helpers.PlutoCommunicator" level="INFO"/>
 
     <root level="WARN">
