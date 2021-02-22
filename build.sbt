@@ -240,7 +240,7 @@ lazy val `push-proxies` = (project in file("push-proxies")).enablePlugins(Docker
       "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
       "org.mockito" % "mockito-core" % "2.28.2" % Test,
       "org.scala-lang.modules" %% "scala-xml" % "1.0.5",
-      "com.gu" %% "akka-vidispine-components" % "0.2",
+      "com.gu" %% "akka-vidispine-components" % "1.0.0-RC1",
       //Fix vulnerable jackson-databind
       "com.fasterxml.jackson.core" % "jackson-databind" % "2.11.4",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.11.4"

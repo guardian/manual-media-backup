@@ -21,10 +21,10 @@
     <orderEntry type="library" name="sbt: com.amazonaws:aws-java-sdk-s3:1.11.954:jar" level="project" />
     <orderEntry type="library" name="sbt: com.amazonaws:jmespath-java:1.11.954:jar" level="project" />
     <orderEntry type="library" name="sbt: com.chuusai:shapeless_2.12:2.3.3:jar" level="project" />
-    <orderEntry type="library" name="sbt: com.fasterxml.jackson.core:jackson-annotations:2.10.5:jar" level="project" />
-    <orderEntry type="library" name="sbt: com.fasterxml.jackson.core:jackson-core:2.10.5:jar" level="project" />
-    <orderEntry type="library" name="sbt: com.fasterxml.jackson.core:jackson-databind:2.10.5.1:jar" level="project" />
-    <orderEntry type="library" name="sbt: com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.6.7:jar" level="project" />
+    <orderEntry type="library" name="sbt: com.fasterxml.jackson.core:jackson-annotations:2.11.4:jar" level="project" />
+    <orderEntry type="library" name="sbt: com.fasterxml.jackson.core:jackson-core:2.11.4:jar" level="project" />
+    <orderEntry type="library" name="sbt: com.fasterxml.jackson.core:jackson-databind:2.11.4:jar" level="project" />
+    <orderEntry type="library" name="sbt: com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.11.4:jar" level="project" />
     <orderEntry type="library" name="sbt: com.github.scopt:scopt_2.12:3.7.1:jar" level="project" />
     <orderEntry type="library" name="sbt: com.gu:akka-vidispine-components_2.12:0.2:jar" level="project" />
     <orderEntry type="library" name="sbt: com.lightbend.akka:akka-stream-alpakka-s3_2.12:2.0.2:jar" level="project" />
