@@ -10,9 +10,10 @@ version := "0.1"
 
 scalaVersion := "2.12.8"
 
-val akkaVersion = "2.5.23"
+val akkaVersion = "2.5.31"
 val circeVersion = "0.9.3"
 val slf4jVersion = "1.7.25"
+val awsVersion = "1.11.954"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream" % akkaVersion,

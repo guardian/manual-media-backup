@@ -28,22 +28,34 @@ object Main {
 
       opt[String]("vault-file").action((x,c)=>c.copy(vaultFile = Some(x))).text(".vault file from ObjectMatrix Admin that describes the cluster, vault and login details. This is provided when you create the vault.")
       opt[String]("oid").action((x,c)=>c.copy(oid = Some(x))).text("look up this filepath on the provided ObjectMatrix")
+      opt[Boolean]("delete").action((x,c)=>c.copy(delete=x)).text("delete the file from the objectmatrix appliance")
     }
   }
 
-  def lookupOid(info: UserInfo, oid: String): Future[Unit] ={
+  def lookupOid(info: UserInfo, oid: String, delete:Boolean): Future[Unit] ={
     val vault = MatrixStore.openVault(info)
 
     Try { vault.getObject(oid) } match {
       case Success(mxsFile)=>
-        logger.info(s"Found file ${mxsFile.getId}")
+        if(mxsFile.exists()) {
+          logger.info(s"Found file ${mxsFile.getId}")
 
-        val mxfsMeta = Option(MetadataHelper.getMxfsMetadata(mxsFile))
-        logger.info(s"${mxsFile.getId}: ${mxfsMeta.map(_.fileKey())} ${mxfsMeta.map(_.getName)} ${mxfsMeta.map(_.getParent)} ${mxfsMeta.map(_.creationTime())} ${mxfsMeta.map(_.size())}")
+          val mxfsMeta = Option(MetadataHelper.getMxfsMetadata(mxsFile))
+          logger.info(s"mxfsMeta is $mxfsMeta")
+          logger.info(s"${mxsFile.getId}: ${mxfsMeta.map(_.fileKey())} ${mxfsMeta.map(_.getName)} ${mxfsMeta.map(_.getParent)} ${mxfsMeta.map(_.creationTime())} ${mxfsMeta.map(_.size())}")
 
-        MetadataHelper.getAttributeMetadata(mxsFile).map(attribs=>{
-          logger.info(s"${mxsFile.getId}: $attribs")
-        })
+          MetadataHelper.getAttributeMetadata(mxsFile).map(attribs => {
+            logger.info(s"${mxsFile.getId}: $attribs")
+          }).map(_ => {
+            if (delete) {
+              logger.warn(s"Deleting $oid because I was asked to")
+              mxsFile.delete()
+            }
+          })
+        } else {
+          logger.info(s"File ${mxsFile.getId} does not exist on vault ${vault.getId}")
+          Future(())
+        }
     }
   }
 
@@ -57,7 +69,7 @@ object Main {
 
         UserInfoBuilder.fromFile(options.vaultFile.get) match {
           case Success(userInfo)=>
-            lookupOid(userInfo, options.oid.get).andThen({
+            lookupOid(userInfo, options.oid.get, options.delete).andThen({
               case Failure(err)=>
                 logger.error(s"Could not lookup: ", err)
                 terminate(2)
