@@ -174,13 +174,12 @@ object MatrixStoreHelper {
     }
   }
 
+  val mimeTypeRegex = "^([^\\/]+)/(.*)$".r
   /**
     * converts mime type into a category integer, as per MatrixStoreAdministrationProgrammingGuidelines.pdf p.9
     * @param mt MIME type as string
     * @return an integer
     */
-  val mimeTypeRegex = "^([^\\/]+)/(.*)$".r
-
   def categoryForMimetype(mt: Option[String]):Int = mt match {
     case None=>
       logger.warn(s"No MIME type provided!")
