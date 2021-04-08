@@ -1,9 +1,7 @@
 package streamcomponents
 
-import java.nio.file.Files
-
-import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
+import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import eu.medsea.mimeutil.MimeUtil2
 import models.{BackupEntry, MxsMetadata}
 import org.slf4j.LoggerFactory

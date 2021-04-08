@@ -45,6 +45,7 @@ lazy val `common` = (project in file("common"))
         "com.typesafe.akka" %% "akka-stream" % akkaVersion,
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion %Test,
         "com.typesafe.akka" %% "akka-http" % "10.1.7",
+        "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
         "io.circe" %% "circe-core" % circeVersion,
         "io.circe" %% "circe-generic" % circeVersion,
         "io.circe" %% "circe-parser" % circeVersion,
@@ -93,11 +94,7 @@ lazy val `backup-estimate-tool` = (project in file("backup-estimate-tool")).enab
     dockerBaseImage := "openjdk:8-jdk-slim",
     dockerCommands ++= Seq(
       Cmd("COPY", "/opt/docker/utils/upload-estimate", "/opt/docker/utils/upload-estimate"),
-      Cmd("USER","root"), //fix the permissions in the built docker image
-      //        Cmd("RUN", "chown daemon /opt/docker"),
-      //        Cmd("RUN", "chmod u+w /opt/docker"),
-      //        Cmd("RUN", "chmod -R a+x /opt/docker"),
-      //Cmd("USER", "daemon")
+      Cmd("USER","root"),
     )
   )
 
@@ -116,7 +113,6 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       packageName := "manual-media-backup",
       dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"manual-media-backup",Some(sys.props.getOrElse("build.number","DEV"))),
       libraryDependencies ++= Seq(
-        "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
         "org.specs2" %% "specs2-core" % "4.5.1" % Test,
         "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
@@ -125,13 +121,33 @@ lazy val `manualbackup` = (project in file("manual-media-backup")).enablePlugins
       dockerBaseImage := "openjdk:8-jdk-slim",
       dockerCommands ++= Seq(
         Cmd("COPY", "/opt/docker/utils/upload-estimate", "/opt/docker/utils/upload-estimate"),
-        Cmd("USER","root"), //fix the permissions in the built docker image
-//        Cmd("RUN", "chown daemon /opt/docker"),
-//        Cmd("RUN", "chmod u+w /opt/docker"),
-//        Cmd("RUN", "chmod -R a+x /opt/docker"),
-        //Cmd("USER", "daemon")
+        Cmd("USER","root"),
       )
     )
+
+lazy val `directcopy` = (project in file("directcopy")).enablePlugins(DockerPlugin,AshScriptPlugin)
+  .dependsOn(common)
+  .settings(
+    version := sys.props.getOrElse("build.number","DEV"),
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
+    daemonUserUid in Docker := None,
+    daemonUser in Docker := "daemon",
+    dockerUsername  := sys.props.get("docker.username"),
+    packageName in Docker := "guardianmultimedia/mmb-directcopy",
+    packageName := "mmb-directcopy",
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"mmb-directcopy",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerBaseImage := "openjdk:8-jdk-slim",
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+      "org.specs2" %% "specs2-core" % "4.5.1" % Test,
+      "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
+      "org.mockito" % "mockito-core" % "2.28.2" % Test
+    ),
+    dockerBaseImage := "openjdk:8-jdk-slim",
+    dockerCommands ++= Seq(
+      Cmd("USER","root"),
+    )
+  )
 
 lazy val `inspectoid` = (project in file("inspect-oid")).enablePlugins(DockerPlugin,AshScriptPlugin)
   .dependsOn(common)

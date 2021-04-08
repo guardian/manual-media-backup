@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/backup-estimate-tool.iml" filepath="$PROJECT_DIR$/.idea/modules/backup-estimate-tool.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/common.iml" filepath="$PROJECT_DIR$/.idea/modules/common.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/directcopy.iml" filepath="$PROJECT_DIR$/.idea/modules/directcopy.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/findfilename.iml" filepath="$PROJECT_DIR$/.idea/modules/findfilename.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/inspectoid.iml" filepath="$PROJECT_DIR$/.idea/modules/inspectoid.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/manual-media-backup.iml" filepath="$PROJECT_DIR$/.idea/modules/manual-media-backup.iml" />
