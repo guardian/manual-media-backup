@@ -46,6 +46,7 @@ class DirectCopier(destVault:Vault) {
       from.thumbnail.map(_.path)
     ).collect({case Some(path)=>path})
 
+    logger.debug(s"Will copy ${itemsToCopy.length} items: ${itemsToCopy.map(_.toString).mkString(",")}")
     val mediaResult = Future.sequence(
       itemsToCopy.map(filePath=>
         doCopyTo(destVault,
@@ -58,6 +59,7 @@ class DirectCopier(destVault:Vault) {
     )
 
     mediaResult.map(results=>{
+      logger.debug(s"Copying completed")
       val resultCount = results.length
       val updatedSourceFile = from.sourceFile.withCopyData(results.head)
 

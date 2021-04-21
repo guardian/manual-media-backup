@@ -45,7 +45,7 @@ lazy val `common` = (project in file("common"))
         "com.typesafe.akka" %% "akka-stream" % akkaVersion,
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion %Test,
         "com.typesafe.akka" %% "akka-http" % "10.1.7",
-        "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
+        "eu.medsea.mimeutil" % "mime-util" % "2.1.3" exclude("org.slf4j","slf4j-log4j12"),
         "io.circe" %% "circe-core" % circeVersion,
         "io.circe" %% "circe-generic" % circeVersion,
         "io.circe" %% "circe-parser" % circeVersion,
@@ -85,7 +85,7 @@ lazy val `backup-estimate-tool` = (project in file("backup-estimate-tool")).enab
     packageName := "manual-media-backup",
     dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"backup-estimate-tool",Some(sys.props.getOrElse("build.number","DEV"))),
     libraryDependencies ++= Seq(
-      "eu.medsea.mimeutil" % "mime-util" % "2.1.3",
+      "eu.medsea.mimeutil" % "mime-util" % "2.1.3" exclude("org.slf4j","slf4j-log4j12"),
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.specs2" %% "specs2-core" % "4.5.1" % Test,
       "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
