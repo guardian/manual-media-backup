@@ -13,7 +13,7 @@ object FilenameHelpers {
     */
   object PathXtn {
     def apply(forPath:Path) = {
-      forPath.getFileName.toString match {
+      forPath.toString match {
         case FilenameHelpers.xtractor(path,xtn)=>new PathXtn(path, Some(xtn))
         case path:String=>new PathXtn(path, None)
       }

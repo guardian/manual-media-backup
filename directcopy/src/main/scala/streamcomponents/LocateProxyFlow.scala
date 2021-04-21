@@ -7,6 +7,18 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import scala.util.{Failure, Success, Try}
 
+/**
+  * Akka flow component that attempts to locate a similarly-named proxy and thumbnail for a given media file.
+  * It's expected that source media and thumbnail/proxy are in parallel directory structures, you must specify
+  * the root of the source media and proxy media directories.  In order to match, a proxy must have the same relative
+  * path as its source media.  Thumbnails must be in the same directory as the proxy media.
+  * @param sourceMediaPath
+  * @param proxyMediaPath
+  * @param proxyMediaPostfix
+  * @param proxyMediaXtn
+  * @param thumbnailPostfix
+  * @param thumbnailXtn
+  */
 class LocateProxyFlow(sourceMediaPath:Path, proxyMediaPath:Path, proxyMediaPostfix:Option[String], proxyMediaXtn:String, thumbnailPostfix:Option[String], thumbnailXtn:String) extends GraphStage[FlowShape[Path, ToCopy]] {
   import FilenameHelpers._
 
@@ -58,7 +70,7 @@ class LocateProxyFlow(sourceMediaPath:Path, proxyMediaPath:Path, proxyMediaPostf
       override def onPush(): Unit = {
         val mediaPath = grab(in)
 
-        val relativePath = mediaPath.relativize(sourceMediaPath)
+        val relativePath = sourceMediaPath.relativize(mediaPath)
         logger.debug(s"Relative base path for $sourceMediaPath is $relativePath")
         val pathXtn = PathXtn(relativePath)
 

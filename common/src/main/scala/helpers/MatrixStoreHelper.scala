@@ -194,7 +194,7 @@ object MatrixStoreHelper {
       0
   }
 
-   /** initialises an MxsMetadata object from filesystem metadata. Use when uploading files to matrixstore/
+   /** initialises an MxsMetadata object from filesystem metadata. Use when uploading files to matrixstore.
     * @param file java.io.File object to check
     * @return either an MxsMetadata object or an error
     */
