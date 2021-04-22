@@ -22,8 +22,10 @@ object Main {
   lazy val copyLimit = sys.env.get("LIMIT").map(_.toInt)
   lazy val startingPath = Paths.get(requiredEnvironment("START_PATH"))
 
+  val maybePathStrip = sys.env.get("PATH_STRIP").map(_.toInt)
+
   val pathTransformList = sys.env.get("PATH_TRANSFORM_LIST")
-    .map(_.split("|"))
+    .map(_.split("\\|"))
     .map(_.map(PathTransform.fromPathSpec))
     .map(_.map({
       case Right(transform)=>transform

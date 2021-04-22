@@ -3,7 +3,7 @@ package models
 import java.nio.file.{Path, Paths}
 import scala.util.{Failure, Try}
 
-case class PathTransform(from:Path, to:Path) {
+case class PathTransform(from:Path, to:Path, stripComponents:Option[Int]) {
   /**
     * returns a boolean indicating whether this transform is applicable to the given file, i.e. whether they share a common base.
     * If this returns false, then running `apply` against the path will result in a Failure
@@ -24,24 +24,38 @@ case class PathTransform(from:Path, to:Path) {
     if(!canApplyTo(mediaFile)) return Failure(new RuntimeException(s"Media file $mediaFile does not belong to transformation base path $from"))
     Try {
       val basePath = from.relativize(mediaFile)
-      to.resolve(basePath)
+      val finalPath = to.resolve(basePath)
+      stripComponents match {
+        case Some(componentCount)=>
+          finalPath.subpath(componentCount,-1)
+        case None=>
+          finalPath
+      }
     }
   }
 }
 
-object PathTransform extends ((Path, Path)=>PathTransform){
+object PathTransform extends ((Path, Path, Option[Int])=>PathTransform){
   def apply(from:String, to:String) = {
     new PathTransform(
       Paths.get(from),
-      Paths.get(to)
+      Paths.get(to),
+      None
+    )
+  }
+  def apply(from:String, to:String, pathStrip:Option[Int]) = {
+    new PathTransform(
+      Paths.get(from),
+      Paths.get(to),
+      pathStrip
     )
   }
 
   private val specSplitter = "^(.*)=(.*)$".r
 
-  def fromPathSpec(spec:String) = {
+  def fromPathSpec(spec:String, pathStrip:Option[Int]=None) = {
     spec match {
-      case specSplitter(from,to) => Right(apply(from,to))
+      case specSplitter(from,to) => Right(apply(from,to, pathStrip))
       case _=> Left("The given path spec could not be interpreted")
     }
   }
