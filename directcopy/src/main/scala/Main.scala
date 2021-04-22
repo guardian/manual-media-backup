@@ -3,6 +3,7 @@ import akka.stream.{ActorMaterializer, ClosedShape, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
 import streamcomponents.{FileListSource, FilterOutDirectories, FilterOutMacStuff, LocateProxyFlow, UTF8PathCharset}
 import akka.stream.scaladsl.GraphDSL.Implicits._
+import models.PathTransform
 import org.slf4j.LoggerFactory
 
 import java.nio.file.{Path, Paths}
@@ -20,6 +21,17 @@ object Main {
   lazy val parallelCopies = sys.env.get("PARALLEL_COPIES").map(_.toInt).getOrElse(1)
   lazy val copyLimit = sys.env.get("LIMIT").map(_.toInt)
   lazy val startingPath = Paths.get(requiredEnvironment("START_PATH"))
+
+  val pathTransformList = sys.env.get("PATH_TRANSFORM_LIST")
+    .map(_.split("|"))
+    .map(_.map(PathTransform.fromPathSpec))
+    .map(_.map({
+      case Right(transform)=>transform
+      case Left(err)=>
+        logger.error(s"Could not make a path transform out of ${sys.env.get("PATH_TRANSFORM")}: $err")
+        sys.exit(1)
+    }))
+    .getOrElse(Array())
 
   /**
     * helper method that either gets the requested key from the environment or exits with an indicative
@@ -113,7 +125,7 @@ object Main {
   }
 
   def main(args:Array[String]) = {
-    DirectCopier.initialise(destVaultInfo) match {
+    DirectCopier.initialise(destVaultInfo, pathTransformList) match {
       case Success(copier)=>
         logger.info("Connected to vault")
         if(!startingPath.toFile.exists()) {

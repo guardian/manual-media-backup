@@ -2,13 +2,14 @@ import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import helpers.Copier
-import models.ToCopy
+import models.{PathTransform, ToCopy}
 import org.slf4j.LoggerFactory
 
 import java.io.File
 import java.nio.file.Path
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.{Success, Try}
+import cats.implicits._
 
 object DirectCopier {
   /**
@@ -16,12 +17,12 @@ object DirectCopier {
     * @param destVaultInfo UserInfo object indicating the vault to open
     * @return either a Success with the given Copier initialised or a Failure indicating the problem
     */
-  def initialise(destVaultInfo:UserInfo) = Try {
-    new DirectCopier(MatrixStore.openVault(destVaultInfo))
+  def initialise(destVaultInfo:UserInfo, maybePathTransform:Seq[PathTransform]) = Try {
+    new DirectCopier(MatrixStore.openVault(destVaultInfo), maybePathTransform)
   }
 }
 
-class DirectCopier(destVault:Vault) {
+class DirectCopier(destVault:Vault, maybePathTransformList:Seq[PathTransform]) {
   private val logger = LoggerFactory.getLogger(getClass)
   val defaultChunkSize:Int = 5*(1024*1024)
 
@@ -32,6 +33,25 @@ class DirectCopier(destVault:Vault) {
     */
   protected def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String, keepOnFailure:Boolean=false,retryOnFailure:Boolean=true)(implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] =
     Copier.doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
+
+  /**
+    * if any pathTransforms are set, then find one that will apply to the incoming path and use it
+    * @param filePath media file path to apply the change to
+    * @return a Future, containing an Option with the transformed path if a transformer is set or None if not.
+    */
+  protected def maybeTransformFilepath(filePath:Path, currentTransform:Option[PathTransform], remainingTransforms:Seq[PathTransform]):Try[Option[Path]] = {
+    if(currentTransform.isDefined && currentTransform.get.canApplyTo(filePath)) {
+      currentTransform
+        .map(_.apply(filePath))
+        .sequence //courtesy of cats, changes Option[Try[A]] to Try[Option[A]
+    } else {
+      if(remainingTransforms.nonEmpty) {
+        maybeTransformFilepath(filePath, remainingTransforms.headOption, remainingTransforms.tail)
+      } else {
+        Success(None)
+      }
+    }
+  }
 
   /**
     * performs the copy of all listed files in the [[ToCopy]] structure provided.
@@ -48,14 +68,20 @@ class DirectCopier(destVault:Vault) {
 
     logger.debug(s"Will copy ${itemsToCopy.length} items: ${itemsToCopy.map(_.toString).mkString(",")}")
     val mediaResult = Future.sequence(
-      itemsToCopy.map(filePath=>
-        doCopyTo(destVault,
-          None,
-          filePath.toFile,
-          copyChunkSize.getOrElse(defaultChunkSize),
-          "md5",
-          retryOnFailure = false)
-      )
+      itemsToCopy.map(filePath=> {
+        for {
+          maybeTransformedPath <- Future.fromTry({
+            val listTail = if(maybePathTransformList.nonEmpty) maybePathTransformList.tail else Seq()
+            maybeTransformFilepath(filePath, maybePathTransformList.headOption, listTail)
+          })
+          copyResult <- doCopyTo(destVault,
+            maybeTransformedPath.map(_.toString),
+            filePath.toFile,
+            copyChunkSize.getOrElse(defaultChunkSize),
+            "md5",
+            retryOnFailure = false)
+        } yield copyResult
+      })
     )
 
     mediaResult.map(results=>{
