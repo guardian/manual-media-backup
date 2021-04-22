@@ -40,7 +40,7 @@ object Main {
   val sourceMediaPath = Paths.get(requiredEnvironment("SOURCE_MEDIA_PATH"))
   val proxyMediaPath = Paths.get(requiredEnvironment("PROXY_MEDIA_PATH"))
   val proxyMediaPostfix = sys.env.get("PROXY_MEDIA_POSTFIX")
-  val proxyMediaXtn = requiredEnvironment("PROXY_MEDIA_XTN")
+  val proxyMediaXtnList = requiredEnvironment("PROXY_MEDIA_XTN").split(",").toList
   val thumbnailPostfix = sys.env.get("THUMBNAIL_POSTFIX")
   val thumbnailXtn = requiredEnvironment("THUMBNAIL_XTN")
 
@@ -75,7 +75,7 @@ object Main {
     val sinkFac = Sink.ignore
     GraphDSL.create(sinkFac) { implicit builder=> sink=>
       val src = builder.add(inputStream(startingPath))
-      val proxyLocator = builder.add(new LocateProxyFlow(sourceMediaPath, proxyMediaPath, proxyMediaPostfix, proxyMediaXtn, thumbnailPostfix, thumbnailXtn))
+      val proxyLocator = builder.add(new LocateProxyFlow(sourceMediaPath, proxyMediaPath, proxyMediaPostfix, proxyMediaXtnList, thumbnailPostfix, thumbnailXtn))
 
       src ~> proxyLocator
       proxyLocator

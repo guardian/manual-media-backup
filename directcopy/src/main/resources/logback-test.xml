@@ -7,10 +7,10 @@
     </appender>
 
 
-    <logger name="Main$" level="DEBUG"/>
-    <logger name="DirectCopier" level="DEBUG"/>
-    <logger name="streamcomponents.LocateProxyFlow" level="DEBUG"/>
-    <root level="WARN">
+    <logger name="Main$" level="OFF"/>
+    <logger name="DirectCopier" level="OFF"/>
+    <logger name="streamcomponents.LocateProxyFlow" level="OFF"/>
+    <root level="OFF">
         <appender-ref ref="STDOUT" />
     </root>
 

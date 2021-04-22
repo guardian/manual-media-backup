@@ -6,6 +6,7 @@ import models.ToCopy
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import scala.util.{Failure, Success, Try}
+import cats.implicits._
 
 /**
   * Akka flow component that attempts to locate a similarly-named proxy and thumbnail for a given media file.
@@ -19,7 +20,9 @@ import scala.util.{Failure, Success, Try}
   * @param thumbnailPostfix
   * @param thumbnailXtn
   */
-class LocateProxyFlow(sourceMediaPath:Path, proxyMediaPath:Path, proxyMediaPostfix:Option[String], proxyMediaXtn:String, thumbnailPostfix:Option[String], thumbnailXtn:String) extends GraphStage[FlowShape[Path, ToCopy]] {
+class LocateProxyFlow(sourceMediaPath:Path, proxyMediaPath:Path,
+                      proxyMediaPostfix:Option[String], proxyMediaXtnList:List[String],
+                      thumbnailPostfix:Option[String], thumbnailXtn:String) extends GraphStage[FlowShape[Path, ToCopy]] {
   import FilenameHelpers._
 
   private val logger = LoggerFactory.getLogger(getClass)
@@ -57,7 +60,12 @@ class LocateProxyFlow(sourceMediaPath:Path, proxyMediaPath:Path, proxyMediaPostf
     })
   }
 
-  def findProxy(directoryPath:Path, fileXtn:PathXtn):Try[Option[Path]] = findDependent(directoryPath, proxyMediaPostfix, proxyMediaXtn, fileXtn)
+  def findProxy(directoryPath:Path, fileXtn:PathXtn):Try[Option[Path]] = proxyMediaXtnList
+    .map(findDependent(directoryPath, proxyMediaPostfix, _, fileXtn))
+    .sequence
+    .map(_.collect({ case Some(proxy)=>proxy}))
+    .map(_.headOption)
+     //.sequence is courtesy of cats - https://stackoverflow.com/questions/58074846/how-to-transform-a-seqtry-to-a-tryseq
 
   def findThumb(directoryPath:Path, fileXtn:PathXtn):Try[Option[Path]] = findDependent(directoryPath, thumbnailPostfix, thumbnailXtn, fileXtn)
 

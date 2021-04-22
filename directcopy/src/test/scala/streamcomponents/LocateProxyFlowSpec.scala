@@ -19,7 +19,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
         Paths.get("path/to/sourceMedia"),
         Paths.get("path/to/proxyMedia"),
         None,
-        ".mp4",
+        List(".mp4"),
         None,
         ".jpg"
       ) {
@@ -50,7 +50,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
         Paths.get("path/to/sourceMedia"),
         Paths.get("path/to/proxyMedia"),
         None,
-        ".mp4",
+        List(".mp4"),
         None,
         ".jpg"
       ) {
@@ -79,7 +79,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
         Paths.get("path/to/sourceMedia"),
         Paths.get("path/to/proxyMedia"),
         None,
-        ".mp4",
+        List(".mp4"),
         None,
         ".jpg"
       ) {
@@ -107,6 +107,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
 
       val mockDoesPathExist = mock[(Path)=>Try[Boolean]]
       mockDoesPathExist.apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.mp4")) returns Success(true)
+      mockDoesPathExist.apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.wav")) returns Success(false)
       mockDoesPathExist.apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.jpg")) returns Success(true)
 
       val sinkFac = Sink.seq[ToCopy]
@@ -121,7 +122,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
             Paths.get("/srv/volume/Media Production/Assets/"),
             Paths.get("/srv/volume/Proxies"),
             None,
-            "mp4",
+            List("mp4","wav"),
             None,
             "jpg"
           ) {
@@ -141,6 +142,51 @@ class LocateProxyFlowSpec extends Specification with Mockito {
       result.head.proxyMedia.get.path.toString mustEqual "/srv/volume/Proxies/wg/commission/project/media/somefile.mp4"
 
       there was one(mockDoesPathExist).apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.mp4"))
+      there was one(mockDoesPathExist).apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.wav"))
+      there was one(mockDoesPathExist).apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.jpg"))
+    }
+
+    "find a file that is not first in the list" in new AkkaTestkitSpecs2Support {
+      implicit val mat:Materializer = ActorMaterializer.create(system)
+
+      val mockDoesPathExist = mock[(Path)=>Try[Boolean]]
+      mockDoesPathExist.apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.mp4")) returns Success(false)
+      mockDoesPathExist.apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.wav")) returns Success(true)
+      mockDoesPathExist.apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.jpg")) returns Success(true)
+
+      val sinkFac = Sink.seq[ToCopy]
+      val graph = GraphDSL.create(sinkFac) { implicit builder=> sink=>
+        import akka.stream.scaladsl.GraphDSL.Implicits._
+
+        val src = builder.add(
+          Source.single(Paths.get("/srv/volume/Media Production/Assets/wg/commission/project/media/somefile.mxf"))
+        )
+        val lookup = builder.add(
+          new LocateProxyFlow(
+            Paths.get("/srv/volume/Media Production/Assets/"),
+            Paths.get("/srv/volume/Proxies"),
+            None,
+            List("mp4","wav"),
+            None,
+            "jpg"
+          ) {
+            override def doesPathExist(p: Path): Try[Boolean] = mockDoesPathExist(p)
+          }
+        )
+        src ~> lookup ~> sink
+        ClosedShape
+      }
+
+      val result = Await.result(RunnableGraph.fromGraph(graph).run(), 10.seconds)
+      result.length mustEqual 1
+      result.head.sourceFile.path.toString mustEqual "/srv/volume/Media Production/Assets/wg/commission/project/media/somefile.mxf"
+      result.head.thumbnail must beSome
+      result.head.thumbnail.get.path.toString mustEqual("/srv/volume/Proxies/wg/commission/project/media/somefile.jpg")
+      result.head.proxyMedia must beSome
+      result.head.proxyMedia.get.path.toString mustEqual "/srv/volume/Proxies/wg/commission/project/media/somefile.wav"
+
+      there was one(mockDoesPathExist).apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.mp4"))
+      there was one(mockDoesPathExist).apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.wav"))
       there was one(mockDoesPathExist).apply(Paths.get("/srv/volume/Proxies/wg/commission/project/media/somefile.jpg"))
     }
 
@@ -163,7 +209,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
             Paths.get("/srv/volume/Media Production/Assets/"),
             Paths.get("/srv/volume/Proxies"),
             None,
-            "mp4",
+            List("mp4"),
             None,
             "jpg"
           ) {
@@ -204,7 +250,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
             Paths.get("/srv/volume/Media Production/Assets/"),
             Paths.get("/srv/volume/Proxies"),
             None,
-            "mp4",
+            List("mp4"),
             None,
             "jpg"
           ) {
@@ -245,7 +291,7 @@ class LocateProxyFlowSpec extends Specification with Mockito {
             Paths.get("/srv/volume/Media Production/Assets/"),
             Paths.get("/srv/volume/Proxies"),
             None,
-            "mp4",
+            List("mp4"),
             None,
             "jpg"
           ) {
