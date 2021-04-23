@@ -2,7 +2,7 @@ package streamcomponents
 
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.stream.stage.{AbstractInHandler, AbstractOutHandler, GraphStage, GraphStageLogic}
-import models.ToCopy
+import models.{ToCopy, FileInstance, MxsMetadata}
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import scala.util.{Failure, Success, Try}
@@ -93,7 +93,12 @@ class LocateProxyFlow(sourceMediaPath:Path, proxyMediaPath:Path,
           failStage(new RuntimeException("Could not check thumb and/or proxy, see logs for details."))
         } else {
           val successes = searchResults.collect({case Success(maybePath)=>maybePath})
-          val result = ToCopy(mediaPath, successes.head, successes(1))
+          val result = ToCopy(FileInstance(mediaPath),
+            successes.head.map(FileInstance.apply),
+            successes(1).map(FileInstance.apply),
+            Some(MxsMetadata.empty.withString("GNM_TYPE","Rushes"))
+            )
+
           push(out, result)
         }
       }
