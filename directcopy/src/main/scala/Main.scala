@@ -1,9 +1,10 @@
-import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.actor.{ActorSystem, Props}
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.{ActorMaterializer, ClosedShape, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
 import streamcomponents.{FileListSource, FilterOutDirectories, FilterOutMacStuff, LocateProxyFlow, UTF8PathCharset}
 import akka.stream.scaladsl.GraphDSL.Implicits._
-import helpers.PlutoCommunicator
+import helpers.{PlutoCommunicator, TrustStoreHelper}
 import models.PathTransform
 import org.slf4j.LoggerFactory
 
@@ -61,6 +62,7 @@ object Main {
 
   val plutoBaseUri = requiredEnvironment("PLUTO_BASE_URI")
   val plutoSharedSecret = requiredEnvironment("PLUTO_SHARED_SECRET")
+  lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
   /**
     * partial akka stream that lists out all of the source files we are interested in
@@ -135,6 +137,19 @@ object Main {
     import akka.pattern.ask
     import scala.concurrent.duration._
     implicit val timeout:akka.util.Timeout = 10.seconds
+
+    if(extraKeyStores.isDefined){
+      logger.info(s"Loading in extra keystores from ${extraKeyStores.get.mkString(",")}")
+      /* this should set the default SSL context to use the stores as well */
+      TrustStoreHelper.setupTS(extraKeyStores.get) match {
+        case Success(sslContext) =>
+          val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
+          Http().setDefaultClientHttpsContext(https)
+        case Failure(err) =>
+          logger.error(s"Could not set up https certs: ", err)
+          System.exit(4)
+      }
+    }
 
     DirectCopier.initialise(destVaultInfo, pathTransformList) match {
       case Success(copier)=>
