@@ -1,6 +1,6 @@
 import akka.actor.ActorRef
 import helpers.PlutoCommunicator.{AFHMsg, FoundAssetFolder, FoundCommission, FoundProject, FoundWorkingGroup, Lookup, LookupCommission, LookupFailed, LookupProject, LookupWorkingGroup}
-import models.{CustomMXSMetadata, MxsMetadata, ToCopy}
+import models.{CustomMXSMetadata, MxsMetadata, PathTransformSet, ToCopy}
 import akka.pattern.ask
 import org.slf4j.LoggerFactory
 
@@ -8,7 +8,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class PlutoMetadataTool(plutoCommunicator:ActorRef) {
+class PlutoMetadataTool(plutoCommunicator:ActorRef, maybePathTransform:PathTransformSet) {
   implicit val timeout:akka.util.Timeout = 30.seconds
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -61,33 +61,38 @@ class PlutoMetadataTool(plutoCommunicator:ActorRef) {
     * @param incomingEntry [[ToCopy]] instance indicating the files that will be copied
     */
   def addPlutoMetadata(incomingCopyRequest:ToCopy):Future[ToCopy] = {
-    val basePath = incomingCopyRequest.sourceFile.path.getParent
+    Future.fromTry(maybePathTransform.apply(incomingCopyRequest.sourceFile.path))
+      .map({
+        case Some(transformedPath) =>transformedPath.getParent
+        case None=>incomingCopyRequest.sourceFile.path.getParent
+      })
+      .flatMap(basePath=> {
+        val assetFolderFut = (plutoCommunicator ? Lookup(basePath)).mapTo[AFHMsg]
+        assetFolderFut.flatMap({
+          case LookupFailed =>
+            Future.failed(new RuntimeException("Lookup failed, see previous logs"))
+          case FoundAssetFolder(Some(assetFolder)) =>
+            logger.info(s"Got asset folder ${assetFolder.path} for ${assetFolder.project} for $basePath")
+            val existingMetadata =
+              incomingCopyRequest.commonMetadata
+                .flatMap(CustomMXSMetadata.fromMxsMetadata)
+                .getOrElse(CustomMXSMetadata.empty(CustomMXSMetadata.TYPE_RUSHES))
 
-    val assetFolderFut = (plutoCommunicator ? Lookup(basePath) ).mapTo[AFHMsg]
-    assetFolderFut.flatMap({
-      case LookupFailed=>
-        Future.failed(new RuntimeException("Lookup failed, see previous logs"))
-      case FoundAssetFolder(Some(assetFolder))=>
-        logger.info(s"Got asset folder ${assetFolder.path} for ${assetFolder.project} for $basePath")
-        val existingMetadata =
-          incomingCopyRequest.commonMetadata
-            .flatMap(CustomMXSMetadata.fromMxsMetadata)
-            .getOrElse(CustomMXSMetadata.empty(CustomMXSMetadata.TYPE_RUSHES))
-
-        lookupProjectAndCommission(assetFolder.project, existingMetadata)
-          .map(customMxsMetadata=>{
-            incomingCopyRequest.copy(
-              commonMetadata=Some(
-                customMxsMetadata.toAttributes(
-                  incomingCopyRequest.commonMetadata.getOrElse(MxsMetadata.empty())
+            lookupProjectAndCommission(assetFolder.project, existingMetadata)
+              .map(customMxsMetadata => {
+                incomingCopyRequest.copy(
+                  commonMetadata = Some(
+                    customMxsMetadata.toAttributes(
+                      incomingCopyRequest.commonMetadata.getOrElse(MxsMetadata.empty())
+                    )
+                  )
                 )
-              )
-            )
-          })
+              })
 
-      case FoundAssetFolder(None)=>
-        logger.info(s"Got no asset folder for $basePath")
-        Future(incomingCopyRequest)
-    })
+          case FoundAssetFolder(None) =>
+            logger.info(s"Got no asset folder for $basePath")
+            Future(incomingCopyRequest)
+        })
+      })
   }
 }

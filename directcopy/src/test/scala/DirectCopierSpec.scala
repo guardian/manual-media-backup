@@ -1,7 +1,7 @@
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.om.mxs.client.japi.Vault
-import models.{PathTransform, ToCopy}
+import models.{MxsMetadata, PathTransform, PathTransformSet, ToCopy}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 
@@ -23,9 +23,9 @@ class DirectCopierSpec extends Specification with Mockito {
       val mockCheckFileExistence = mock[Path=>Try[Boolean]]
       mockCheckFileExistence.apply(any) returns Success(false)
 
-      val toTest = new DirectCopier(mockVault, Seq()) {
+      val toTest = new DirectCopier(mockVault, new PathTransformSet(Seq())) {
         override def checkFileExistence(remotePath: Path): Try[Boolean] = mockCheckFileExistence(remotePath)
-        override def doCopyTo(vault: Vault, destFileName: Option[String], fromFile: File, chunkSize: Int, checksumType: String, keepOnFailure: Boolean, retryOnFailure: Boolean)(implicit ec: ExecutionContext, mat: Materializer): Future[(String, Option[String])] =
+        override def doCopyTo(vault: Vault, destFileName: Option[String], fromFile: File, chunkSize: Int, checksumType: String, keepOnFailure: Boolean, retryOnFailure: Boolean, externalMetadata:Option[MxsMetadata])(implicit ec: ExecutionContext, mat: Materializer): Future[(String, Option[String])] =
           mockDoCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
       }
 
@@ -62,10 +62,10 @@ class DirectCopierSpec extends Specification with Mockito {
       implicit val mockActorSystem = mock[ActorSystem]
       implicit val mockMaterializer = mock[Materializer]
 
-      val pathTransformers = Seq(
+      val pathTransformers = new PathTransformSet(Seq(
         PathTransform("/srv/volume/Media","/srv/othervolume/media"),
         PathTransform("/srv/volume/Proxies", "/srv/othervolume/proxies"),
-      )
+      ))
 
       val mockVault = mock[Vault]
       val mockDoCopyTo = mock[(Vault, Option[String], File, Int, String, Boolean, Boolean)=>Future[(String, Option[String])]]
@@ -75,7 +75,7 @@ class DirectCopierSpec extends Specification with Mockito {
 
       val toTest = new DirectCopier(mockVault, pathTransformers) {
         override def checkFileExistence(remotePath: Path): Try[Boolean] = mockCheckFileExistence(remotePath)
-        override def doCopyTo(vault: Vault, destFileName: Option[String], fromFile: File, chunkSize: Int, checksumType: String, keepOnFailure: Boolean, retryOnFailure: Boolean)(implicit ec: ExecutionContext, mat: Materializer): Future[(String, Option[String])] =
+        override def doCopyTo(vault: Vault, destFileName: Option[String], fromFile: File, chunkSize: Int, checksumType: String, keepOnFailure: Boolean, retryOnFailure: Boolean, externalMetadata:Option[MxsMetadata])(implicit ec: ExecutionContext, mat: Materializer): Future[(String, Option[String])] =
           mockDoCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
       }
 
@@ -118,9 +118,9 @@ class DirectCopierSpec extends Specification with Mockito {
       mockCheckFileExistence.apply(Paths.get("/srv/volume/Proxies/project/content/somefile.mp4")) returns Success(false)
       mockCheckFileExistence.apply(Paths.get("/srv/volume/Proxies/project/content/somefile.jpg")) returns Success(false)
 
-      val toTest = new DirectCopier(mockVault, Seq()) {
+      val toTest = new DirectCopier(mockVault, new PathTransformSet(Seq())) {
         override def checkFileExistence(remotePath: Path): Try[Boolean] = mockCheckFileExistence(remotePath)
-        override def doCopyTo(vault: Vault, destFileName: Option[String], fromFile: File, chunkSize: Int, checksumType: String, keepOnFailure: Boolean, retryOnFailure: Boolean)(implicit ec: ExecutionContext, mat: Materializer): Future[(String, Option[String])] =
+        override def doCopyTo(vault: Vault, destFileName: Option[String], fromFile: File, chunkSize: Int, checksumType: String, keepOnFailure: Boolean, retryOnFailure: Boolean, externalMetadata:Option[MxsMetadata])(implicit ec: ExecutionContext, mat: Materializer): Future[(String, Option[String])] =
           mockDoCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
       }
 

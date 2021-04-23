@@ -109,6 +109,15 @@ case class MxsMetadata (stringValues:Map[String,String], boolValues:Map[String,B
 
     kv.mkString(", ")
   }
+
+  def merged(other:MxsMetadata):MxsMetadata =
+    new MxsMetadata(
+      stringValues ++ other.stringValues,
+      boolValues ++ other.boolValues,
+      longValues ++ other.longValues,
+      intValues ++ other.intValues,
+      floatValues ++ other.floatValues
+    )
 }
 
 object MxsMetadata {

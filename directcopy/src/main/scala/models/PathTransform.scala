@@ -1,7 +1,8 @@
 package models
 
 import java.nio.file.{Path, Paths}
-import scala.util.{Failure, Try}
+import scala.util.{Failure, Success, Try}
+import cats.implicits._
 
 case class PathTransform(from:Path, to:Path, stripComponents:Option[Int]) {
   /**
@@ -59,4 +60,38 @@ object PathTransform extends ((Path, Path, Option[Int])=>PathTransform){
       case _=> Left("The given path spec could not be interpreted")
     }
   }
+}
+
+class PathTransformSet(transforms:Seq[PathTransform]) {
+  /**
+    * if any pathTransforms are set, then find one that will apply to the incoming path and use it
+    * @param filePath media file path to apply the change to
+    * @return a Future, containing an Option with the transformed path if a transformer is set or None if not.
+    */
+  protected def maybeTransformFilepath(filePath:Path, currentTransform:Option[PathTransform], remainingTransforms:Seq[PathTransform]):Try[Option[Path]] = {
+    if(currentTransform.isDefined && currentTransform.get.canApplyTo(filePath)) {
+      currentTransform
+        .map(_.apply(filePath))
+        .sequence //courtesy of cats, changes Option[Try[A]] to Try[Option[A]]
+    } else {
+      if(remainingTransforms.nonEmpty) {
+        maybeTransformFilepath(filePath, remainingTransforms.headOption, remainingTransforms.tail)
+      } else {
+        Success(None)
+      }
+    }
+  }
+
+  def apply(filePath:Path):Try[Option[Path]] = {
+    val listTail = if(transforms.nonEmpty) {
+      transforms.tail
+    } else {
+      Seq()
+    }
+    maybeTransformFilepath(filePath, transforms.headOption, listTail)
+  }
+}
+
+object PathTransformSet {
+  def empty = new PathTransformSet(Seq())
 }

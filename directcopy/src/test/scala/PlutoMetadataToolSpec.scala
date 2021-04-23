@@ -2,7 +2,7 @@ import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import helpers.PlutoCommunicator._
 import models.pluto.{AssetFolderRecord, CommissionRecord, ProjectRecord, WorkingGroupRecord}
-import models.{FileInstance, MxsMetadata, ToCopy}
+import models.{FileInstance, MxsMetadata, PathTransformSet, ToCopy}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 
@@ -49,7 +49,7 @@ class PlutoMetadataToolSpec extends Specification with Mockito {
         }
       })
 
-      val toTest = new PlutoMetadataTool(mockCommunicator.ref)
+      val toTest = new PlutoMetadataTool(mockCommunicator.ref, PathTransformSet.empty)
       val resultFut = toTest.addPlutoMetadata(mockRequest)
 
 
@@ -89,7 +89,7 @@ class PlutoMetadataToolSpec extends Specification with Mockito {
         }
       })
 
-      val toTest = new PlutoMetadataTool(mockCommunicator.ref)
+      val toTest = new PlutoMetadataTool(mockCommunicator.ref, PathTransformSet.empty)
       val resultFut = toTest.addPlutoMetadata(mockRequest)
 
       val result = Await.result(resultFut, 10.seconds)
@@ -121,7 +121,7 @@ class PlutoMetadataToolSpec extends Specification with Mockito {
         }
       })
 
-      val toTest = new PlutoMetadataTool(mockCommunicator.ref)
+      val toTest = new PlutoMetadataTool(mockCommunicator.ref, PathTransformSet.empty)
       val resultFut = toTest.addPlutoMetadata(mockRequest)
 
       val result = Try { Await.result(resultFut, 10.seconds) }

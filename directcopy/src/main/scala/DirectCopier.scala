@@ -2,7 +2,7 @@ import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.om.mxs.client.japi.{MatrixStore, UserInfo, Vault}
 import helpers.{Copier, MatrixStoreHelper}
-import models.{PathTransform, ToCopy}
+import models.{MxsMetadata, PathTransform, PathTransformSet, ToCopy}
 import org.slf4j.LoggerFactory
 
 import java.io.File
@@ -17,12 +17,12 @@ object DirectCopier {
     * @param destVaultInfo UserInfo object indicating the vault to open
     * @return either a Success with the given Copier initialised or a Failure indicating the problem
     */
-  def initialise(destVaultInfo:UserInfo, maybePathTransform:Seq[PathTransform]) = Try {
+  def initialise(destVaultInfo:UserInfo, maybePathTransform:PathTransformSet) = Try {
     new DirectCopier(MatrixStore.openVault(destVaultInfo), maybePathTransform)
   }
 }
 
-class DirectCopier(destVault:Vault, maybePathTransformList:Seq[PathTransform]) {
+class DirectCopier(destVault:Vault, maybePathTransformList:PathTransformSet) {
   private val logger = LoggerFactory.getLogger(getClass)
   val defaultChunkSize:Int = 5*(1024*1024)
 
@@ -37,28 +37,10 @@ class DirectCopier(destVault:Vault, maybePathTransformList:Seq[PathTransform]) {
                          chunkSize:Int,
                          checksumType:String,
                          keepOnFailure:Boolean=false,
-                         retryOnFailure:Boolean=true)
+                         retryOnFailure:Boolean=true,
+                         externalMetadata:Option[MxsMetadata])
                         (implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] =
-    Copier.doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
-
-  /**
-    * if any pathTransforms are set, then find one that will apply to the incoming path and use it
-    * @param filePath media file path to apply the change to
-    * @return a Future, containing an Option with the transformed path if a transformer is set or None if not.
-    */
-  protected def maybeTransformFilepath(filePath:Path, currentTransform:Option[PathTransform], remainingTransforms:Seq[PathTransform]):Try[Option[Path]] = {
-    if(currentTransform.isDefined && currentTransform.get.canApplyTo(filePath)) {
-      currentTransform
-        .map(_.apply(filePath))
-        .sequence //courtesy of cats, changes Option[Try[A]] to Try[Option[A]]
-    } else {
-      if(remainingTransforms.nonEmpty) {
-        maybeTransformFilepath(filePath, remainingTransforms.headOption, remainingTransforms.tail)
-      } else {
-        Success(None)
-      }
-    }
-  }
+    Copier.doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure, externalMetadata)
 
   /**
     * call out to MatrixStoreHelper to see if the given path already exists on the remote side
@@ -92,16 +74,15 @@ class DirectCopier(destVault:Vault, maybePathTransformList:Seq[PathTransform]) {
             filePath.toFile,
             copyChunkSize.getOrElse(defaultChunkSize),
             "md5",
-            retryOnFailure = false)
+            retryOnFailure = false,
+            externalMetadata = from.commonMetadata)
         } else {
+          logger.debug(s"File ${maybeTransformedPath.map(_.toString).getOrElse(filePath.toString)} already existed, not copying")
           Future(("",None))
         }
 
         for {
-          maybeTransformedPath <- Future.fromTry({
-            val listTail = if(maybePathTransformList.nonEmpty) maybePathTransformList.tail else Seq()
-            maybeTransformFilepath(filePath, maybePathTransformList.headOption, listTail)
-          })
+          maybeTransformedPath <- Future.fromTry(maybePathTransformList.apply(filePath))
           remoteAlreadyExists <- Future.fromTry(checkFileExistence(maybeTransformedPath.getOrElse(filePath)))
           copyResult <- conditionalCopy(maybeTransformedPath, remoteAlreadyExists)
         } yield copyResult

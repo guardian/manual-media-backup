@@ -114,52 +114,59 @@ object Copier {
     * @param mat implicitly provided materializer
     * @return a Future, with a tuple of (object ID, checksum)
     */
-  def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String, keepOnFailure:Boolean=false,retryOnFailure:Boolean=true)(implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] = {
+  def doCopyTo(vault:Vault, destFileName:Option[String], fromFile:File, chunkSize:Int, checksumType:String, keepOnFailure:Boolean=false,retryOnFailure:Boolean=true, targetMetadata:Option[MxsMetadata]=None)(implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] = {
     val metadata = MatrixStoreHelper.metadataFromFilesystem(fromFile)
 
     if(metadata.isFailure){
       logger.error(s"Could no lookup metadata")
       Future.failed(metadata.failed.get) //since the stream future fails on error, might as well do the same here.
     } else {
-        Future.fromTry(createObjectWithMetadata(destFileName,fromFile, metadata.get)(vault)).flatMap(result=> {
-          val mxsFile = result._1
-          val mdToWrite = result._2
-          val timestampStart = Instant.now.toEpochMilli
-          logger.debug(s"mxsFile is $mxsFile")
-          val graph = createCopyGraph(fromFile, chunkSize,checksumType,mxsFile)
+      val mdToWrite = targetMetadata match {
+        case Some(externalMeta)=>
+          metadata.get.merged(externalMeta)
+        case None=>metadata.get
+      }
+      logger.debug(s"Metadata to write is $mdToWrite")
 
-          logger.debug(s"Created stream")
-          RunnableGraph.fromGraph(graph).run().flatMap(finalChecksum => {
-            val timestampFinish = Instant.now.toEpochMilli
-            val msDuration = timestampFinish - timestampStart
+      Future.fromTry(createObjectWithMetadata(destFileName,fromFile, mdToWrite)(vault)).flatMap(result=> {
+        val mxsFile = result._1
+        val mdToWrite = result._2
+        val timestampStart = Instant.now.toEpochMilli
+        logger.debug(s"mxsFile is $mxsFile")
+        val graph = createCopyGraph(fromFile, chunkSize,checksumType,mxsFile)
 
-            val rate = fromFile.length().toDouble / msDuration.toDouble //in bytes/ms
-            val mbps = rate / 1048576 * 1000 //in MByte/s
+        logger.debug(s"Created stream")
+        RunnableGraph.fromGraph(graph).run().flatMap(finalChecksum => {
+          val timestampFinish = Instant.now.toEpochMilli
+          val msDuration = timestampFinish - timestampStart
 
-            logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
-            finalChecksum match {
-              case Some(actualChecksum) =>
-                val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType -> actualChecksum))
-                MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
+          val rate = fromFile.length().toDouble / msDuration.toDouble //in bytes/ms
+          val mbps = rate / 1048576 * 1000 //in MByte/s
 
-                logger.debug(s"mdToWrite is $updatedMetadata")
+          logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
+          finalChecksum match {
+            case Some(actualChecksum) =>
+              val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType -> actualChecksum))
+              MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
 
-                validateChecksum(mxsFile, actualChecksum, keepOnFailure).recoverWith({
-                  case ex:RuntimeException=>
-                    logger.error("Got a runtime exception while validating checksum, retrying: ", ex)
-                    if (retryOnFailure) {
-                      Thread.sleep(500)
-                      doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
-                    } else {
-                      Future.failed(ex)
-                    }
-                })
+              logger.debug(s"mdToWrite is $updatedMetadata")
 
-              case None=>
-                Future((mxsFile.getId, finalChecksum))
-            }
-          })
+              validateChecksum(mxsFile, actualChecksum, keepOnFailure).recoverWith({
+                case ex:RuntimeException=>
+                  logger.error("Got a runtime exception while validating checksum, retrying: ", ex)
+                  if (retryOnFailure) {
+                    Thread.sleep(500)
+                    doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
+                  } else {
+                    Future.failed(ex)
+                  }
+              })
+
+            case None=>
+              Future((mxsFile.getId, finalChecksum))
+          }
         })
+      })
     }
   }
 

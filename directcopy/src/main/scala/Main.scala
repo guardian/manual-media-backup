@@ -1,14 +1,16 @@
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.{ActorMaterializer, ClosedShape, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
 import streamcomponents.{FileListSource, FilterOutDirectories, FilterOutMacStuff, LocateProxyFlow, UTF8PathCharset}
 import akka.stream.scaladsl.GraphDSL.Implicits._
 import helpers.{PlutoCommunicator, TrustStoreHelper}
-import models.PathTransform
+import models.{PathTransform, PathTransformSet}
 import org.slf4j.LoggerFactory
 
+import java.io.{File, FileInputStream}
 import java.nio.file.{Path, Paths}
+import java.util.Properties
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
@@ -26,7 +28,8 @@ object Main {
 
   val maybePathStrip = sys.env.get("PATH_STRIP").map(_.toInt)
 
-  val pathTransformList = sys.env.get("PATH_TRANSFORM_LIST")
+  val pathTransformList = new PathTransformSet(
+    sys.env.get("PATH_TRANSFORM_LIST")
     .map(_.split("\\|"))
     .map(_.map(PathTransform.fromPathSpec(_, maybePathStrip)))
     .map(_.map({
@@ -35,7 +38,33 @@ object Main {
         logger.error(s"Could not make a path transform out of ${sys.env.get("PATH_TRANSFORM")}: $err")
         sys.exit(1)
     }))
-    .getOrElse(Array())
+      .map(_.toSeq)
+      .getOrElse(Seq())
+  )
+
+  lazy val plutoCredentialsFile = requiredEnvironment("PLUTO_CREDENTIALS_FILE")
+  def getPlutoCommunicator:Try[ActorRef] = {
+    val propsFile = Try {
+      val prop = new Properties()
+
+      val f = new File(plutoCredentialsFile)
+      val strm = new FileInputStream(f)
+      prop.load(strm)
+      strm.close()
+      prop
+    }
+
+    propsFile.flatMap(properties=>{
+      val baseUri = Option(properties.getProperty("base-uri"))
+      val sharedSecret = Option(properties.getProperty("shared-secret"))
+
+      if(baseUri.isEmpty || sharedSecret.isEmpty){
+        Failure(new RuntimeException("Invalid properties. You must provide base-uri, user and password properties for pluto access"))
+      } else {
+        Success(actorSystem.actorOf(Props(new PlutoCommunicator(baseUri.get, sharedSecret.get))))
+      }
+    })
+  }
 
   /**
     * helper method that either gets the requested key from the environment or exits with an indicative
@@ -60,8 +89,6 @@ object Main {
   val thumbnailPostfix = sys.env.get("THUMBNAIL_POSTFIX")
   val thumbnailXtn = requiredEnvironment("THUMBNAIL_XTN")
 
-  val plutoBaseUri = requiredEnvironment("PLUTO_BASE_URI")
-  val plutoSharedSecret = requiredEnvironment("PLUTO_SHARED_SECRET")
   lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
   /**
@@ -133,11 +160,27 @@ object Main {
     sys.exit(exitCode)
   }
 
-  def main(args:Array[String]) = {
+  def testPlutoConnection(plutoCommunicator:ActorRef) = {
     import akka.pattern.ask
     import scala.concurrent.duration._
     implicit val timeout:akka.util.Timeout = 10.seconds
 
+    Try {
+      Await.result((plutoCommunicator ? PlutoCommunicator.TestConnection).mapTo[PlutoCommunicator.AFHMsg], 10.seconds)
+    } match {
+      case Success(PlutoCommunicator.ConnectionWorking)=>
+        logger.info("Successfully connected to pluto")
+        Right( plutoCommunicator )
+      case Success(PlutoCommunicator.LookupFailed)=>
+        logger.error("Unable to connect to pluto, please examine the logs above")
+        Left( () )
+      case Failure(err)=>
+        logger.error(s"Test connection to pluto failed: ${err.getMessage}", err)
+        Left( () )
+    }
+  }
+
+  def main(args:Array[String]) = {
     if(extraKeyStores.isDefined){
       logger.info(s"Loading in extra keystores from ${extraKeyStores.get.mkString(",")}")
       /* this should set the default SSL context to use the stores as well */
@@ -158,21 +201,15 @@ object Main {
           logger.error(s"Starting file path ${startingPath.toString} does not exist, can't continue")
           sys.exit(1)
         }
-        val plutoCommunicator = actorSystem.actorOf(Props(new PlutoCommunicator(plutoBaseUri, plutoSharedSecret)))
-        Try {
-          Await.result((plutoCommunicator ? PlutoCommunicator.TestConnection).mapTo[PlutoCommunicator.AFHMsg], 10.seconds)
-        } match {
-          case Success(PlutoCommunicator.ConnectionWorking)=>
-            logger.info("Successfully connected to pluto")
-          case Success(PlutoCommunicator.LookupFailed)=>
-            logger.error("Unable to connect to pluto, please examine the logs above")
-            terminate(3)
-          case Failure(err)=>
-            logger.error(s"Test connection to pluto failed: ${err.getMessage}", err)
-            terminate(3)
-        }
 
-        val mdTool = new PlutoMetadataTool(plutoCommunicator)
+        val plutoCommunicator = getPlutoCommunicator
+          .toEither
+          .flatMap(testPlutoConnection) match {
+            case Right(actorRef)=>actorRef
+            case Left(_)=>terminate(3)  //an error message has already been shown if something failed, just exit.
+          }
+
+        val mdTool = new PlutoMetadataTool(plutoCommunicator, pathTransformList)
         val graph = buildStream(startingPath, copier, mdTool)
 
         RunnableGraph.fromGraph(graph).run().onComplete({
