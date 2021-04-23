@@ -15,6 +15,11 @@ case class PathTransform(from:Path, to:Path, stripComponents:Option[Int]) {
     mediaFile.startsWith(from)
   }
 
+  def withoutStripComponents = stripComponents match {
+    case Some(_)=>this.copy(stripComponents=None)
+    case None=>this
+  }
+
   /**
     * applies this path transform to a given incoming path. This operation can fail if it's not possible to relativise
     * the `mediaFile` path to the `from` path.
@@ -90,6 +95,8 @@ class PathTransformSet(transforms:Seq[PathTransform]) {
     }
     maybeTransformFilepath(filePath, transforms.headOption, listTail)
   }
+
+  def withoutStripComponents = new PathTransformSet(transforms.map(_.withoutStripComponents))
 }
 
 object PathTransformSet {

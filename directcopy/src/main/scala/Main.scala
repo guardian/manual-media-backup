@@ -209,7 +209,7 @@ object Main {
             case Left(_)=>terminate(3)  //an error message has already been shown if something failed, just exit.
           }
 
-        val mdTool = new PlutoMetadataTool(plutoCommunicator, pathTransformList)
+        val mdTool = new PlutoMetadataTool(plutoCommunicator, pathTransformList.withoutStripComponents)
         val graph = buildStream(startingPath, copier, mdTool)
 
         RunnableGraph.fromGraph(graph).run().onComplete({
