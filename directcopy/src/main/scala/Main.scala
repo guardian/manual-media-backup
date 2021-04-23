@@ -26,7 +26,7 @@ object Main {
 
   val pathTransformList = sys.env.get("PATH_TRANSFORM_LIST")
     .map(_.split("\\|"))
-    .map(_.map(PathTransform.fromPathSpec))
+    .map(_.map(PathTransform.fromPathSpec(_, maybePathStrip)))
     .map(_.map({
       case Right(transform)=>transform
       case Left(err)=>

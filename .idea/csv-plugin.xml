@@ -17,6 +17,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/directcopy/src/test/scala/models/PathTransformSpec.scala">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/directcopy/src/test/scala/streamcomponents/LocateProxyFlowSpec.scala">
           <value>
             <Attribute>

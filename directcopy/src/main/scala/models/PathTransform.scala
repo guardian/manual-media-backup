@@ -27,7 +27,7 @@ case class PathTransform(from:Path, to:Path, stripComponents:Option[Int]) {
       val finalPath = to.resolve(basePath)
       stripComponents match {
         case Some(componentCount)=>
-          finalPath.subpath(componentCount,-1)
+          finalPath.subpath(componentCount,finalPath.getNameCount)
         case None=>
           finalPath
       }

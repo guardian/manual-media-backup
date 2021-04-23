@@ -32,5 +32,14 @@ class PathTransformSpec extends Specification {
 
       result must beFailedTry
     }
+
+    "respect the strip path components option" in {
+      val mediaPath = Paths.get("/old/path/to/replace/wg/comm/project/media/somefile.mxf")
+      val transform = PathTransform("/old/path/to/replace","/new/path/replaced",Some(2))
+      val result = transform.apply(mediaPath)
+
+      result must beSuccessfulTry
+      result.get.toString mustEqual "replaced/wg/comm/project/media/somefile.mxf"
+    }
   }
 }
