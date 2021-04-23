@@ -1,14 +1,15 @@
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.{ActorMaterializer, ClosedShape, SourceShape}
 import akka.stream.scaladsl.{GraphDSL, RunnableGraph, Sink}
 import streamcomponents.{FileListSource, FilterOutDirectories, FilterOutMacStuff, LocateProxyFlow, UTF8PathCharset}
 import akka.stream.scaladsl.GraphDSL.Implicits._
+import helpers.PlutoCommunicator
 import models.PathTransform
 import org.slf4j.LoggerFactory
 
 import java.nio.file.{Path, Paths}
 import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 object Main {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -58,6 +59,9 @@ object Main {
   val thumbnailPostfix = sys.env.get("THUMBNAIL_POSTFIX")
   val thumbnailXtn = requiredEnvironment("THUMBNAIL_XTN")
 
+  val plutoBaseUri = requiredEnvironment("PLUTO_BASE_URI")
+  val plutoSharedSecret = requiredEnvironment("PLUTO_SHARED_SECRET")
+
   /**
     * partial akka stream that lists out all of the source files we are interested in
     * @param startingPath
@@ -85,7 +89,7 @@ object Main {
     * @param copier [[DirectCopier]] instance
     * @return a Graph, which resolves to a Future[Done] which completes when all processing is done
     */
-  def buildStream(startingPath:Path, copier:DirectCopier) = {
+  def buildStream(startingPath:Path, copier:DirectCopier, plutoMetadataTool: PlutoMetadataTool) = {
     val sinkFac = Sink.ignore
     GraphDSL.create(sinkFac) { implicit builder=> sink=>
       val src = builder.add(inputStream(startingPath))
@@ -93,6 +97,7 @@ object Main {
 
       src ~> proxyLocator
       proxyLocator
+        .mapAsync(parallelCopies)(plutoMetadataTool.addPlutoMetadata)
         .mapAsync(parallelCopies)(copier.performCopy(_,copyChunkSize))
         .map(copiedData=> {
           logger.info(s"Completed copy of ${copiedData.sourceFile.path.toString} to ${copiedData.sourceFile.oid} with checksum ${copiedData.sourceFile.oid}")
@@ -127,6 +132,10 @@ object Main {
   }
 
   def main(args:Array[String]) = {
+    import akka.pattern.ask
+    import scala.concurrent.duration._
+    implicit val timeout:akka.util.Timeout = 10.seconds
+
     DirectCopier.initialise(destVaultInfo, pathTransformList) match {
       case Success(copier)=>
         logger.info("Connected to vault")
@@ -134,7 +143,22 @@ object Main {
           logger.error(s"Starting file path ${startingPath.toString} does not exist, can't continue")
           sys.exit(1)
         }
-        val graph = buildStream(startingPath, copier)
+        val plutoCommunicator = actorSystem.actorOf(Props(new PlutoCommunicator(plutoBaseUri, plutoSharedSecret)))
+        Try {
+          Await.result((plutoCommunicator ? PlutoCommunicator.TestConnection).mapTo[PlutoCommunicator.AFHMsg], 10.seconds)
+        } match {
+          case Success(PlutoCommunicator.ConnectionWorking)=>
+            logger.info("Successfully connected to pluto")
+          case Success(PlutoCommunicator.LookupFailed)=>
+            logger.error("Unable to connect to pluto, please examine the logs above")
+            terminate(3)
+          case Failure(err)=>
+            logger.error(s"Test connection to pluto failed: ${err.getMessage}", err)
+            terminate(3)
+        }
+
+        val mdTool = new PlutoMetadataTool(plutoCommunicator)
+        val graph = buildStream(startingPath, copier, mdTool)
 
         RunnableGraph.fromGraph(graph).run().onComplete({
           case Failure(err)=>

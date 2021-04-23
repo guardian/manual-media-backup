@@ -70,4 +70,25 @@ object CustomMXSMetadata {
         incoming.boolValues.getOrElse("GNM_HIDDEN_FILE", false)
       )
     )
+
+  /**
+    * creates a CustomMXSMetadata object with only the specified type present and all optional fields blank
+    * @param forType ItemType for the object
+    * @return
+    */
+  def empty(forType:String) = new CustomMXSMetadata(
+    forType,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None
+  )
 }
