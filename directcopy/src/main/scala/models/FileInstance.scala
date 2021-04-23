@@ -8,7 +8,10 @@ case class FileInstance(path:Path, oid:Option[String], omChecksum:Option[String]
     * @param copyData 2-tuple consisiting of (oid, optional checksum)
     * @return updated FileInstance
     */
-  def withCopyData(copyData:(String, Option[String])):FileInstance = this.copy(oid=Some(copyData._1), omChecksum=copyData._2)
+  def withCopyData(copyData:(String, Option[String])):FileInstance = this.copy(
+    oid=if(copyData._1=="") None else Some(copyData._1),
+    omChecksum=copyData._2
+  )
 
   /**
     * get a java.io.File pointing to the local file
