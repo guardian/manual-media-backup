@@ -118,7 +118,7 @@ object Main {
     * @param copier [[DirectCopier]] instance
     * @return a Graph, which resolves to a Future[Done] which completes when all processing is done
     */
-  def buildStream(startingPath:Path, copier:DirectCopier, plutoMetadataTool: PlutoMetadataTool) = {
+  def buildStream(startingPath:Path, copier:DirectCopier, linkup:ProxyLinker, plutoMetadataTool: PlutoMetadataTool) = {
     val sinkFac = Sink.ignore
     GraphDSL.create(sinkFac) { implicit builder=> sink=>
       val src = builder.add(inputStream(startingPath))
@@ -128,6 +128,7 @@ object Main {
       proxyLocator
         .mapAsync(parallelCopies)(plutoMetadataTool.addPlutoMetadata)
         .mapAsync(parallelCopies)(copier.performCopy(_,copyChunkSize))
+        .mapAsync(2)(linkup.performLinkup)
         .map(copiedData=> {
           logger.info(s"Completed copy of ${copiedData.sourceFile.path.toString} to ${copiedData.sourceFile.oid} with checksum ${copiedData.sourceFile.oid}")
           copiedData.proxyMedia match {
@@ -194,8 +195,11 @@ object Main {
       }
     }
 
-    DirectCopier.initialise(destVaultInfo, pathTransformList) match {
-      case Success(copier)=>
+    (
+      DirectCopier.initialise(destVaultInfo, pathTransformList),
+      ProxyLinker.initialise(destVaultInfo)
+    ) match {
+      case (Success(copier),Success(linker))=>
         logger.info("Connected to vault")
         if(!startingPath.toFile.exists()) {
           logger.error(s"Starting file path ${startingPath.toString} does not exist, can't continue")
@@ -210,7 +214,7 @@ object Main {
           }
 
         val mdTool = new PlutoMetadataTool(plutoCommunicator, pathTransformList.withoutStripComponents)
-        val graph = buildStream(startingPath, copier, mdTool)
+        val graph = buildStream(startingPath, copier, linker, mdTool)
 
         RunnableGraph.fromGraph(graph).run().onComplete({
           case Failure(err)=>
@@ -219,7 +223,10 @@ object Main {
             logger.info("Copy run completed successfully.")
             terminate(0)
         })
-      case Failure(err)=>
+      case (Failure(err), _)=>
+        logger.error(s"Could not access vault given in DEST_VAULT: ${err.toString}", err)
+        sys.exit(2)
+      case (_, Failure(err))=>
         logger.error(s"Could not access vault given in DEST_VAULT: ${err.toString}", err)
         sys.exit(2)
     }

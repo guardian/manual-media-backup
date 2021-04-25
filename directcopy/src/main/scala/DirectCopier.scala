@@ -26,6 +26,10 @@ class DirectCopier(destVault:Vault, maybePathTransformList:PathTransformSet) {
   private val logger = LoggerFactory.getLogger(getClass)
   val defaultChunkSize:Int = 5*(1024*1024)
 
+  override def finalize(): Unit = {
+    destVault.dispose()
+    super.finalize()
+  }
   /**
     * calls the static Copier object to perform an individual file copy.
     * Abstracted to its own protected method here for easy mocking in tests

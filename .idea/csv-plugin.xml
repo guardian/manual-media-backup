@@ -17,6 +17,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/directcopy/src/main/scala/ProxyLinker.scala">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/directcopy/src/main/scala/streamcomponents/MetadataHelper.scala">
           <value>
             <Attribute>
