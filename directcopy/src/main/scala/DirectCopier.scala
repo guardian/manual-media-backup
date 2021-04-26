@@ -39,12 +39,18 @@ class DirectCopier(destVault:Vault, maybePathTransformList:PathTransformSet) {
                          destFileName:Option[String],
                          fromFile:File,
                          chunkSize:Int,
+                         gnmTypeMetadata:String,
                          checksumType:String,
                          keepOnFailure:Boolean=false,
                          retryOnFailure:Boolean=true,
                          externalMetadata:Option[MxsMetadata])
-                        (implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] =
-    Copier.doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure, externalMetadata)
+                        (implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] = {
+    val metaToWrite = externalMetadata
+      .getOrElse(MxsMetadata.empty())
+      .withString("GNM_TYPE", gnmTypeMetadata)
+
+    Copier.doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure, Some(metaToWrite))
+  }
 
   def addCopiedOIDs(mediaResult:Future[Seq[(String, Option[String])]], from:ToCopy)(implicit ec:ExecutionContext) = mediaResult.map(results=>{
     logger.debug(s"Copying completed.  Results are $mediaResult")
@@ -98,21 +104,25 @@ class DirectCopier(destVault:Vault, maybePathTransformList:PathTransformSet) {
     * @return a Future contining an updated [[ToCopy]] object
     */
   def performCopy(from:ToCopy, copyChunkSize:Option[Int]=None)(implicit ec:ExecutionContext, actorSystem:ActorSystem, mat:Materializer) = {
-    val itemsToCopy:Seq[Path] = Seq(
-      Some(from.sourceFile.path),
-      from.proxyMedia.map(_.path),
-      from.thumbnail.map(_.path)
-    ).collect({case Some(path)=>path})
+    val itemsToCopy:Seq[(Path,String)] = Seq(
+      (Some(from.sourceFile.path), "Rushes"),
+      (from.proxyMedia.map(_.path), "Proxy"),
+      (from.thumbnail.map(_.path), "Poster"),
+    ).collect({case (Some(path), gnmType)=>(path, gnmType)})
 
     logger.debug(s"Will copy ${itemsToCopy.length} items: ${itemsToCopy.map(_.toString).mkString(",")}")
     val mediaResult = Future.sequence(
-      itemsToCopy.map(filePath=> {
+      itemsToCopy.map(pathAndType=> {
+        val filePath = pathAndType._1
+        val gnmType = pathAndType._2
+
         def conditionalCopy(maybeTransformedPath:Option[Path], alreadyExists:Boolean) = if(!alreadyExists) {
           doCopyTo(destVault,
             maybeTransformedPath.map(_.toString),
             filePath.toFile,
             copyChunkSize.getOrElse(defaultChunkSize),
-            "md5",
+            gnmTypeMetadata = gnmType,
+            checksumType = "md5",
             retryOnFailure = false,
             externalMetadata = from.commonMetadata)
         } else {
