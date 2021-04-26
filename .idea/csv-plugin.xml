@@ -10,6 +10,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/common/src/main/scala/helpers/MetadataHelper.scala">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/directcopy/src/main/scala/DirectCopier.scala">
           <value>
             <Attribute>

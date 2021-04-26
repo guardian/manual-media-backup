@@ -1,7 +1,6 @@
 package helpers
 
 import java.nio.ByteBuffer
-
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import com.om.mxs.client.japi.MxsObject
@@ -11,6 +10,7 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
 
 object MetadataHelper {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -82,13 +82,27 @@ object MetadataHelper {
     view.readAttributes()
   }
 
-  def setAttributeMetadata(obj:MxsObject, newMetadata:MxsMetadata) = {
-    val view = obj.getAttributeView
+  def setAttributeMetadata(obj:MxsObject, newMetadata:MxsMetadata, attempt:Int=0):Try[Unit] = {
+    def internalSetAttributeMetadata = Try {
+      import scala.collection.JavaConverters._
+      val view = obj.getAttributeView
 
-    //meh, this is probably not very efficient
-    newMetadata.stringValues.foreach(entry=>view.writeString(entry._1,entry._2))
-    newMetadata.longValues.foreach(entry=>view.writeLong(entry._1, entry._2))
-    newMetadata.intValues.foreach(entry=>view.writeInt(entry._1,entry._2))
-    newMetadata.boolValues.foreach(entry=>view.writeBoolean(entry._1, entry._2))
+      view.writeAllAttributes(newMetadata.toAttributes(filterUnwritable = true).asJavaCollection)
+    }
+
+    internalSetAttributeMetadata match {
+      case result@Success(_)=>
+        result
+      case problem@Failure(err)=>
+        if(err.getMessage.contains("error 311")) {
+          logger.debug(err.getMessage)
+          logger.warn(s"Got error string containing `error 311` on attempt $attempt, assuming locking timeout. Retrying in 5s...")
+          Thread.sleep(5000)
+          setAttributeMetadata(obj, newMetadata, attempt+1)
+        } else {
+          logger.error(s"Could not set metadata: ${err.getMessage}", err)
+          problem
+        }
+    }
   }
 }

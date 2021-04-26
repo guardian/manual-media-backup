@@ -56,7 +56,6 @@ object Copier {
     logger.debug(s"mdToWrite is $mdToWrite")
     val mxsFile = vault.createObject(mdToWrite.toAttributes().toArray)
 
-    MetadataHelper.setAttributeMetadata(mxsFile, mdToWrite)
     (mxsFile, mdToWrite)
   }
 
@@ -70,7 +69,7 @@ object Copier {
       checksumSink =>
         import akka.stream.scaladsl.GraphDSL.Implicits._
 
-        val src = builder.add(FileIO.fromPath(fromFile.toPath))
+        val src = builder.add(FileIO.fromPath(fromFile.toPath, chunkSize))
         val bcast = builder.add(new Broadcast[ByteString](2, false).async)
         val omSink = builder.add(new MatrixStoreFileSink(mxsFile))
 
