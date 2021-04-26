@@ -54,7 +54,6 @@ object Copier {
     }
 
     logger.debug(s"mdToWrite is $mdToWrite")
-    logger.debug(s"attributes are ${mdToWrite.toAttributes().map(_.toString).mkString(",")}")
     val mxsFile = vault.createObject(mdToWrite.toAttributes().toArray)
 
     MetadataHelper.setAttributeMetadata(mxsFile, mdToWrite)
@@ -71,7 +70,7 @@ object Copier {
       checksumSink =>
         import akka.stream.scaladsl.GraphDSL.Implicits._
 
-        val src = builder.add(new MMappedFileSource(fromFile, chunkSize))
+        val src = builder.add(FileIO.fromPath(fromFile.toPath))
         val bcast = builder.add(new Broadcast[ByteString](2, false).async)
         val omSink = builder.add(new MatrixStoreFileSink(mxsFile))
 
@@ -132,7 +131,6 @@ object Copier {
         val mxsFile = result._1
         val mdToWrite = result._2
         val timestampStart = Instant.now.toEpochMilli
-        logger.debug(s"mxsFile is $mxsFile")
         val graph = createCopyGraph(fromFile, chunkSize,checksumType,mxsFile)
 
         logger.debug(s"Created stream")
@@ -143,7 +141,8 @@ object Copier {
           val rate = fromFile.length().toDouble / msDuration.toDouble //in bytes/ms
           val mbps = rate / 1048576 * 1000 //in MByte/s
 
-          logger.info(s"Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
+          val fileNameForOutput = destFileName.getOrElse(fromFile.getPath)
+          logger.info(s"$fileNameForOutput: Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
           finalChecksum match {
             case Some(actualChecksum) =>
               val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType -> actualChecksum))

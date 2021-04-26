@@ -1,7 +1,7 @@
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.om.mxs.client.japi.Vault
-import models.{MxsMetadata, PathTransform, PathTransformSet, ToCopy}
+import models.{FileInstance, MxsMetadata, PathTransform, PathTransformSet, ToCopy}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 
@@ -153,6 +153,45 @@ class DirectCopierSpec extends Specification with Mockito {
         toTest.defaultChunkSize,
         "md5",false, false)
       there was one(mockCheckFileExistence).apply(Paths.get("/srv/volume/Media/project/content/somefile.mxf"))
+    }
+  }
+
+  "DirectCopier.addCopiedOIDs" should {
+    "return a Future containing an updated ToCopy object" in {
+      val testData:Future[Seq[(String, Option[String])]] = Future(Seq(
+        ("source-media-oid", Some("source-media-cs")),
+        ("proxy-media-oid", Some("proxy-media-cs")),
+        ("thumb-media-oid", Some("thumb-media-cs")),
+      ))
+
+      val incomingData = ToCopy(
+        FileInstance(
+          Paths.get("path/to/some/media.mxf"),
+          None,
+          None
+        ),
+        Some(FileInstance(
+          Paths.get("path/to/some/proxy.mp4"),
+          None,
+          None
+        )),
+        Some(FileInstance(
+          Paths.get("path/to/some/thumbnail.jpg"),
+          None,
+          None
+        )),
+        None
+      )
+
+      val toTest = new DirectCopier(mock[Vault], PathTransformSet.empty)
+      val result = Await.result(toTest.addCopiedOIDs(testData, incomingData), 1.seconds)
+
+      result.sourceFile.oid must beSome("source-media-oid")
+      result.sourceFile.omChecksum must beSome("source-media-cs")
+      result.proxyMedia.flatMap(_.oid) must beSome("proxy-media-oid")
+      result.proxyMedia.flatMap(_.omChecksum) must beSome("proxy-media-cs")
+      result.thumbnail.flatMap(_.oid) must beSome("thumb-media-oid")
+      result.thumbnail.flatMap(_.omChecksum) must beSome("thumb-media-cs")
     }
   }
 }

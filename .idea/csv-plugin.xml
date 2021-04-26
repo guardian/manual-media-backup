@@ -3,6 +3,13 @@
   <component name="CsvFileAttributes">
     <option name="attributeMap">
       <map>
+        <entry key="/common/src/main/scala/helpers/Copier.scala">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/directcopy/src/main/scala/DirectCopier.scala">
           <value>
             <Attribute>

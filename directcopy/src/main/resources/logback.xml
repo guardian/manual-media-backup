@@ -12,6 +12,7 @@
     <logger name="streamcomponents.LocateProxyFlow" level="DEBUG"/>
     <logger name="helpers.Copier" level="DEBUG"/>
     <logger name="PlutoMetadataTool" level="INFO"/>
+    <logger name="ProxyLinker" level="DEBUG"/>
     <root level="WARN">
         <appender-ref ref="STDOUT" />
     </root>

@@ -50,6 +50,7 @@ class ProxyLinker (destVault:Vault) {
         logger.warn(s"Can't do proxy link for ${copied.sourceFile.path}, as no copy was performed")
         Success(copied)
       case Some(sourceOid)=>
+        logger.debug(s"${copied.sourceFile.path.toString}: Source OID is $sourceOid, proxy OID is ${copied.proxyMedia.flatMap(_.oid)}, thumbnail OID is ${copied.thumbnail.flatMap(_.oid)}")
         val potentialUpdates = Vector(
           copied.proxyMedia
             .flatMap(_.oid)
@@ -60,7 +61,7 @@ class ProxyLinker (destVault:Vault) {
         )
 
         val updatesToMake = potentialUpdates.collect({case Some(attr)=>attr})
-
+        logger.debug(s"${copied.sourceFile.path.toString}: copied source file is $sourceOid, updates to make are $updatesToMake")
         if(updatesToMake.nonEmpty) {
           val updatesMade = for {
             sourceObject <- getOMFile(sourceOid)

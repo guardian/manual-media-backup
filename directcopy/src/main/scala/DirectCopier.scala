@@ -46,6 +46,41 @@ class DirectCopier(destVault:Vault, maybePathTransformList:PathTransformSet) {
                         (implicit ec:ExecutionContext,mat:Materializer):Future[(String,Option[String])] =
     Copier.doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure, externalMetadata)
 
+  def addCopiedOIDs(mediaResult:Future[Seq[(String, Option[String])]], from:ToCopy)(implicit ec:ExecutionContext) = mediaResult.map(results=>{
+    logger.debug(s"Copying completed.  Results are $mediaResult")
+    val resultCount = results.length
+    val updatedSourceFile = from.sourceFile.withCopyData(results.head)
+
+    //not the most elegant solution but it'll do for now I guess
+    val updatedProxyMedia = from.proxyMedia.flatMap(proxyMedia=>
+      if(resultCount>1) {
+        Some(proxyMedia.withCopyData(results(1)))
+      } else {
+        None
+      }
+    )
+
+    val updatedThumbnail = from.thumbnail.flatMap(thumb=>
+      if(resultCount>2) {
+        Some(thumb.withCopyData(results(2)))
+      } else if(from.thumbnail.isDefined && resultCount>1) {
+        Some(thumb.withCopyData(results(1)))
+      } else {
+        None
+      }
+    )
+
+    logger.debug(s"updated source file is $updatedSourceFile")
+    logger.debug(s"updated proxy media is $updatedProxyMedia")
+    logger.debug(s"updated thumbnail is $updatedThumbnail")
+
+    from.copy(
+      sourceFile = updatedSourceFile,
+      proxyMedia = updatedProxyMedia,
+      thumbnail = updatedThumbnail
+    )
+  })
+
   /**
     * call out to MatrixStoreHelper to see if the given path already exists on the remote side
     * @param remotePath path to check
@@ -93,35 +128,6 @@ class DirectCopier(destVault:Vault, maybePathTransformList:PathTransformSet) {
       })
     )
 
-    mediaResult.map(results=>{
-      logger.debug(s"Copying completed")
-      val resultCount = results.length
-      val updatedSourceFile = from.sourceFile.withCopyData(results.head)
-
-      //not the most elegant solution but it'll do for now I guess
-      val updatedProxyMedia = from.proxyMedia.flatMap(proxyMedia=>
-        if(resultCount>1) {
-          Some(proxyMedia.withCopyData(results(1)))
-        } else {
-          None
-        }
-      )
-
-      val updatedThumbnail = from.thumbnail.flatMap(thumb=>
-        if(resultCount>2) {
-          Some(thumb.withCopyData(results(2)))
-        } else if(from.thumbnail.isDefined && resultCount>1) {
-          Some(thumb.withCopyData(results(1)))
-        } else {
-          None
-        }
-      )
-
-      from.copy(
-        sourceFile = updatedSourceFile,
-        proxyMedia = updatedProxyMedia,
-        thumbnail = updatedThumbnail
-      )
-    })
+    addCopiedOIDs(mediaResult, from)
   }
 }
