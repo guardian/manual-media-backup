@@ -3,7 +3,7 @@ import models.ToCopy
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object ProxyLinker {
@@ -46,6 +46,9 @@ class ProxyLinker (destVault:Vault) {
 
   def performLinkup(copied:ToCopy):Future[ToCopy] = Future.fromTry({
     copied.sourceFile.oid match {
+      case None=>
+        logger.warn(s"Can't do proxy link for ${copied.sourceFile.path}, as no copy was performed")
+        Success(copied)
       case Some(sourceOid)=>
         val potentialUpdates = Vector(
           copied.proxyMedia
