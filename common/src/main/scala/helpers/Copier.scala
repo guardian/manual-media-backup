@@ -97,6 +97,24 @@ object Copier {
       }
   })
 
+  def validateSize(mxsFile:MxsObject, fromFile:File, keepOnFailure:Boolean) = Try {
+    val view = mxsFile.getAttributeView
+    val remoteLength = view.readLong("__mxs__length")
+    val localLength = fromFile.length()
+
+    logger.info(s"${fromFile.getPath} ${mxsFile.getId} Remote file size is $remoteLength bytes, local file size is $localLength bytes.")
+    if(remoteLength!=localLength) {
+      logger.error(s"${fromFile.getPath} - remote file size did not match local")
+      if(!keepOnFailure) {
+        logger.info(s"Deleting invalid remote file ${mxsFile.getId}")
+        mxsFile.deleteForcefully()
+      }
+      false
+    } else {
+      true
+    }
+  }
+
   /**
     * stream a file from the local filesystem into objectmatrix, creating metadata from what is provided by the filesystem.
     * also, performs a checksum on the data as it is copied and sets this in the object's metadata too.
@@ -142,26 +160,19 @@ object Copier {
 
           val fileNameForOutput = destFileName.getOrElse(fromFile.getPath)
           logger.info(s"$fileNameForOutput: Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
-          finalChecksum match {
-            case Some(actualChecksum) =>
+
+          finalChecksum.map(actualChecksum=>{
               val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType -> actualChecksum))
               MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
+          })
 
-              logger.debug(s"mdToWrite is $updatedMetadata")
-
-              validateChecksum(mxsFile, actualChecksum, keepOnFailure).recoverWith({
-                case ex:RuntimeException=>
-                  logger.error("Got a runtime exception while validating checksum, retrying: ", ex)
-                  if (retryOnFailure) {
-                    Thread.sleep(500)
-                    doCopyTo(vault, destFileName, fromFile, chunkSize, checksumType, keepOnFailure, retryOnFailure)
-                  } else {
-                    Future.failed(ex)
-                  }
-              })
-
-            case None=>
+          validateSize(mxsFile, fromFile, keepOnFailure) match {
+            case Success(true)=>
               Future((mxsFile.getId, finalChecksum))
+            case Success(false)=>
+              Future.failed(new RuntimeException("File size did not match"))
+            case Failure(err)=>
+              Future.failed(err)
           }
         })
       })
