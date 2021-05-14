@@ -38,11 +38,27 @@ class ProxyLinker (destVault:Vault) {
     * @param toWrite a List of Attribute instances containing the information to write
     * @return a Try, containing the number of attributes written. This fails if there is any write error.
     */
-  protected def writeAttributesToView(view:ObjectTypedAttributeView, toWrite:Vector[Attribute]) =
-    toWrite
-      .map(writeOMAttr(view, _))
-      .sequence
-      .map(_.length)
+  protected def writeAttributesToView(view:ObjectTypedAttributeView, toWrite:Vector[Attribute], attempt:Int=0):Try[Int] = {
+    def internalWrite =
+      toWrite
+        .map(writeOMAttr(view, _))
+        .sequence
+        .map(_.length)
+
+
+    internalWrite match {
+      case ok@Success(_)=>ok
+      case problem@Failure(err)=>
+        if(err.getMessage.contains("error 311")) {
+          logger.warn(s"Could not write attributes on attempt $attempt, got locking error. Retrying in 5s...")
+          Thread.sleep(5000)
+          writeAttributesToView(view, toWrite, attempt+1)
+        } else {
+          logger.error(s"Could not write attributes: ${err.getMessage}", err)
+          problem
+        }
+    }
+  }
 
   def performLinkup(copied:ToCopy):Future[ToCopy] = Future.fromTry({
     copied.sourceFile.oid match {
