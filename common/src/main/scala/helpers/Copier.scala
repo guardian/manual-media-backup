@@ -161,10 +161,10 @@ object Copier {
           val fileNameForOutput = destFileName.getOrElse(fromFile.getPath)
           logger.info(s"$fileNameForOutput: Stream completed, transferred ${fromFile.length} bytes in $msDuration millisec, at a rate of $mbps mByte/s.  Final checksum is $finalChecksum")
 
-          finalChecksum.map(actualChecksum=>{
-              val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType -> actualChecksum))
-              MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
-          })
+//          finalChecksum.map(actualChecksum=>{
+//              val updatedMetadata = mdToWrite.copy(stringValues = mdToWrite.stringValues ++ Map(checksumType -> actualChecksum))
+//              MetadataHelper.setAttributeMetadata(mxsFile, updatedMetadata)
+//          })
 
           validateSize(mxsFile, fromFile, keepOnFailure) match {
             case Success(true)=>
@@ -263,30 +263,37 @@ object Copier {
     }
   }
 
+  private def scalaGetObject(vault:Vault, entry:ObjectMatrixEntry) = Try { vault.getObject(entry.oid) }
+
+  /**
+    * called from the -lookup commandline option of manual-media-backup, to see if the given fileName exists in the cluster.
+    * returns a sequence of tuples containing the object data and a Try, containing the MD5 checksum from the appliance if successful.
+    * @param userInfo UserInfo object representing the vault to target
+    * @param vault  Vault object representing the vault to target
+    * @param fileName file name to look up in the MXFS_PATH/MXFS_FILENAME fields
+    * @param copyTo ignored
+    * @param ec implicitly provided execution context
+    * @param mat implicitly provided materializer
+    */
   def lookupFileName(userInfo:UserInfo, vault:Vault, fileName: String, copyTo:Option[String])(implicit ec:ExecutionContext, mat:Materializer) = {
     implicit val vaultImpl = vault
-    val result = MatrixStoreHelper.findByFilename(vault, fileName, Seq()).map(_.map(_.getMetadata)).map(futureResults=>{
 
-      Future.sequence(futureResults).map(results=> {
-        println(s"Found ${results.length} files: ")
+    Future.fromTry(MatrixStoreHelper.findByFilename(vault, fileName, Seq()))
+      .flatMap(omEntries=>Future.sequence(omEntries.map(_.getMetadata)))
+      .flatMap(results=> {
+        logger.debug(s"Found ${results.length} files: ")
 
-        Future.sequence(results.map(entry => {
-          println(entry)
-          val f = vault.getObject(entry.oid)
-          MatrixStoreHelper.getOMFileMd5(f).map({
-            case Success(md5) =>
-              println(s"File checksum is $md5")
-            case Failure(err) =>
-              println(s"Could not get checksum: $err")
+        Future.sequence(
+          results.map(entry => {
+            logger.debug(entry.toString)
+            val checksum = for {
+              omObj <- Future.fromTry(scalaGetObject(vault, entry))
+              md5 <- MatrixStoreHelper.getOMFileMd5(omObj)
+            } yield md5
+            checksum.map(csValue=>(entry, csValue))
           })
-        }))
+        )
       })
-    })
-
-    result match {
-      case Failure(err)=>Future.failed(err)
-      case Success(futures)=>Future.successful( () )
-    }
   }
 
 }

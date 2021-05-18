@@ -400,7 +400,11 @@ object Main {
               })
             } else if(options.lookup.isDefined){
               Copier.lookupFileName(userInfo, vault, options.lookup.get, options.copyToLocal).onComplete({
-                case Success(_)=>
+                case Success(checksumList)=>
+                  println(s"Found ${checksumList.length} files:")
+                  checksumList.foreach(results=>{
+                    println(s"\t${results._1.oid}: ${results._1.pathOrFilename}, ${results._2}")
+                  })
                   logger.info(s"All operations completed")
                   terminate(0)
                 case Failure(err)=>
