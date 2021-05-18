@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ScalaCompilerConfiguration">
-    <profile name="sbt 1" modules="backup-estimate-tool,common,directcopy,findfilename,inspectoid,manual-media-backup,manual-media-backup-manualbackup,manualbackup,omshunt,push-proxies,removearchived,showmxschecksum,vsmediabackup" />
+    <profile name="sbt 1" modules="backup-estimate-tool,common,directcopy,directcopy-purger,findfilename,inspectoid,manual-media-backup,manual-media-backup-manualbackup,manualbackup,omshunt,push-proxies,removearchived,showmxschecksum,vsmediabackup" />
   </component>
 </project>

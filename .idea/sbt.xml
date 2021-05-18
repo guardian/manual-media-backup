@@ -11,6 +11,7 @@
             <option value="$PROJECT_DIR$/backup-estimate-tool" />
             <option value="$PROJECT_DIR$/common" />
             <option value="$PROJECT_DIR$/directcopy" />
+            <option value="$PROJECT_DIR$/directcopy-purger" />
             <option value="$PROJECT_DIR$/find-filename" />
             <option value="$PROJECT_DIR$/inspect-oid" />
             <option value="$PROJECT_DIR$/manual-media-backup" />

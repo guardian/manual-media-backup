@@ -149,6 +149,30 @@ lazy val `directcopy` = (project in file("directcopy")).enablePlugins(DockerPlug
     )
   )
 
+lazy val `directcopy-purger` = (project in file("directcopy-purger")).enablePlugins(DockerPlugin,AshScriptPlugin)
+  .dependsOn(common)
+  .settings(
+    version := sys.props.getOrElse("build.number","DEV"),
+    dockerPermissionStrategy := DockerPermissionStrategy.CopyChown,
+    daemonUserUid in Docker := None,
+    daemonUser in Docker := "daemon",
+    dockerUsername  := sys.props.get("docker.username"),
+    packageName in Docker := "guardianmultimedia/mmb-directcopy-purger",
+    packageName := "mmb-directcopy",
+    dockerAlias := docker.DockerAlias(None,Some("guardianmultimedia"),"mmb-directcopy-purger",Some(sys.props.getOrElse("build.number","DEV"))),
+    dockerBaseImage := "openjdk:8-jdk-slim",
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+      "org.specs2" %% "specs2-core" % "4.5.1" % Test,
+      "org.specs2" %% "specs2-mock" % "4.5.1" % Test,
+      "org.mockito" % "mockito-core" % "2.28.2" % Test
+    ),
+    dockerBaseImage := "openjdk:8-jdk-slim",
+    dockerCommands ++= Seq(
+      Cmd("USER","root"),
+    )
+  )
+
 lazy val `inspectoid` = (project in file("inspect-oid")).enablePlugins(DockerPlugin,AshScriptPlugin)
   .dependsOn(common)
   .settings(
