@@ -1,0 +1,18 @@
+<configuration debug="false">
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%date [%level] from %logger in %thread - %message%n%xException</pattern>
+        </encoder>
+    </appender>
+
+
+    <logger name="Main$" level="DEBUG"/>
+    <logger name="streamcomponents.FindRemoteFile" level="DEBUG"/>
+    <logger name="streamcomponents.RemoteLocalMerger" level="DEBUG"/>
+    <logger name="streamcomponents.ValidateAndDelete" level="DEBUG"/>
+    <root level="WARN">
+        <appender-ref ref="STDOUT" />
+    </root>
+
+</configuration>

@@ -1,12 +1,12 @@
 package models
 
 import java.time.{Instant, ZoneId, ZonedDateTime}
-
 import akka.stream.Materializer
 import com.om.mxs.client.japi.{MXFSFileAttributes, Vault}
 import helpers.MetadataHelper
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 case class ObjectMatrixEntry(oid:String, attributes:Option[MxsMetadata], fileAttribues:Option[FileAttributes]) {
   def getMxsObject(implicit vault:Vault) = vault.getObject(oid)
@@ -37,5 +37,13 @@ case class ObjectMatrixEntry(oid:String, attributes:Option[MxsMetadata], fileAtt
   def pathOrFilename = maybeGetPath() match {
     case Some(p)=>Some(p)
     case None=>maybeGetFilename()
+  }
+
+  def getFileSize:Option[Long] = longAttribute("__mxs__length") match {
+    case longResult@Some(_)=>longResult
+    case None=>
+      Try {
+        stringAttribute("__mxs__length").map(_.toLong)
+      }.toOption.flatten
   }
 }
