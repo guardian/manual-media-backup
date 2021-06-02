@@ -46,6 +46,10 @@ class FindRemoteFile(userInfo: UserInfo) extends GraphStage[FlowShape[FileEntry,
       }
   }
 
+  def callFindByFilename(vault: Vault, filepath: String) = MatrixStoreHelper.findByFilename(vault,filepath, Seq())
+
+  def callOpenVault(userInfo:UserInfo) = MatrixStore.openVault(userInfo)
+
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private var vault:Option[Vault] = _
 
@@ -57,7 +61,7 @@ class FindRemoteFile(userInfo: UserInfo) extends GraphStage[FlowShape[FileEntry,
       override def onPush(): Unit = {
         val elem = grab(in)
 
-        MatrixStoreHelper.findByFilename(vault.get, elem.localFile.filePath.toString, Seq()) match {
+        callFindByFilename(vault.get, elem.localFile.filePath.toString) match {
           case Success(foundFiles)=>
             if(foundFiles.isEmpty) {
               logger.warn(s"Could not find anything for ${elem.localFile.filePath.toString}")
@@ -86,7 +90,7 @@ class FindRemoteFile(userInfo: UserInfo) extends GraphStage[FlowShape[FileEntry,
 
     override def preStart(): Unit = {
       try {
-        vault = Some(MatrixStore.openVault(userInfo))
+        vault = Some(callOpenVault(userInfo))
       } catch {
         case err:Throwable=>
           logger.error(s"Could not connect to the vault at ${userInfo.getVault} on ${userInfo.getAddresses} with ${userInfo.getUser}: ${err.getMessage}", err)

@@ -43,29 +43,6 @@ object Main {
       .getOrElse(Seq())
   )
 
-  lazy val plutoCredentialsFile = requiredEnvironment("PLUTO_CREDENTIALS_FILE")
-  def getPlutoCommunicator:Try[ActorRef] = {
-    val propsFile = Try {
-      val prop = new Properties()
-
-      val f = new File(plutoCredentialsFile)
-      val strm = new FileInputStream(f)
-      prop.load(strm)
-      strm.close()
-      prop
-    }
-
-    propsFile.flatMap(properties=>{
-      val baseUri = Option(properties.getProperty("base-uri"))
-      val sharedSecret = Option(properties.getProperty("shared-secret"))
-
-      if(baseUri.isEmpty || sharedSecret.isEmpty){
-        Failure(new RuntimeException("Invalid properties. You must provide base-uri, user and password properties for pluto access"))
-      } else {
-        Success(actorSystem.actorOf(Props(new PlutoCommunicator(baseUri.get, sharedSecret.get))))
-      }
-    })
-  }
 
   /**
     * helper method that either gets the requested key from the environment or exits with an indicative
@@ -85,10 +62,6 @@ object Main {
 
   val sourceMediaPath = Paths.get(requiredEnvironment("SOURCE_MEDIA_PATH"))
   val proxyMediaPath = Paths.get(requiredEnvironment("PROXY_MEDIA_PATH"))
-  val proxyMediaPostfix = sys.env.get("PROXY_MEDIA_POSTFIX")
-  val proxyMediaXtnList = requiredEnvironment("PROXY_MEDIA_XTN").split(",").toList
-  val thumbnailPostfix = sys.env.get("THUMBNAIL_POSTFIX")
-  val thumbnailXtn = requiredEnvironment("THUMBNAIL_XTN")
 
   lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
@@ -168,5 +141,18 @@ object Main {
       }
     }
 
+    RunnableGraph
+      .fromGraph(buildStream(sourceMediaPath, destVaultInfo, false))
+      .run()
+      .onComplete({
+        case Success(_)=>
+          logger.info("All done")
+          actorSystem.terminate()
+        case Failure(err)=>
+          logger.error(s"Could not complete lookup: ${err.getMessage}", err)
+          actorSystem.terminate().andThen({
+            case _=>sys.exit(2)
+          })
+      })
   }
 }

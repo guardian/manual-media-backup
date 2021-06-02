@@ -43,7 +43,11 @@ class ValidateAndDelete(reallyDelete:Boolean) extends GraphStageWithMaterialized
             pull(in)
           } else {
             logger.info(s"${elem.localFile.filePath.toString} copy verified")
-            if(reallyDelete) doDelete(elem.localFile.filePath)
+            if(reallyDelete) {
+              doDelete(elem.localFile.filePath)
+            } else {
+              logger.info("Not deleting anything until reallyDelete is set")
+            }
             pull(in)
           }
         }
