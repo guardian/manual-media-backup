@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory
 
 import java.nio.file.{Files, Path}
 import scala.concurrent.{Future, Promise}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class ValidateAndDelete(reallyDelete:Boolean) extends GraphStageWithMaterializedValue[SinkShape[FileEntry], Future[Done]] {
   private final val logger = LoggerFactory.getLogger(getClass)
@@ -44,7 +44,10 @@ class ValidateAndDelete(reallyDelete:Boolean) extends GraphStageWithMaterialized
           } else {
             logger.info(s"${elem.localFile.filePath.toString} copy verified")
             if(reallyDelete) {
-              doDelete(elem.localFile.filePath)
+              doDelete(elem.localFile.filePath) match {
+                case Success(_)=>logger.info(s"Deleted ${elem.localFile.filePath}")
+                case Failure(err)=>logger.error(s"Could not delete ${elem.localFile.filePath}: $err")
+              }
             } else {
               logger.info("Not deleting anything until reallyDelete is set")
             }
@@ -63,5 +66,4 @@ class ValidateAndDelete(reallyDelete:Boolean) extends GraphStageWithMaterialized
     }
     (logic, completionPromise.future)
   }
-
 }

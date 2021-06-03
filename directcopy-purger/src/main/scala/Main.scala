@@ -40,6 +40,20 @@ object Main {
       .getOrElse(Seq())
   )
 
+  val canDelete = sys.env.get("REALLY_DELETE") match {
+    case Some(stringValue)=>
+      val cased = stringValue.toLowerCase()
+      if(cased=="yes" || cased=="true") {
+        logger.warn(s"REALLY_DELETE is set to $cased, I will actually delete stuff from online storage")
+        true
+      } else {
+        logger.info(s"REALLY_DELETE is set to $cased, nothing will be deleted")
+        false
+      }
+    case None=>
+      logger.info(s"REALLY_DELETE is not set. Set it in the environment to 'yes' or 'true' to delete stuff.")
+      false
+  }
 
   /**
     * helper method that either gets the requested key from the environment or exits with an indicative
@@ -116,7 +130,7 @@ object Main {
     GraphDSL.create(sinkFac) { implicit builder=> sink=>
       import akka.stream.scaladsl.GraphDSL.Implicits._
 
-      val src = builder.add(inputStream(startingPath))
+      val src = builder.add(inputStream(startingPath).async)
       val splitter = builder.add(Broadcast[FileEntry](2,false))
       val localChecksummer = builder.add((new LocalChecksum()).async)
       val remoteFinder = builder.add(parallelFindRemote(userInfo, 5))
@@ -161,7 +175,7 @@ object Main {
     }
 
     RunnableGraph
-      .fromGraph(buildStream(sourceMediaPath, destVaultInfo, false))
+      .fromGraph(buildStream(sourceMediaPath, destVaultInfo, canDelete))
       .run()
       .onComplete({
         case Success(_)=>
