@@ -9,7 +9,6 @@ import java.io.File
 import java.nio.file.Path
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Success, Try}
-import cats.implicits._
 
 object DirectCopier {
   /**
@@ -17,8 +16,11 @@ object DirectCopier {
     * @param destVaultInfo UserInfo object indicating the vault to open
     * @return either a Success with the given Copier initialised or a Failure indicating the problem
     */
-  def initialise(destVaultInfo:UserInfo, maybePathTransform:PathTransformSet) = Try {
-    new DirectCopier(MatrixStore.openVault(destVaultInfo), maybePathTransform)
+  def initialise(destVaultConnector:MXSConnectionBuilder, maybePathTransform:PathTransformSet) = {
+    destVaultConnector.build().flatMap(mxs=>Try {
+      val vault = mxs.openVault(destVaultConnector.vaultId)
+      new DirectCopier(vault, maybePathTransform)
+    })
   }
 }
 

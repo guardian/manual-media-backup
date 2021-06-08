@@ -11,8 +11,11 @@ object ProxyLinker {
   val ThumbnailField = "ATT_THUMB_OID"
   val MetaField = "ATT_META_OID"
 
-  def initialise(destVaultInfo:UserInfo) = Try {
-    new ProxyLinker(MatrixStore.openVault(destVaultInfo))
+  def initialise(destVaultConnector:MXSConnectionBuilder) = {
+    destVaultConnector.build().flatMap(mxs=>Try {
+      val vault = mxs.openVault(destVaultConnector.vaultId)
+      new ProxyLinker(vault)
+    })
   }
 }
 

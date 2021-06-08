@@ -4,6 +4,7 @@ import org.slf4j.LoggerFactory
 import scala.io.Source
 import scala.util.{Failure, Try}
 
+@deprecated
 case class UserInfoBuilder(cluster:Option[String],user:Option[String],
                            password:Option[String],vault:Option[String],addresses:Option[String],vaultName:Option[String],
                            protocol:Option[String],clusterPassword:Option[String]) {
@@ -20,6 +21,7 @@ case class UserInfoBuilder(cluster:Option[String],user:Option[String],
 
 }
 
+@deprecated
 object UserInfoBuilder {
   private val logger = LoggerFactory.getLogger(getClass)
 

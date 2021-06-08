@@ -50,6 +50,7 @@ lazy val `common` = (project in file("common"))
         "io.circe" %% "circe-generic" % circeVersion,
         "io.circe" %% "circe-parser" % circeVersion,
         "io.circe" %% "circe-java8" % circeVersion,
+        "io.circe" %% "circe-yaml" % "0.12.0",
         "org.slf4j" % "slf4j-api" % slf4jVersion,
         "commons-codec" % "commons-codec" % "1.12",
         "commons-io" % "commons-io" % "2.6",

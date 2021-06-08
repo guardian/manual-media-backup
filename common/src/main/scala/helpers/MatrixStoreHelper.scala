@@ -23,6 +23,7 @@ import scala.concurrent.{ExecutionContext, Future}
 object MatrixStoreHelper {
   private val logger = LoggerFactory.getLogger(getClass)
 
+  @deprecated
   def openVault(userInfo:UserInfo):Try[Vault] = Try {
     MatrixStore.openVault(userInfo)
   }

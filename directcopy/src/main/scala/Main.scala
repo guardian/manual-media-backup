@@ -79,8 +79,13 @@ object Main {
       sys.exit(1)
   }
 
-  lazy val destVaultInfo =
-      UserInfoBuilder.fromFile(requiredEnvironment("DEST_VAULT")).get //allow this to crash if we can't load the file, traceback will explain why
+  val destVaultInfo =
+      MXSConnectionBuilder.fromYamlFile(requiredEnvironment("DEST_VAULT")) match {
+        case Left(err)=>
+          logger.error(s"Can't read new-style credentials from ${sys.env.get("DEST_VAULT")}: $err")
+          sys.exit(1)
+        case Right(info)=>info
+      }
 
   val sourceMediaPath = Paths.get(requiredEnvironment("SOURCE_MEDIA_PATH"))
   val proxyMediaPath = Paths.get(requiredEnvironment("PROXY_MEDIA_PATH"))
