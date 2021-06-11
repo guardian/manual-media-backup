@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import scala.util.{Failure, Success, Try}
 
-class FindRemoteFile(userInfo: UserInfo, maybePathTransformSet: Option[PathTransformSet]=None) extends GraphStage[FlowShape[FileEntry, FileEntry]] {
+class FindRemoteFile(mxs:MatrixStore, vaultId:String, maybePathTransformSet: Option[PathTransformSet]=None) extends GraphStage[FlowShape[FileEntry, FileEntry]] {
   private final val logger = LoggerFactory.getLogger(getClass)
   private final val in:Inlet[FileEntry] = Inlet.create("FindRemoteFile.in")
   private final val out:Outlet[FileEntry] = Outlet.create("FindRemoteFile.out")
@@ -49,7 +49,7 @@ class FindRemoteFile(userInfo: UserInfo, maybePathTransformSet: Option[PathTrans
 
   def callFindByFilename(vault: Vault, filepath: String) = MatrixStoreHelper.findByFilename(vault,filepath, Seq("oid","__mxs__length"))
 
-  def callOpenVault(userInfo:UserInfo) = MatrixStore.openVault(userInfo)
+  def callOpenVault() = mxs.openVault(vaultId)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private var vault:Option[Vault] = _
@@ -106,10 +106,10 @@ class FindRemoteFile(userInfo: UserInfo, maybePathTransformSet: Option[PathTrans
 
     override def preStart(): Unit = {
       try {
-        vault = Some(callOpenVault(userInfo))
+        vault = Some(callOpenVault())
       } catch {
         case err:Throwable=>
-          logger.error(s"Could not connect to the vault at ${userInfo.getVault} on ${userInfo.getAddresses} with ${userInfo.getUser}: ${err.getMessage}", err)
+          logger.error(s"Could not connect to the vault: ${err.getMessage}", err)
           throw err
       }
     }

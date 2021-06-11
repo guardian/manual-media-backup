@@ -4,10 +4,11 @@ import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, SourceShape}
 import akka.stream.scaladsl.{Balance, Broadcast, GraphDSL, Merge, RunnableGraph, Sink}
 import streamcomponents.{FileListSource, FilterOutDirectories, FilterOutMacStuff, FindRemoteFile, LocalChecksum, RemoteLocalMerger, UTF8PathCharset, ValidateAndDelete}
 import akka.stream.scaladsl.GraphDSL.Implicits._
-import com.om.mxs.client.japi.UserInfo
+import com.om.mxs.client.japi.MatrixStore
 import helpers.{PlutoCommunicator, TrustStoreHelper}
 import models.{FileEntry, PathTransform, PathTransformSet}
 import org.slf4j.LoggerFactory
+
 import java.nio.file.{Path, Paths}
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -68,8 +69,13 @@ object Main {
       sys.exit(1)
   }
 
-  lazy val destVaultInfo =
-    UserInfoBuilder.fromFile(requiredEnvironment("DEST_VAULT")).get //allow this to crash if we can't load the file, traceback will explain why
+  val destVaultInfo =
+    MXSConnectionBuilder.fromYamlFile(requiredEnvironment("DEST_VAULT")) match {
+      case Left(err)=>
+        logger.error(s"Can't read new-style credentials from ${sys.env.get("DEST_VAULT")}: $err")
+        sys.exit(1)
+      case Right(info)=>info
+    }
 
   val sourceMediaPath = Paths.get(requiredEnvironment("SOURCE_MEDIA_PATH"))
   val proxyMediaPath = Paths.get(requiredEnvironment("PROXY_MEDIA_PATH"))
@@ -103,8 +109,8 @@ object Main {
     * @param paralellism number of instances to create
     * @return a graph with a single input and a single output that contains the given number of lookup tasks
     */
-  def parallelFindRemote(userInfo:UserInfo, paralellism:Int) = {
-    val findRemoteFileFactory = new FindRemoteFile(userInfo, Some(pathTransformList))
+  def parallelFindRemote(mxs:MatrixStore, paralellism:Int) = {
+    val findRemoteFileFactory = new FindRemoteFile(mxs, destVaultInfo.vaultId, Some(pathTransformList))
 
     GraphDSL.create() { implicit builder=>
       val splitter = builder.add(new Balance[FileEntry](paralellism,true,true))
@@ -124,7 +130,7 @@ object Main {
     * @param startingPath path at which to start recursive scan
     * @return a Graph, which resolves to a Future[Done] which completes when all processing is done
     */
-  def buildStream(startingPath:Path, userInfo:UserInfo, reallyDelete:Boolean) = {
+  def buildStream(startingPath:Path, mxs:MatrixStore, reallyDelete:Boolean) = {
     val sinkFac = new ValidateAndDelete(reallyDelete)
 
     GraphDSL.create(sinkFac) { implicit builder=> sink=>
@@ -133,7 +139,7 @@ object Main {
       val src = builder.add(inputStream(startingPath).async)
       val splitter = builder.add(Broadcast[FileEntry](2,false))
       val localChecksummer = builder.add((new LocalChecksum()).async)
-      val remoteFinder = builder.add(parallelFindRemote(userInfo, 5))
+      val remoteFinder = builder.add(parallelFindRemote(mxs, 5))
       val matcher = builder.add(new RemoteLocalMerger())
 
       src.out.map(FileEntry.fromPath).collect({ case Success(entry)=>entry }) ~> splitter
@@ -146,6 +152,13 @@ object Main {
     }
   }
 
+  val mxs = destVaultInfo.build() match {
+    case Failure(err)=>
+      logger.error(s"Could not establish connection to vault ${destVaultInfo.vaultId} on ${destVaultInfo.hosts} with key ID ${destVaultInfo.accessKeyId}: ${err.getMessage}")
+      sys.exit(1)
+    case Success(mxs)=>mxs
+  }
+
   /**
     * shuts down the actor system then exits the JVM.
     * @param exitCode
@@ -154,6 +167,12 @@ object Main {
   def terminate(exitCode:Int) = {
     import scala.concurrent.duration._
 
+    try {
+      mxs.closeConnection()
+    } catch {
+      case err:Throwable=>
+        logger.error(s"Could not close MatrixStore connection: ${err.getMessage}", err)
+    }
     Await.ready(actorSystem.terminate(), 1 minute)
     sys.exit(exitCode)
   }
@@ -175,7 +194,7 @@ object Main {
     }
 
     RunnableGraph
-      .fromGraph(buildStream(sourceMediaPath, destVaultInfo, canDelete))
+      .fromGraph(buildStream(sourceMediaPath, mxs, canDelete))
       .run()
       .onComplete({
         case Success(_)=>
