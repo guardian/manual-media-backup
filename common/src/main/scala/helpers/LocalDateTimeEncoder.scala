@@ -19,7 +19,7 @@ trait LocalDateTimeEncoder {
 
   implicit val decodeZonedDateTime: Decoder[ZonedDateTime] = (c: HCursor) => for {
     str <- c.value.as[String]
-  } yield ZonedDateTime.parse(str, dateTimeFormatter)
+  } yield ZonedDateTime.parse(str, DateTimeFormatter.ISO_DATE_TIME)
 }
 
 //also make it available as an importable object, as i have been having issues with retry-recursion when

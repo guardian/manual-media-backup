@@ -5,5 +5,5 @@ import java.time.{LocalDateTime, ZonedDateTime}
 
 case class CommissionRecord(id:Int, created: ZonedDateTime, updated:ZonedDateTime,
                             title: String, status: String, workingGroupId: Int,
-                            scheduledCompletion:LocalDateTime, owner:String,
+                            scheduledCompletion:ZonedDateTime, owner:String,
                             productionOffice:String)
