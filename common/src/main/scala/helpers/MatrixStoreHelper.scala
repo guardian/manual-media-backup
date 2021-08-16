@@ -96,7 +96,7 @@ object MatrixStoreHelper {
 
     val updatedIncludeFields = includeFields ++ Seq("__mxs__creationTime","__mxs__modifiedTime","__mxs__accessedTime","__mxs__length")
 
-    val baseSearch = SearchTerm.createSimpleTerm("MXFS_FILENAME", fileName)
+    val baseSearch = SearchTerm.createSimpleTerm("MXFS_PATH", fileName)
     val includeTerms = updatedIncludeFields.map(fieldName=>SearchTerm.createSimpleTerm("__mxs__rtn_attr", fieldName))
 
     val searchTerm = SearchTerm.createANDTerm((baseSearch +: includeTerms).toArray)

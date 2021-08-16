@@ -33,8 +33,8 @@ class ValidateAndDelete(reallyDelete:Boolean) extends GraphStageWithMaterialized
           if(elem.remoteFile.isEmpty) {
             logger.error(s"${elem.localFile.filePath.toString} had no remote file, this should not happen")
             val err = new RuntimeException("No remote file present for checking")
-            completionPromise.failure(err)
-            failStage(err)
+            //completionPromise.failure(err)
+            pull(in)
           } else if(elem.localFile.length!=elem.remoteFile.get.length) {
             logger.error(s"${elem.localFile.filePath.toString} file size mismatch: ${elem.localFile.length} local vs ${elem.remoteFile.get.length} remote")
             pull(in)

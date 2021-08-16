@@ -77,7 +77,7 @@ class FindRemoteFile(mxs:MatrixStore, vaultId:String, maybePathTransformSet: Opt
         callFindByFilename(vault.get, pathToFind) match {
           case Success(foundFiles)=>
             if(foundFiles.isEmpty) {
-              logger.warn(s"Could not find anything for ${elem.localFile.filePath.toString}")
+              logger.warn(s"Could not find anything for ${pathToFind} from ${elem.localFile.filePath}")
               counter+=1
               push(out, elem)
             } else if(foundFiles.length>1) {

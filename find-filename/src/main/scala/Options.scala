@@ -1,1 +1,1 @@
-case class Options (vaultFile:String="", searchPath:String="")
+case class Options (vaultFile:Option[String]=None, credentialsFile:Option[String]=None, searchPath:Option[String]=None)
