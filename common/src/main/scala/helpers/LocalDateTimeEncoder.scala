@@ -7,7 +7,8 @@ import io.circe.Decoder.Result
 import io.circe.{Decoder, Encoder, HCursor, Json}
 
 trait LocalDateTimeEncoder {
-  protected val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[.SSS][Z]")
+  //this string will match a bare datetime, a bare datetime with milliseconds [.SSS], zone-offsets +0000 or numbers [Z] or zone offset Z or numbers [X]
+  protected val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[.SSS][Z][X]")
 
   implicit val encodeLocalDateTime: Encoder[LocalDateTime] = (a: LocalDateTime) => Json.fromString(a.format(dateTimeFormatter))
 
