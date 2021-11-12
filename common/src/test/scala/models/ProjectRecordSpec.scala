@@ -162,5 +162,53 @@ class ProjectRecordSpec extends Specification with LocalDateTimeEncoder with Moc
         "UK"
       ))
     }
+
+    "parse no-subsecond timestamps" in {
+      val jsonSource = """{
+                         |    "status": "ok",
+                         |    "result": {
+                         |        "id": 1,
+                         |        "projectTypeId": 1,
+                         |        "vidispineId": "VX-1234",
+                         |        "title": "hgdhfhjhgjgff",
+                         |        "created": "2021-04-29T23:00:00Z",
+                         |        "updated": "2021-04-29T23:00:00Z",
+                         |        "user": "72adedb0-f332-488c-b393-d8482b229d8a",
+                         |        "workingGroupId": 1,
+                         |        "commissionId": 1,
+                         |        "deletable": true,
+                         |        "deep_archive": false,
+                         |        "sensitive": false,
+                         |        "status": "New",
+                         |        "productionOffice": "UK"
+                         |    }
+                         |}""".stripMargin
+      class TestPlutoCommFuncs extends PlutoCommunicatorFuncs {
+        override val plutoSharedSecret:String = "secret"
+        override val plutoBaseUri: String = "http://localhost"
+        override val logger = LoggerFactory.getLogger(getClass)
+        override val mat:Materializer = mock[Materializer]
+        override val system = mock[ActorSystem]
+      }
+
+      val toTest = new TestPlutoCommFuncs
+      val result = Await.result(toTest.contentBodyToJson[ProjectRecord](Future(jsonSource)), 5 seconds)
+      result must beSome(ProjectRecord(
+        1,
+        1,
+        Some("VX-1234"),
+        "hgdhfhjhgjgff",
+        ZonedDateTime.of(2021,4,29,23,0,0,0,ZoneId.of("Z")),
+        ZonedDateTime.of(2021,4,29,23,0,0,0,ZoneId.of("Z")),
+        "72adedb0-f332-488c-b393-d8482b229d8a",
+        Some(1),
+        Some(1),
+        Some(true),
+        Some(false),
+        Some(false),
+        "New",
+        "UK"
+      ))
+    }
   }
 }
