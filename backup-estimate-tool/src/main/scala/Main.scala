@@ -98,7 +98,7 @@ object Main {
     */
   def getObjectMatrixContent(userInfo:UserInfo) = {
     //we don't seem to get whatever field is first in the list :(
-    val searchTerm = SearchTerm.createSimpleTerm(Constants.CONTENT, "*\nkeywords: __mxs__id,MXFS_PATH,DPSP_SIZE,MXFS_MODIFICATION_TIME\n")
+    val searchTerm = SearchTerm.createSimpleTerm(Constants.CONTENT, "*\nkeywords: __mxs__id,__mxs__length,DPSP_SIZE,MXFS_MODIFICATION_TIME\n")
     val interestingFields = Array("MXFS_PATH","DPSP_SIZE","MXFS_MODIFICATION_TIME")
     val sinkFact = Sink.ignore
 
@@ -109,7 +109,7 @@ object Main {
       src.out
         .map(entry=>{
           try {
-            val fileSize = entry.attributes.get.stringValues("DPSP_SIZE").toLong
+            val fileSize = entry.attributes.get.stringValues("__mxs__length").toLong
             val modTimeMillis = entry.attributes.get.stringValues("MXFS_MODIFICATION_TIME").toLong
             val modTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(modTimeMillis), ZoneId.systemDefault())
             Some(BackupEstimateEntry(entry.pathOrFilename.get, fileSize, modTime))
