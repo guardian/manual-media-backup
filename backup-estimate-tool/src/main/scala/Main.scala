@@ -98,8 +98,8 @@ object Main {
     */
   def getObjectMatrixContent(userInfo:UserInfo) = {
     //we don't seem to get whatever field is first in the list :(
-    val searchTerm = SearchTerm.createSimpleTerm(Constants.CONTENT, "*\nkeywords: __mxs__id,MXFS_FILENAME,DPSP_SIZE,MXFS_MODIFICATION_TIME\n")
-    val interestingFields = Array("MXFS_FILENAME","DPSP_SIZE","MXFS_MODIFICATION_TIME")
+    val searchTerm = SearchTerm.createSimpleTerm(Constants.CONTENT, "*\nkeywords: __mxs__id,MXFS_PATH,DPSP_SIZE,MXFS_MODIFICATION_TIME\n")
+    val interestingFields = Array("MXFS_PATH","DPSP_SIZE","MXFS_MODIFICATION_TIME")
     val sinkFact = Sink.ignore
 
     val graph = GraphDSL.create(sinkFact) { implicit builder=> sink=>
@@ -112,7 +112,7 @@ object Main {
             val fileSize = entry.attributes.get.stringValues("DPSP_SIZE").toLong
             val modTimeMillis = entry.attributes.get.stringValues("MXFS_MODIFICATION_TIME").toLong
             val modTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(modTimeMillis), ZoneId.systemDefault())
-            Some(BackupEstimateEntry(entry.maybeGetFilename().get, fileSize, modTime))
+            Some(BackupEstimateEntry(entry.pathOrFilename.get, fileSize, modTime))
           } catch {
             case err:Throwable=>
               logger.warn(s"Could not inspect objectmatrix file $entry: ", err)
