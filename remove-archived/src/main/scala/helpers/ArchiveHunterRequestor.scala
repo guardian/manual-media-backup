@@ -23,7 +23,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:ActorSystem, implicit val mat:Materializer) {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private val secretKeySpec = new SecretKeySpec(key.getBytes, "HmacSHA256")
+  private val secretKeySpec = new SecretKeySpec(key.getBytes, "HmacSHA384")
 
   def currentTimeString = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("E, dd MMM y HH:mm:ss z"))
 
@@ -33,7 +33,7 @@ class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:Act
     val stringToSign = s"$httpDate\n${req.uri.path.toString()}"
     logger.debug(s"stringToSign is $stringToSign")
 
-    val mac = Mac.getInstance("HmacSHA256")
+    val mac = Mac.getInstance("HmacSHA384")
     mac.init(secretKeySpec)
     val resultBytes = mac.doFinal(stringToSign.getBytes)
 
