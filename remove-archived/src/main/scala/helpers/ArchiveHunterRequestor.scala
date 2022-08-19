@@ -44,7 +44,8 @@ class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:Act
     logger.debug(s"authHeader is ${authHeader.toString()}")
     val dateHeader = headers.RawHeader("Date",httpDate)
     logger.debug(s"dateHeader is ${dateHeader.toString()}")
-    req.withHeaders(authHeader, dateHeader)
+    val sumHeader = headers.RawHeader("X-Sha384-Checksum", s"string")
+    req.withHeaders(authHeader, dateHeader, sumHeader)
   }
 
   def decodeParsedData(parsedData:io.circe.Json) = {
