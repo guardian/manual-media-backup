@@ -3,11 +3,11 @@ package helpers
 import java.net.URLEncoder
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpHeader, HttpRequest}
 import akka.stream.Materializer
+
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import org.apache.commons.codec.binary.Base64
@@ -16,6 +16,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LoggingMagnet}
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
+import auth.HMAC.{generateHMAC, logger}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -39,9 +40,9 @@ class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:Act
 
     val signature = Base64.encodeBase64String(resultBytes)
     logger.debug(s"signature is $signature")
-    val authHeader = headers.RawHeader("X-Gu-Tools-HMAC-Token", s"HMAC $signature")
+    val authHeader = headers.RawHeader("Authorization", s"HMAC $signature")
     logger.debug(s"authHeader is ${authHeader.toString()}")
-    val dateHeader = headers.RawHeader("X-Gu-Tools-HMAC-Date",httpDate)
+    val dateHeader = headers.RawHeader("Date",httpDate)
     logger.debug(s"dateHeader is ${dateHeader.toString()}")
     req.withHeaders(authHeader, dateHeader)
   }

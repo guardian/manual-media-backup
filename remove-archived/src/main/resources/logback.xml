@@ -11,8 +11,8 @@
     </appender>
 
     <logger name="UserInfoBuilder$" level="WARN"/>
-    <logger name="helpers" level="INFO"/>
-    <logger name="Main$" level="INFO"/>
+    <logger name="helpers" level="DEBUG"/>
+    <logger name="Main$" level="DEBUG"/>
     <logger name="streamcomponents" level="WARN"/>
     <logger name="streamcomponents.OMFastSearchSource" level="WARN"/>
     <logger name="streamcomponents.OMDeleteSink" level="DEBUG"/>
