@@ -31,7 +31,8 @@ class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:Act
   def makeAuth(req:HttpRequest) = {
     val httpDate = currentTimeString
     logger.debug(s"date string is $httpDate")
-    val stringToSign = s"$httpDate\n0\nstring\nGET\n${req.uri.toString()}"
+    val accessURLSegment = req.uri.toString().replace("https://archivehunter.multimedia.gutools.co.uk", "")
+    val stringToSign = s"$httpDate\n0\nstring\nGET\n$accessURLSegment"
     logger.debug(s"stringToSign is $stringToSign")
 
     val mac = Mac.getInstance("HmacSHA384")
