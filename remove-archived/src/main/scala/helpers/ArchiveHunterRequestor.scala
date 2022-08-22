@@ -3,11 +3,11 @@ package helpers
 import java.net.URLEncoder
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpHeader, HttpRequest}
 import akka.stream.Materializer
-
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import org.apache.commons.codec.binary.Base64
@@ -16,7 +16,6 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LoggingMagnet}
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
-import auth.HMAC.{generateHMAC, logger}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
