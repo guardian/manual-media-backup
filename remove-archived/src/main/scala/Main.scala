@@ -11,7 +11,7 @@ import helpers.TrustStoreHelper
 import models.{ArchiveStatus, ObjectMatrixEntry, PotentialRemoveStreamObject}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ArchiveHunterExists, ArchiveHunterFileSizeSwitch, LocalFileExists, OMDeleteSink, OMFastSearchSource}
-
+import java.time.LocalDateTime
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -146,7 +146,7 @@ object Main {
     val totalSize = matchingRecords.foldLeft[Long](0L)((acc,elem)=>acc+getMaybeLocalSize(elem.omFile).getOrElse(0L))
     val totalCount = matchingRecords.length
 
-    val maybeCsvFut = outputTo.map(filename=>outputList(matchingRecords, filename))
+    val maybeCsvFut = outputTo.map(filename=>outputList(matchingRecords, filename.replace(".csv", s"-${LocalDateTime.now()}.csv")))
     (totalCount, totalSize, maybeCsvFut)
   }
 
