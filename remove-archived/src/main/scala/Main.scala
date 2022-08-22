@@ -54,7 +54,8 @@ object Main {
       throw new RuntimeException("should not get here")
   }
 
-  val maybeDeletionReportFile = sys.env.get("DELETION_REPORT_FILE")
+  val possiblyDeletionReportFile = sys.env.get("DELETION_REPORT_FILE")
+  val maybeDeletionReportFile = Option(possiblyDeletionReportFile.get.replace(".csv", s"-${LocalDateTime.now()}.csv"))
 
   lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
@@ -146,7 +147,7 @@ object Main {
     val totalSize = matchingRecords.foldLeft[Long](0L)((acc,elem)=>acc+getMaybeLocalSize(elem.omFile).getOrElse(0L))
     val totalCount = matchingRecords.length
 
-    val maybeCsvFut = outputTo.map(filename=>outputList(matchingRecords, filename.replace(".csv", s"-${LocalDateTime.now()}.csv")))
+    val maybeCsvFut = outputTo.map(filename=>outputList(matchingRecords, filename))
     (totalCount, totalSize, maybeCsvFut)
   }
 
