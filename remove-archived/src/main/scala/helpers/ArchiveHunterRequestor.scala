@@ -23,27 +23,29 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class ArchiveHunterRequestor(baseUri:String, key:String)(implicit val system:ActorSystem, implicit val mat:Materializer) {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private val secretKeySpec = new SecretKeySpec(key.getBytes, "HmacSHA256")
+  private val secretKeySpec = new SecretKeySpec(key.getBytes, "HmacSHA384")
 
   def currentTimeString = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("E, dd MMM y HH:mm:ss z"))
 
   def makeAuth(req:HttpRequest) = {
     val httpDate = currentTimeString
     logger.debug(s"date string is $httpDate")
-    val stringToSign = s"$httpDate\n${req.uri.path.toString()}"
+    val accessURLSegment = req.uri.toString().replace("https://archivehunter.multimedia.gutools.co.uk", "")
+    val stringToSign = s"$httpDate\n0\nstring\nGET\n$accessURLSegment"
     logger.debug(s"stringToSign is $stringToSign")
 
-    val mac = Mac.getInstance("HmacSHA256")
+    val mac = Mac.getInstance("HmacSHA384")
     mac.init(secretKeySpec)
     val resultBytes = mac.doFinal(stringToSign.getBytes)
 
     val signature = Base64.encodeBase64String(resultBytes)
     logger.debug(s"signature is $signature")
-    val authHeader = headers.RawHeader("X-Gu-Tools-HMAC-Token", s"HMAC $signature")
+    val authHeader = headers.RawHeader("Authorization", s"HMAC $signature")
     logger.debug(s"authHeader is ${authHeader.toString()}")
-    val dateHeader = headers.RawHeader("X-Gu-Tools-HMAC-Date",httpDate)
+    val dateHeader = headers.RawHeader("Date",httpDate)
     logger.debug(s"dateHeader is ${dateHeader.toString()}")
-    req.withHeaders(authHeader, dateHeader)
+    val sumHeader = headers.RawHeader("X-Sha384-Checksum", s"string")
+    req.withHeaders(authHeader, dateHeader, sumHeader)
   }
 
   def decodeParsedData(parsedData:io.circe.Json) = {

@@ -11,7 +11,7 @@ import helpers.TrustStoreHelper
 import models.{ArchiveStatus, ObjectMatrixEntry, PotentialRemoveStreamObject}
 import org.slf4j.LoggerFactory
 import streamcomponents.{ArchiveHunterExists, ArchiveHunterFileSizeSwitch, LocalFileExists, OMDeleteSink, OMFastSearchSource}
-
+import java.time.LocalDateTime
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -54,7 +54,8 @@ object Main {
       throw new RuntimeException("should not get here")
   }
 
-  val maybeDeletionReportFile = sys.env.get("DELETION_REPORT_FILE")
+  val possiblyDeletionReportFile = sys.env.get("DELETION_REPORT_FILE")
+  val maybeDeletionReportFile = Option(possiblyDeletionReportFile.get.replace(".csv", s"-${LocalDateTime.now()}.csv"))
 
   lazy val extraKeyStores = sys.env.get("EXTRA_KEY_STORES").map(_.split("\\s*,\\s*"))
 
